@@ -65,6 +65,12 @@ const zh = {
 	notAdmin: '输入的邮箱不是管理员邮箱',
 	emailExistDatabase: '有邮箱已存在数据库中',
 	notConfigOss: '对象存储未配置',
+	smtpNotConfigured: 'SMTP未配置，请在设置中配置SMTP',
+	smtpSendFailed: 'SMTP发送失败',
+	smtpConfigIncomplete: 'SMTP配置不完整，请填写服务器、用户名和密码',
+	smtpConnectionSuccess: 'SMTP连接成功',
+	smtpConnectionFailed: 'SMTP连接失败',
+	accountNotExist: '账号不存在',
 	perms: {
 		"邮件": "邮件",
 		"邮件发送": "邮件发送",

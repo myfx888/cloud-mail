@@ -65,6 +65,12 @@ const en = {
 	notAdmin: 'The entered email is not an administrator email',
 	emailExistDatabase: 'Email already exists in the database',
 	notConfigOss: 'Object storage not configured',
+	smtpNotConfigured: 'SMTP not configured, please configure SMTP in settings',
+	smtpSendFailed: 'SMTP send failed',
+	smtpConfigIncomplete: 'SMTP configuration incomplete, please fill in server, username and password',
+	smtpConnectionSuccess: 'SMTP connection successful',
+	smtpConnectionFailed: 'SMTP connection failed',
+	accountNotExist: 'Account does not exist',
 	perms: {
 		"邮件": "Emails",
 		"邮件发送": "Send Email",
