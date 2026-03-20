@@ -128,22 +128,13 @@ const smtpService = {
 	 * 通过SMTP发送邮件
 	 */
 	async send(c, emailData, smtpConfig) {
-		// 验证配置
 		this.validateSmtpConfig(smtpConfig);
-		
+
 		let mailer = null;
 		try {
-		// 验证配置
-		this.validateSmtpConfig(smtpConfig);
-		
-		try {
-		try {
-			// 确定安全设置
 			const isSecure = smtpConfig.secure === 1;
 			const useStartTls = !isSecure && smtpConfig.port === 587;
-			
-			// 连接SMTP服务器
-			// 连接SMTP服务器
+
 			mailer = await WorkerMailer.connect({
 				credentials: {
 					username: smtpConfig.user,
@@ -157,14 +148,12 @@ const smtpService = {
 				socketTimeoutMs: 30000,
 				responseTimeoutMs: 15000
 			});
-			
-			// 构建收件人列表
+
 			const recipients = emailData.recipient.map(r => ({
 				name: r.name || '',
 				email: r.address
 			}));
-			
-			// 发送邮件
+
 			await mailer.send({
 				from: {
 					name: emailData.name || smtpConfig.fromName || '',
@@ -177,19 +166,17 @@ const smtpService = {
 				attachments: this.formatAttachments(emailData.attachments),
 				headers: emailData.headers || {}
 			});
-			
-			// 返回成功结果
+
 			return {
+				messageId: `smtp-${Date.now()}@${smtpConfig.host}`
 			};
-			
+
 		} catch (error) {
 			console.error('SMTP发送失败:', error);
 			throw new BizError(t('smtpSendFailed') + ': ' + error.message);
 		} finally {
-			// 清理连接
 			if (mailer) {
 				try {
-					// 尝试关闭连接
 					if (typeof mailer.close === 'function') {
 						await mailer.close();
 					}
@@ -197,13 +184,6 @@ const smtpService = {
 					console.warn('关闭SMTP连接失败:', e);
 				}
 			}
-		}
-				messageId: `smtp-${Date.now()}@${smtpConfig.host}`
-			};
-			
-		} catch (error) {
-			console.error('SMTP发送失败:', error);
-			throw new BizError(t('smtpSendFailed') + ': ' + error.message);
 		}
 	},
 	
