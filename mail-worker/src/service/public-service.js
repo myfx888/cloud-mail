@@ -166,7 +166,9 @@ const publicService = {
 
 		const uuid = uuidv4();
 
-		await c.env.kv.put(KvConst.PUBLIC_KEY, uuid);
+		if (c.env.kv && c.env.kv.put) {
+			await c.env.kv.put(KvConst.PUBLIC_KEY, uuid);
+		}
 
 		return {token: uuid}
 	},

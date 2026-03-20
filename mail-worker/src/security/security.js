@@ -101,7 +101,7 @@ app.use('*', async (c, next) => {
 
 	if (path.startsWith('/public')) {
 
-		const userPublicToken = await c.env.kv.get(KvConst.PUBLIC_KEY);
+		const userPublicToken = c.env.kv && c.env.kv.get ? await c.env.kv.get(KvConst.PUBLIC_KEY) : null;
 		const publicToken = c.req.header(constant.TOKEN_HEADER);
 		if (publicToken !== userPublicToken) {
 			throw new BizError(t('publicTokenFail'), 401);
@@ -119,7 +119,7 @@ app.use('*', async (c, next) => {
 	}
 
 	const { userId, token } = result;
-	const authInfo = await c.env.kv.get(KvConst.AUTH_INFO + userId, { type: 'json' });
+	const authInfo = c.env.kv && c.env.kv.get ? await c.env.kv.get(KvConst.AUTH_INFO + userId, { type: 'json' }) : null;
 
 	if (!authInfo) {
 		throw new BizError(t('authExpired'), 401);
@@ -155,7 +155,9 @@ app.use('*', async (c, next) => {
 	if (!nowTime.isSame(refreshTime)) {
 		authInfo.refreshTime = dayjs().toISOString();
 		await userService.updateUserInfo(c, authInfo.user.userId);
-		await c.env.kv.put(KvConst.AUTH_INFO + userId, JSON.stringify(authInfo), { expirationTtl: constant.TOKEN_EXPIRE });
+		if (c.env.kv && c.env.kv.put) {
+			await c.env.kv.put(KvConst.AUTH_INFO + userId, JSON.stringify(authInfo), { expirationTtl: constant.TOKEN_EXPIRE });
+		}
 	}
 
 	c.set('user',authInfo.user)

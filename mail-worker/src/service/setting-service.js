@@ -32,9 +32,48 @@ const settingService = {
 		}
 
 		if (!setting) {
-			// 从数据库读取设置
-			setting = await orm(c).select().from(setting).get();
-			setting.resendTokens = JSON.parse(setting.resendTokens);
+			try {
+				// 从数据库读取设置
+				setting = await orm(c).select().from(setting).get();
+				setting.resendTokens = JSON.parse(setting.resendTokens);
+			} catch (error) {
+				// 数据库未初始化时返回默认设置
+				setting = {
+					register: 0,
+					receive: 0,
+					add_email: 0,
+					many_email: 0,
+					title: 'Cloud Mail',
+					auto_refresh: 0,
+					register_verify: 1,
+					add_email_verify: 1,
+					resendTokens: {},
+					send: 0,
+					r2_domain: '',
+					site_key: '',
+					background: '',
+					login_opacity: 0.90,
+					reg_key: 1,
+					notice_title: 'Cloud Mail',
+					notice_content: '',
+					notice_type: 'none',
+					notice_duration: 0,
+					notice_position: 'top-right',
+					notice_width: 340,
+					notice_offset: 0,
+					notice: 0,
+					login_domain: 0,
+					min_email_prefix: 1,
+					email_prefix_filter: '',
+					smtp_enabled: 0,
+					smtp_host: '',
+					smtp_port: 587,
+					smtp_user: '',
+					smtp_password: '',
+					smtp_secure: 0,
+					smtp_from_name: ''
+				};
+			}
 		}
 
 		let domainList = c.env.domain;

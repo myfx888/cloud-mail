@@ -96,7 +96,9 @@ const userService = {
 
 	async delete(c, userId) {
 		await orm(c).update(user).set({ isDel: isDel.DELETE }).where(eq(user.userId, userId)).run();
-		await c.env.kv.delete(kvConst.AUTH_INFO + userId)
+		if (c.env.kv && c.env.kv.delete) {
+			await c.env.kv.delete(kvConst.AUTH_INFO + userId)
+		}
 	},
 
 	async physicsDelete(c, params) {
@@ -250,7 +252,9 @@ const userService = {
 
 		const { password, userId } = params;
 		await this.resetPassword(c, { password }, userId);
-		await c.env.kv.delete(KvConst.AUTH_INFO + userId);
+		if (c.env.kv && c.env.kv.delete) {
+			await c.env.kv.delete(KvConst.AUTH_INFO + userId);
+		}
 	},
 
 	async setStatus(c, params) {
