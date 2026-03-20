@@ -19,3 +19,7 @@ export function setBackground(background) {
 export function deleteBackground() {
     return http.delete('/setting/deleteBackground')
 }
+
+export function verifySmtp(smtpConfig) {
+    return http.post('/smtp/verify', smtpConfig)
+}

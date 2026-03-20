@@ -797,7 +797,7 @@
 
 <script setup>
 import {computed, defineOptions, reactive, ref} from "vue";
-import {deleteBackground, setBackground, settingQuery, settingSet} from "@/request/setting.js";
+import {deleteBackground, setBackground, settingQuery, settingSet, verifySmtp} from "@/request/setting.js";
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
@@ -1362,7 +1362,7 @@ async function verifySmtpConfig() {
   smtpVerifying.value = true
 
   try {
-    const res = await settingApi.verifySmtp({
+    const res = await verifySmtp({
       smtpHost: setting.value.smtpHost,
       smtpPort: setting.value.smtpPort,
       smtpUser: setting.value.smtpUser,
