@@ -324,7 +324,25 @@ const en = {
     searchUser: 'Search by user',
     searchEmail: 'Search by Email',
     searchSender: 'Search by Sender',
-    userEmail: 'Email Address'
+    userEmail: 'Email Address',
+    smtpSetting: 'SMTP Settings',
+    smtpEnabled: 'Enable SMTP',
+    smtpHost: 'SMTP Server',
+    smtpPort: 'SMTP Port',
+    smtpUser: 'SMTP Username',
+    smtpPassword: 'SMTP Password',
+    smtpSecure: 'Encryption',
+    smtpFromName: 'From Name',
+    smtpVerify: 'Test Connection',
+    smtpConnectionSuccess: 'Connection successful',
+    smtpConnectionFailed: 'Connection failed',
+    smtpHostRequired: 'Please enter SMTP server',
+    smtpPortInvalid: 'Invalid port number',
+    smtpUserRequired: 'Please enter SMTP username',
+    smtpPasswordRequired: 'Please enter SMTP password',
+    test: 'Test',
+    sendMethod: 'Send Method',
+    resend: 'Resend',
+    smtp: 'SMTP'
 }
-
 export default en

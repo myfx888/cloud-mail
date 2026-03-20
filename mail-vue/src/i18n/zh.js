@@ -324,6 +324,25 @@ const zh = {
     searchUser: '搜索用户',
     searchEmail: '搜索邮箱',
     searchSender: '搜索发件人',
-    userEmail: '用户邮箱'
+    userEmail: '用户邮箱',
+    smtpSetting: 'SMTP 设置',
+    smtpEnabled: '启用 SMTP',
+    smtpHost: 'SMTP 服务器',
+    smtpPort: 'SMTP 端口',
+    smtpUser: 'SMTP 用户名',
+    smtpPassword: 'SMTP 密码',
+    smtpSecure: '加密方式',
+    smtpFromName: '发件人名称',
+    smtpVerify: '测试连接',
+    smtpConnectionSuccess: '连接成功',
+    smtpConnectionFailed: '连接失败',
+    smtpHostRequired: '请输入 SMTP 服务器',
+    smtpPortInvalid: '端口号无效',
+    smtpUserRequired: '请输入 SMTP 用户名',
+    smtpPasswordRequired: '请输入 SMTP 密码',
+    test: '测试',
+    sendMethod: '发送方式',
+    resend: 'Resend',
+    smtp: 'SMTP'
 }
 export default zh
