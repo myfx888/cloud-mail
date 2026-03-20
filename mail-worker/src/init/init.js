@@ -42,6 +42,50 @@ const dbInit = {
 	},
 
 	async v3_0DB(c) {
+		// setting表添加SMTP配置字段
+		const settingMigrations = [
+			`ALTER TABLE setting ADD COLUMN smtp_enabled INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE setting ADD COLUMN smtp_host TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE setting ADD COLUMN smtp_port INTEGER NOT NULL DEFAULT 587;`,
+			`ALTER TABLE setting ADD COLUMN smtp_user TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE setting ADD COLUMN smtp_password TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE setting ADD COLUMN smtp_secure INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE setting ADD COLUMN smtp_from_name TEXT NOT NULL DEFAULT '';`
+		];
+		
+		for (const sql of settingMigrations) {
+			try {
+				await c.env.db.prepare(sql).run();
+			} catch (e) {
+				console.warn(`跳过字段：${e.message}`);
+			}
+		}
+		
+		// account表添加SMTP配置字段
+		const accountMigrations = [
+			`ALTER TABLE account ADD COLUMN smtp_override INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE account ADD COLUMN smtp_host TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE account ADD COLUMN smtp_port INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE account ADD COLUMN smtp_user TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE account ADD COLUMN smtp_password TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE account ADD COLUMN smtp_secure INTEGER NOT NULL DEFAULT -1;`
+		];
+		
+		for (const sql of accountMigrations) {
+			try {
+				await c.env.db.prepare(sql).run();
+			} catch (e) {
+				console.warn(`跳过字段：${e.message}`);
+			}
+		}
+		
+		// email表添加发送方式字段
+		try {
+			await c.env.db.prepare(`ALTER TABLE email ADD COLUMN send_method TEXT NOT NULL DEFAULT 'resend';`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+	},
 		try {
 			// setting表添加SMTP配置字段
 			await c.env.db.batch([

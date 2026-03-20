@@ -265,7 +265,7 @@ const accountService = {
 		let mainSort = mainAccountRow.sort === 0 ? 2 : mainAccountRow.sort + 1;
 		await orm(c).update(account).set({ sort: mainSort }).where(eq(account.email, userRow.email )).run();
 		await orm(c).update(account).set({ sort: mainSort - 1 }).where(and(eq(account.accountId, accountId),eq(account.userId,userId))).run();
-	},
+	}
 
 	async updateSmtpConfig(c, accountId, config) {
 		const updateData = {
@@ -282,7 +282,6 @@ const accountService = {
 		}
 		
 		await orm(c).update(account).set(updateData).where(eq(account.accountId, accountId)).run();
-	}
 	}
 };
 

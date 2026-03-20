@@ -5,6 +5,81 @@ import accountService from './account-service';
 import settingService from './setting-service';
 
 const smtpService = {
+
+	/**
+	 * 验证SMTP主机是否安全（防止SSRF攻击）
+	 * 阻止对私有IP地址的连接
+	 */
+	isValidSmtpHost(host) {
+		// 私有IP地址模式
+		const privatePatterns = [
+			/^127\./,           // 127.0.0.0/8
+			/^10\./,            // 10.0.0.0/8
+			/^172\.(1[6-9]|2[0-9]|3[0-1])\./,  // 172.16.0.0/12
+			/^192\.168\./,       // 192.168.0.0/16
+			/^169\.254\./,       // 169.254.0.0/16 (链路本地)
+			/^::1$/,            // IPv6回环
+			/^fe80:/i,          // IPv6链路本地
+			/^fc00:/i,          // IPv6私有地址
+			/^fd[0-9a-f]{2}:/i, // IPv6私有地址
+		];
+		
+		// 检查是否为私有IP
+		for (const pattern of privatePatterns) {
+			if (pattern.test(host)) {
+				return false;
+			}
+		}
+		
+		// 检查常见内部主机名
+		const internalHostnames = ['localhost', 'local', 'internal'];
+		const hostLower = host.toLowerCase();
+		for (const hostname of internalHostnames) {
+			if (hostLower.includes(hostname)) {
+				return false;
+			}
+		}
+		
+		return true;
+	},
+	
+	/**
+	 * 验证SMTP配置完整性
+	 */
+	validateSmtpConfig(smtpConfig) {
+		// 验证主机
+		if (!smtpConfig.host) {
+			throw new BizError(t('smtpHostRequired'));
+		}
+		
+		if (smtpConfig.host.length > 253) {
+			throw new BizError(t('smtpHostTooLong'));
+		}
+		
+		if (!this.isValidSmtpHost(smtpConfig.host)) {
+			throw new BizError(t('smtpHostInvalid'));
+		}
+		
+		// 验证端口
+		const port = Number(smtpConfig.port);
+		if (isNaN(port) || port < 1 || port > 65535) {
+			throw new BizError(t('smtpPortInvalid'));
+		}
+		
+		// 验证用户名
+		if (!smtpConfig.user) {
+			throw new BizError(t('smtpUserRequired'));
+		}
+		
+		if (smtpConfig.user.length > 255) {
+			throw new BizError(t('smtpUserTooLong'));
+		}
+		
+		// 验证密码
+		if (!smtpConfig.password) {
+			throw new BizError(t('smtpPasswordRequired'));
+		}
+	},
 	
 	/**
 	 * 获取有效的SMTP配置
@@ -53,13 +128,23 @@ const smtpService = {
 	 * 通过SMTP发送邮件
 	 */
 	async send(c, emailData, smtpConfig) {
+		// 验证配置
+		this.validateSmtpConfig(smtpConfig);
+		
+		let mailer = null;
+		try {
+		// 验证配置
+		this.validateSmtpConfig(smtpConfig);
+		
+		try {
 		try {
 			// 确定安全设置
 			const isSecure = smtpConfig.secure === 1;
 			const useStartTls = !isSecure && smtpConfig.port === 587;
 			
 			// 连接SMTP服务器
-			const mailer = await WorkerMailer.connect({
+			// 连接SMTP服务器
+			mailer = await WorkerMailer.connect({
 				credentials: {
 					username: smtpConfig.user,
 					password: smtpConfig.password
@@ -95,7 +180,24 @@ const smtpService = {
 			
 			// 返回成功结果
 			return {
-				success: true,
+			};
+			
+		} catch (error) {
+			console.error('SMTP发送失败:', error);
+			throw new BizError(t('smtpSendFailed') + ': ' + error.message);
+		} finally {
+			// 清理连接
+			if (mailer) {
+				try {
+					// 尝试关闭连接
+					if (typeof mailer.close === 'function') {
+						await mailer.close();
+					}
+				} catch (e) {
+					console.warn('关闭SMTP连接失败:', e);
+				}
+			}
+		}
 				messageId: `smtp-${Date.now()}@${smtpConfig.host}`
 			};
 			

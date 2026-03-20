@@ -192,6 +192,69 @@
             </div>
           </div>
 
+          <!-- SMTP Settings Card -->
+          <div class="settings-card">
+            <div class="card-title">{{ $t('smtpSetting') }}</div>
+            <div class="card-content">
+              <div class="setting-item">
+                <div><span>{{ $t('smtpEnabled') }}</span></div>
+                <div>
+                  <el-switch @change="change" :before-change="beforeChange" :active-value="1" :inactive-value="0"
+                             v-model="setting.smtpEnabled"/>
+                </div>
+              </div>
+              <template v-if="setting.smtpEnabled">
+                <div class="setting-item">
+                  <div><span>{{ $t('smtpHost') }}</span></div>
+                  <div>
+                    <el-input size="small" style="width: 180px" @change="change" v-model="setting.smtpHost" placeholder="smtp.example.com"/>
+                  </div>
+                </div>
+                <div class="setting-item">
+                  <div><span>{{ $t('smtpPort') }}</span></div>
+                  <div>
+                    <el-input-number size="small" @change="change" v-model="setting.smtpPort" :min="1" :max="65535"/>
+                  </div>
+                </div>
+                <div class="setting-item">
+                  <div><span>{{ $t('smtpUser') }}</span></div>
+                  <div>
+                    <el-input size="small" style="width: 180px" @change="change" v-model="setting.smtpUser" placeholder="user@example.com"/>
+                  </div>
+                </div>
+                <div class="setting-item">
+                  <div><span>{{ $t('smtpPassword') }}</span></div>
+                  <div>
+                    <el-input size="small" type="password" show-password style="width: 180px" @change="change" v-model="setting.smtpPassword"/>
+                  </div>
+                </div>
+                <div class="setting-item">
+                  <div><span>{{ $t('smtpSecure') }}</span></div>
+                  <div>
+                    <el-select size="small" @change="change" :style="`width: ${ locale === 'en' ? 140 : 100 }px;`" v-model="setting.smtpSecure">
+                      <el-option :value="0" label="STARTTLS"/>
+                      <el-option :value="1" label="SSL/TLS"/>
+                    </el-select>
+                  </div>
+                </div>
+                <div class="setting-item">
+                  <div><span>{{ $t('smtpFromName') }}</span></div>
+                  <div>
+                    <el-input size="small" style="width: 180px" @change="change" v-model="setting.smtpFromName" :placeholder="$t('optional')"/>
+                  </div>
+                </div>
+                <div class="setting-item">
+                  <div><span>{{ $t('smtpVerify') }}</span></div>
+                  <div>
+                    <el-button size="small" type="primary" :loading="smtpVerifying" @click="verifySmtpConfig">
+                      {{ $t('test') }}
+                    </el-button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Object Storage Card -->
           <div class="settings-card">
             <div class="card-title">{{ $t('oss') }}</div>
@@ -778,6 +841,7 @@ const uiStore = useUiStore();
 const {settings: setting} = storeToRefs(settingStore);
 const editTitle = ref('')
 const settingLoading = ref(false)
+const smtpVerifying = ref(false)
 const clearS3Loading = ref(false)
 const r2DomainInput = ref('')
 const loginOpacity = ref(0)
@@ -1291,6 +1355,31 @@ function jump(href) {
   doc.href = href
   doc.target = '_blank'
   doc.click()
+}
+
+async function verifySmtpConfig() {
+  if (smtpVerifying.value) return
+  smtpVerifying.value = true
+
+  try {
+    const res = await settingApi.verifySmtp({
+      smtpHost: setting.value.smtpHost,
+      smtpPort: setting.value.smtpPort,
+      smtpUser: setting.value.smtpUser,
+      smtpPassword: setting.value.smtpPassword,
+      smtpSecure: setting.value.smtpSecure
+    })
+
+    if (res.data.success) {
+      ElMessage.success(t('smtpConnectionSuccess'))
+    } else {
+      ElMessage.error(t('smtpConnectionFailed') + ': ' + res.data.message)
+    }
+  } catch (e) {
+    ElMessage.error(t('smtpConnectionFailed') + ': ' + (e.message || 'Unknown error'))
+  } finally {
+    smtpVerifying.value = false
+  }
 }
 
 function editSetting(settingForm, refreshStatus = true) {

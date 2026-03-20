@@ -348,6 +348,7 @@ const emailService = {
 		emailData.type = emailConst.type.SEND;
 		emailData.userId = userId;
 		emailData.resendEmailId = messageId;
+		emailData.sendMethod = actualSendMethod;
 
 		const recipient = [];
 
