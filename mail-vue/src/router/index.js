@@ -51,6 +51,16 @@ const routes = [
                     menu: true
                 }
             },
+            {
+                path: '/account',
+                name: 'account',
+                component: () => import('@/views/account/index.vue'),
+                meta: {
+                    title: 'emailAccounts',
+                    name: 'account',
+                    menu: true
+                }
+            },
         ]
 
     },
