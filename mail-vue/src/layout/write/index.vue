@@ -62,6 +62,14 @@
             </div>
           </div>
           <div>
+            <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;">
+              <el-radio-button value="resend">Resend</el-radio-button>
+              <el-radio-button value="smtp">SMTP</el-radio-button>
+            </el-radio-group>
+            <el-button type="primary" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
+            <el-button type="primary" @click="sendEmail" v-else-if="form.sendType === 'forward'">{{ $t('forward') }}</el-button>
+            <el-button type="primary" @click="sendEmail" v-else>{{ $t('send') }}</el-button>
+          </div>
             <el-button type="primary" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
             <el-button type="primary" @click="sendEmail" v-else-if="form.sendType === 'forward'">{{ $t('forward') }}</el-button>
             <el-button type="primary" @click="sendEmail" v-else>{{ $t('send') }}</el-button>
@@ -146,6 +154,19 @@ const backReply = reactive({
   sendType: ''
 })
 const form = reactive({
+  sendEmail: '',
+  receiveEmail: [],
+  accountId: -1,
+  name: '',
+  subject: '',
+  content: '',
+  sendType: '',
+  text: '',
+  emailId: 0,
+  attachments: [],
+  draftId: null,
+  sendMethod: 'resend',
+})
   sendEmail: '',
   receiveEmail: [],
   accountId: -1,
