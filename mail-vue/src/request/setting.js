@@ -25,13 +25,13 @@ export function verifySmtp(smtpConfig) {
 }
 
 export function getSmtpAccountConfig(accountId) {
-    return http.get(`/smtp/account/${accountId}/config`)
+    return http.get('/smtp/account-config', { params: { accountId } })
 }
 
 export function saveSmtpAccountConfig(accountId, smtpConfig) {
-    return http.put(`/smtp/account/${accountId}/config`, smtpConfig)
+    return http.post('/smtp/account-config', { ...smtpConfig, accountId })
 }
 
 export function verifySmtpAccountConfig(accountId, smtpConfig) {
-    return http.post(`/smtp/account/${accountId}/verify`, smtpConfig)
+    return http.post('/smtp/verify-account', { ...smtpConfig, accountId })
 }

@@ -68,7 +68,8 @@ const dbInit = {
 			`ALTER TABLE account ADD COLUMN smtp_port INTEGER NOT NULL DEFAULT 0;`,
 			`ALTER TABLE account ADD COLUMN smtp_user TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE account ADD COLUMN smtp_password TEXT NOT NULL DEFAULT '';`,
-			`ALTER TABLE account ADD COLUMN smtp_secure INTEGER NOT NULL DEFAULT -1;`
+			`ALTER TABLE account ADD COLUMN smtp_secure INTEGER NOT NULL DEFAULT -1;`,
+			`ALTER TABLE account ADD COLUMN signature TEXT NOT NULL DEFAULT '';`
 		];
 		
 		for (const sql of accountMigrations) {

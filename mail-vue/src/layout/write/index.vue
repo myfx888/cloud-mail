@@ -528,7 +528,7 @@ async function open() {
   if (form.accountId > 0) {
     try {
       const config = await getSmtpAccountConfig(form.accountId);
-      if (config.signature) {
+      if (config && config.signature) {
         // 在编辑器中添加签名
         setTimeout(() => {
           const content = editor.value.getContent();
@@ -541,6 +541,7 @@ async function open() {
       }
     } catch (error) {
       console.error('获取签名失败:', error);
+      // 即使获取签名失败，也继续打开编辑界面
     }
   }
   

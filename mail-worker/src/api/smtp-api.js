@@ -57,7 +57,13 @@ app.get('/smtp/account-config', async (c) => {
 	const { accountId } = c.req.query();
 	const userId = userContext.getUserId(c);
 	
-	const accountRow = await accountService.selectById(c, accountId);
+	// 确保accountId是数字
+	const numericAccountId = parseInt(accountId, 10);
+	if (isNaN(numericAccountId)) {
+		throw new BizError(t('accountNotExist'));
+	}
+	
+	const accountRow = await accountService.selectById(c, numericAccountId);
 	if (!accountRow || accountRow.userId !== userId) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -69,7 +75,7 @@ app.get('/smtp/account-config', async (c) => {
 			smtpPort: accountRow.smtpPort,
 			smtpUser: accountRow.smtpUser,
 			smtpSecure: accountRow.smtpSecure,
-			signature: accountRow.signature
+			signature: accountRow.signature || ''
 		};
 	
 	return c.json(result.ok(config));
