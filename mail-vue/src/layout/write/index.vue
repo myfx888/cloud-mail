@@ -163,18 +163,6 @@ const form = reactive({
   draftId: null,
   sendMethod: 'resend',
 })
-  sendEmail: '',
-  receiveEmail: [],
-  accountId: -1,
-  name: '',
-  subject: '',
-  content: '',
-  sendType: '',
-  text: '',
-  emailId: 0,
-  attachments: [],
-  draftId: null,
-})
 
 const selectRecipientList = ref([])
 
