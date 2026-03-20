@@ -46,6 +46,13 @@ export const setting = sqliteTable('setting', {
 	tgMsgTo: text('tg_msg_to').default('show').notNull(),
 	tgMsgText: text('tg_msg_text').default('hide').notNull(),
 	minEmailPrefix: integer('min_email_prefix').default(0).notNull(),
-	emailPrefixFilter: text('email_prefix_filter').default('').notNull()
+	emailPrefixFilter: text('email_prefix_filter').default('').notNull(),
+	smtpEnabled: integer('smtp_enabled').default(0).notNull(),
+	smtpHost: text('smtp_host').default('').notNull(),
+	smtpPort: integer('smtp_port').default(587).notNull(),
+	smtpUser: text('smtp_user').default('').notNull(),
+	smtpPassword: text('smtp_password').default('').notNull(),
+	smtpSecure: integer('smtp_secure').default(0).notNull(),
+	smtpFromName: text('smtp_from_name').default('').notNull()
 });
 export default setting

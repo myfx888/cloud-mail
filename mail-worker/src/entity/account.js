@@ -11,5 +11,11 @@ export const account = sqliteTable('account', {
 	allReceive: integer('all_receive').default(0).notNull(),
 	sort: integer('sort').default(0).notNull(),
 	isDel: integer('is_del').default(0).notNull(),
+	smtpOverride: integer('smtp_override').default(0).notNull(),
+	smtpHost: text('smtp_host').default('').notNull(),
+	smtpPort: integer('smtp_port').default(0).notNull(),
+	smtpUser: text('smtp_user').default('').notNull(),
+	smtpPassword: text('smtp_password').default('').notNull(),
+	smtpSecure: integer('smtp_secure').default(-1).notNull()
 });
 export default account
