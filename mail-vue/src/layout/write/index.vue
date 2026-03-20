@@ -102,6 +102,7 @@ import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed} fro
 import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
+import {getSmtpAccountConfig} from "@/request/setting.js";
 import {isEmail} from "@/utils/verify-utils.js";
 import {useAccountStore} from "@/store/account.js";
 import {useEmailStore} from "@/store/email.js";
@@ -448,11 +449,11 @@ function openForward(email) {
 
   defValue.value = ''
 
-  setTimeout(() => {
+  setTimeout(async () => {
     defValue.value = `
       ${formatImage(email.content) || `<pre style="font-family: inherit;word-break: break-word;white-space: pre-wrap;margin: 0">${email.text}</pre>`}
     `
-    open()
+    await open()
 
     nextTick(() => {
       backReply.content = editor.value.getContent()
@@ -481,7 +482,7 @@ function openReply(email) {
 
   defValue.value = ''
 
-  setTimeout(() => {
+  setTimeout(async () => {
     defValue.value = `
     <div></div>
     <div>
@@ -493,7 +494,7 @@ function openReply(email) {
           ${formatImage(email.content) || `<pre style="font-family: inherit;word-break: break-word;white-space: pre-wrap;margin: 0">${email.text}</pre>`}
       </article>
     </blockquote>`
-    open()
+    await open()
 
     nextTick(() => {
       backReply.content = editor.value.getContent()
@@ -511,7 +512,7 @@ function formatImage(content) {
   return content.replace(/{{domain}}/g, toOssDomain(domain) + '/');
 }
 
-function open() {
+async function open() {
   if (!accountStore.currentAccount.email) {
     form.sendEmail = userStore.user.email;
     form.accountId = userStore.user.account.accountId;
@@ -522,6 +523,27 @@ function open() {
     form.name = accountStore.currentAccount.name;
   }
   show.value = true;
+  
+  // 获取当前账户的签名信息
+  if (form.accountId > 0) {
+    try {
+      const config = await getSmtpAccountConfig(form.accountId);
+      if (config.signature) {
+        // 在编辑器中添加签名
+        setTimeout(() => {
+          const content = editor.value.getContent();
+          if (!content) {
+            editor.value.setContent(config.signature);
+          } else {
+            editor.value.setContent(content + '<br><br>' + config.signature);
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error('获取签名失败:', error);
+    }
+  }
+  
   editor.value.focus()
 }
 

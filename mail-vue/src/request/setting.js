@@ -23,3 +23,15 @@ export function deleteBackground() {
 export function verifySmtp(smtpConfig) {
     return http.post('/smtp/verify', smtpConfig)
 }
+
+export function getSmtpAccountConfig(accountId) {
+    return http.get(`/smtp/account/${accountId}/config`)
+}
+
+export function saveSmtpAccountConfig(accountId, smtpConfig) {
+    return http.put(`/smtp/account/${accountId}/config`, smtpConfig)
+}
+
+export function verifySmtpAccountConfig(accountId, smtpConfig) {
+    return http.post(`/smtp/account/${accountId}/verify`, smtpConfig)
+}

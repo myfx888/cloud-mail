@@ -63,13 +63,14 @@ app.get('/smtp/account-config', async (c) => {
 	}
 	
 	// 返回配置（隐藏密码）
-	const config = {
-		smtpOverride: accountRow.smtpOverride,
-		smtpHost: accountRow.smtpHost,
-		smtpPort: accountRow.smtpPort,
-		smtpUser: accountRow.smtpUser,
-		smtpSecure: accountRow.smtpSecure
-	};
+		const config = {
+			smtpOverride: accountRow.smtpOverride,
+			smtpHost: accountRow.smtpHost,
+			smtpPort: accountRow.smtpPort,
+			smtpUser: accountRow.smtpUser,
+			smtpSecure: accountRow.smtpSecure,
+			signature: accountRow.signature
+		};
 	
 	return c.json(result.ok(config));
 });
@@ -85,14 +86,15 @@ app.post('/smtp/account-config', async (c) => {
 	}
 	
 	// 更新账号SMTP配置
-	await accountService.updateSmtpConfig(c, params.accountId, {
-		smtpOverride: params.smtpOverride,
-		smtpHost: params.smtpHost,
-		smtpPort: params.smtpPort,
-		smtpUser: params.smtpUser,
-		smtpPassword: params.smtpPassword,
-		smtpSecure: params.smtpSecure
-	});
+		await accountService.updateSmtpConfig(c, params.accountId, {
+			smtpOverride: params.smtpOverride,
+			smtpHost: params.smtpHost,
+			smtpPort: params.smtpPort,
+			smtpUser: params.smtpUser,
+			smtpPassword: params.smtpPassword,
+			smtpSecure: params.smtpSecure,
+			signature: params.signature
+		});
 	
 	return c.json(result.ok());
 });

@@ -273,7 +273,8 @@ const accountService = {
 			smtpHost: config.smtpHost,
 			smtpPort: config.smtpPort,
 			smtpUser: config.smtpUser,
-			smtpSecure: config.smtpSecure
+			smtpSecure: config.smtpSecure,
+			signature: config.signature || ''
 		};
 		
 		// 只有提供密码时才更新
