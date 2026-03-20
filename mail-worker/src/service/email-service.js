@@ -21,6 +21,7 @@ import domainUtils from '../utils/domain-uitls';
 import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
+import smtpService from './smtp-service';
 
 const emailService = {
 
@@ -160,7 +161,8 @@ const emailService = {
 			text, //邮件纯文本
 			content, //邮件内容
 			subject, //邮件标题
-			attachments //附件
+			attachments, //附件
+			sendMethod //发送方式：resend或smtp
 		} = params;
 
 		const { resendTokens, r2Domain, send, domainList } = await settingService.query(c);
@@ -256,38 +258,77 @@ const emailService = {
 
 		}
 
-		let resendResult = {};
+		let sendResult = {};
+		let actualSendMethod = sendMethod || emailConst.sendMethod.RESEND;
 
-		//存在站外时邮箱全部由resend发送
+		// 存在站外邮箱时需要发送
 		if (!allInternal) {
-
-			const resend = new Resend(resendToken);
-
-			const sendForm = {
-				from: `${name} <${accountRow.email}>`,
-				to: [...receiveEmail],
-				subject: subject,
-				text: text,
-				html: html,
-				attachments: [...imageDataList, ...attachments]
-			};
-
-			if (sendType === 'reply') {
-				sendForm.headers = {
-					'in-reply-to': emailRow.messageId,
-					'references': emailRow.messageId
+			if (actualSendMethod === emailConst.sendMethod.SMTP) {
+				// 使用SMTP发送
+				const smtpConfig = await smtpService.getSmtpConfig(c, accountId);
+				
+				if (!smtpConfig.enabled) {
+					throw new BizError(t('smtpNotConfigured'));
+				}
+				
+				const emailPayload = {
+					sendEmail: accountRow.email,
+					name: name,
+					recipient: receiveEmail.map(email => ({ address: email, name: '' })),
+					subject: subject,
+					text: text,
+					content: html,
+					attachments: [...imageDataList, ...attachments],
+					headers: sendType === 'reply' ? {
+						'In-Reply-To': emailRow.messageId,
+						'References': emailRow.messageId
+					} : {}
 				};
-			}
+				
+				sendResult = await smtpService.send(c, emailPayload, smtpConfig);
+				
+			} else {
+				// 使用Resend发送（现有逻辑）
+				if (!resendToken) {
+					throw new BizError(t('noResendToken'));
+				}
+				
+				const resend = new Resend(resendToken);
+			const sendForm = {
+					from: `${name} <${accountRow.email}>`,
+					to: [...receiveEmail],
+					subject: subject,
+					text: text,
+					html: html,
+					attachments: [...imageDataList, ...attachments]
+				};
+			if (sendType === 'reply') {
+					sendForm.headers = {
+						'in-reply-to': emailRow.messageId,
+						'references': emailRow.messageId
+					};
+				}
 
-			resendResult = await resend.emails.send(sendForm);
+				sendResult = await resend.emails.send(sendForm);
+			}
 
 		}
 
-		const { data, error } = resendResult;
+		let messageId = null;
 
-
-		if (error) {
-			throw new BizError(error.message);
+		if (actualSendMethod === emailConst.sendMethod.SMTP) {
+			// SMTP发送结果处理
+			if (!sendResult.success) {
+				throw new BizError(sendResult.message || t('smtpSendFailed'));
+			}
+			messageId = sendResult.messageId;
+		} else {
+			// Resend发送结果处理
+			const { data, error } = sendResult;
+			if (error) {
+				throw new BizError(error.message);
+			}
+			messageId = data?.id;
 		}
 
 		imageDataList = imageDataList.map(item => ({...item, contentId: `<${item.contentId}>`}))
@@ -306,7 +347,7 @@ const emailService = {
 		emailData.status = emailConst.status.SENT;
 		emailData.type = emailConst.type.SEND;
 		emailData.userId = userId;
-		emailData.resendEmailId = data?.id;
+		emailData.resendEmailId = messageId;
 
 		const recipient = [];
 
