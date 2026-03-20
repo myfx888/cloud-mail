@@ -122,6 +122,12 @@ const settingService = {
 		}
 
 		params.resendTokens = JSON.stringify(resendTokens);
+
+		// 处理SMTP密码（如果不更新则保留原值）
+		if (params.smtpPassword === '' || params.smtpPassword === undefined) {
+			delete params.smtpPassword;
+		}
+
 		await orm(c).update(setting).set({ ...params }).returning().get();
 		await this.refresh(c);
 	},
