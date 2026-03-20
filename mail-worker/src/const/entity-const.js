@@ -54,6 +54,10 @@ export const emailConst = {
 	unread: {
 		UNREAD: 0,
 		READ: 1
+	},
+	sendMethod: {
+		RESEND: 'resend',
+		SMTP: 'smtp'
 	}
 }
 
