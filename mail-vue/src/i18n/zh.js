@@ -332,6 +332,7 @@ const zh = {
     smtpUser: 'SMTP 用户名',
     smtpPassword: 'SMTP 密码',
     smtpSecure: '加密方式',
+    smtpAuthType: '认证方式',
     smtpFromName: '发件人名称',
     smtpVerify: '测试连接',
     smtpConnectionSuccess: '连接成功',

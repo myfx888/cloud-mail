@@ -98,6 +98,16 @@
             </div>
           </div>
           <div class="setting-item">
+            <div><span>{{ $t('smtpAuthType') }}</span></div>
+            <div>
+              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpAuthType">
+                <el-option value="plain" label="Plain"/>
+                <el-option value="login" label="Login"/>
+                <el-option value="cram-md5" label="CRAM-MD5"/>
+              </el-select>
+            </div>
+          </div>
+          <div class="setting-item">
             <div><span>{{ $t('smtpVerify') }}</span></div>
             <div>
               <el-button size="small" type="primary" :loading="smtpVerifying" @click="verifySmtpConfig">
@@ -157,6 +167,7 @@ const smtpForm = reactive({
   smtpUser: '',
   smtpPassword: '',
   smtpSecure: 0,
+  smtpAuthType: 'plain',
   signature: ''
 })
 
