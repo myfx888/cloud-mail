@@ -13,26 +13,36 @@ const dbInit = {
 			return c.text('❌ JWT secret mismatch');
 		}
 
-		await this.intDB(c);
-		await this.v1_1DB(c);
-		await this.v1_2DB(c);
-		await this.v1_3DB(c);
-		await this.v1_3_1DB(c);
-		await this.v1_4DB(c);
-		await this.v1_5DB(c);
-		await this.v1_6DB(c);
-		await this.v1_7DB(c);
-		await this.v2DB(c);
-		await this.v2_3DB(c);
-		await this.v2_4DB(c);
-		await this.v2_5DB(c);
-		await this.v2_6DB(c);
-		await this.v2_7DB(c);
-		await this.v2_8DB(c);
-		await this.v2_9DB(c);
-		await this.v3_0DB(c);
-		await settingService.refresh(c);
-		return c.text('success');
+		// 检查数据库是否绑定
+		if (!c.env.db) {
+			return c.text('❌ Database not bound. Please bind a D1 database first.');
+		}
+
+		try {
+			await this.intDB(c);
+			await this.v1_1DB(c);
+			await this.v1_2DB(c);
+			await this.v1_3DB(c);
+			await this.v1_3_1DB(c);
+			await this.v1_4DB(c);
+			await this.v1_5DB(c);
+			await this.v1_6DB(c);
+			await this.v1_7DB(c);
+			await this.v2DB(c);
+			await this.v2_3DB(c);
+			await this.v2_4DB(c);
+			await this.v2_5DB(c);
+			await this.v2_6DB(c);
+			await this.v2_7DB(c);
+			await this.v2_8DB(c);
+			await this.v2_9DB(c);
+			await this.v3_0DB(c);
+			await settingService.refresh(c);
+			return c.text('success');
+		} catch (e) {
+			console.error('Database initialization error:', e);
+			return c.text(`❌ Database initialization error: ${e.message}`);
+		}
 	},
 
 	async v2_9DB(c) {
