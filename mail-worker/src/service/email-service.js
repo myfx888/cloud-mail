@@ -233,8 +233,9 @@ const emailService = {
 		const domain = emailUtils.getDomain(accountRow.email);
 		const resendToken = resendTokens[domain];
 
-		//如果接收方存在站外邮箱，又没有resend token
-		if (!resendToken && !allInternal) {
+		//如果接收方存在站外邮箱，又没有resend token且不是使用SMTP发送
+		let actualSendMethod = sendMethod || emailConst.sendMethod.RESEND;
+		if (!resendToken && !allInternal && actualSendMethod !== emailConst.sendMethod.SMTP) {
 			throw new BizError(t('noResendToken'));
 		}
 
@@ -259,7 +260,6 @@ const emailService = {
 		}
 
 		let sendResult = {};
-		let actualSendMethod = sendMethod || emailConst.sendMethod.RESEND;
 
 		// 存在站外邮箱时需要发送
 		if (!allInternal) {
