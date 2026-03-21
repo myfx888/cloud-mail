@@ -62,6 +62,7 @@ const dbInit = {
 			`ALTER TABLE setting ADD COLUMN smtp_user TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE setting ADD COLUMN smtp_password TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE setting ADD COLUMN smtp_secure INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE setting ADD COLUMN smtp_auth_type TEXT NOT NULL DEFAULT 'plain';`,
 			`ALTER TABLE setting ADD COLUMN smtp_from_name TEXT NOT NULL DEFAULT '';`
 		];
 		
@@ -81,6 +82,7 @@ const dbInit = {
 			`ALTER TABLE account ADD COLUMN smtp_user TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE account ADD COLUMN smtp_password TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE account ADD COLUMN smtp_secure INTEGER NOT NULL DEFAULT -1;`,
+			`ALTER TABLE account ADD COLUMN smtp_auth_type TEXT NOT NULL DEFAULT 'plain';`,
 			`ALTER TABLE account ADD COLUMN signature TEXT NOT NULL DEFAULT '';`
 		];
 		

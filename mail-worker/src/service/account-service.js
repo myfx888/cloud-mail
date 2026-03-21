@@ -274,6 +274,7 @@ const accountService = {
 			smtpPort: config.smtpPort,
 			smtpUser: config.smtpUser,
 			smtpSecure: config.smtpSecure,
+			smtpAuthType: config.smtpAuthType || 'plain',
 			signature: config.signature || ''
 		};
 		

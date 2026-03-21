@@ -104,6 +104,7 @@ const smtpService = {
 				user: accountRow.smtpUser,
 				password: accountRow.smtpPassword,
 				secure: accountRow.smtpSecure >= 0 ? accountRow.smtpSecure : settingRow.smtpSecure,
+				authType: accountRow.smtpAuthType || 'plain',
 				fromName: settingRow.smtpFromName
 			};
 		}
@@ -120,6 +121,7 @@ const smtpService = {
 			user: settingRow.smtpUser,
 			password: settingRow.smtpPassword,
 			secure: settingRow.smtpSecure,
+			authType: settingRow.smtpAuthType || 'plain',
 			fromName: settingRow.smtpFromName
 		};
 	},
@@ -148,15 +150,14 @@ const smtpService = {
 					username: smtpConfig.user,
 					password: smtpConfig.password
 				},
-				authType: 'plain',
+				authType: smtpConfig.authType || 'plain',
 				host: smtpConfig.host,
 				port: smtpConfig.port,
 				secure: isSecure,
 				startTls: useStartTls,
 				socketTimeoutMs: 30000,
 				responseTimeoutMs: 15000,
-				rejectUnauthorized: false, // 允许自签名证书
-				proxy: false // 禁用代理
+				rejectUnauthorized: false // 允许自签名证书
 			});
 
 			const recipients = emailData.recipient.map(r => ({
@@ -233,15 +234,14 @@ const smtpService = {
 					username: smtpConfig.user,
 					password: smtpConfig.password
 				},
-				authType: 'plain',
+				authType: smtpConfig.authType || 'plain',
 				host: smtpConfig.host,
 				port: smtpConfig.port,
 				secure: isSecure,
 				startTls: useStartTls,
 				socketTimeoutMs: 10000,
 				responseTimeoutMs: 5000,
-				rejectUnauthorized: false, // 允许自签名证书
-				proxy: false // 禁用代理
+				rejectUnauthorized: false // 允许自签名证书
 			});
 			
 			// 连接成功，返回true

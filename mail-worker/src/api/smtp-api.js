@@ -15,7 +15,8 @@ app.post('/smtp/verify', async (c) => {
 		port: params.smtpPort || 587,
 		user: params.smtpUser,
 		password: params.smtpPassword,
-		secure: params.smtpSecure || 0
+		secure: params.smtpSecure || 0,
+		authType: params.smtpAuthType || 'plain'
 	};
 	
 	if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.password) {
@@ -41,7 +42,8 @@ app.post('/smtp/verify-account', async (c) => {
 		port: params.smtpPort || 587,
 		user: params.smtpUser,
 		password: params.smtpPassword,
-		secure: params.smtpSecure || 0
+		secure: params.smtpSecure || 0,
+		authType: params.smtpAuthType || 'plain'
 	};
 	
 	if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.password) {
@@ -75,6 +77,7 @@ app.get('/smtp/account-config', async (c) => {
 			smtpPort: accountRow.smtpPort,
 			smtpUser: accountRow.smtpUser,
 			smtpSecure: accountRow.smtpSecure,
+			smtpAuthType: accountRow.smtpAuthType || 'plain',
 			signature: accountRow.signature || ''
 		};
 	
@@ -99,6 +102,7 @@ app.post('/smtp/account-config', async (c) => {
 			smtpUser: params.smtpUser,
 			smtpPassword: params.smtpPassword,
 			smtpSecure: params.smtpSecure,
+			smtpAuthType: params.smtpAuthType || 'plain',
 			signature: params.signature
 		});
 	

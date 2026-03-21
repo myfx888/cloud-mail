@@ -17,6 +17,7 @@ export const account = sqliteTable('account', {
 	smtpUser: text('smtp_user').default('').notNull(),
 	smtpPassword: text('smtp_password').default('').notNull(),
 	smtpSecure: integer('smtp_secure').default(-1).notNull(),
+	smtpAuthType: text('smtp_auth_type').default('plain').notNull(),
 	signature: text('signature').default('').notNull()
 });
 export default account
