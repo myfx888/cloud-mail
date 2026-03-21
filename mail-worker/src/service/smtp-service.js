@@ -135,6 +135,14 @@ const smtpService = {
 			const isSecure = smtpConfig.secure === 1;
 			const useStartTls = !isSecure && smtpConfig.port === 587;
 
+			console.log('SMTP发送配置:', {
+				host: smtpConfig.host,
+				port: smtpConfig.port,
+				user: smtpConfig.user,
+				secure: isSecure,
+				startTls: useStartTls
+			});
+
 			mailer = await WorkerMailer.connect({
 				credentials: {
 					username: smtpConfig.user,
@@ -146,7 +154,9 @@ const smtpService = {
 				secure: isSecure,
 				startTls: useStartTls,
 				socketTimeoutMs: 30000,
-				responseTimeoutMs: 15000
+				responseTimeoutMs: 15000,
+				rejectUnauthorized: false, // 允许自签名证书
+				proxy: false // 禁用代理
 			});
 
 			const recipients = emailData.recipient.map(r => ({
@@ -210,6 +220,14 @@ const smtpService = {
 			const isSecure = smtpConfig.secure === 1;
 			const useStartTls = !isSecure && smtpConfig.port === 587;
 			
+			console.log('SMTP验证配置:', {
+				host: smtpConfig.host,
+				port: smtpConfig.port,
+				user: smtpConfig.user,
+				secure: isSecure,
+				startTls: useStartTls
+			});
+			
 			const mailer = await WorkerMailer.connect({
 				credentials: {
 					username: smtpConfig.user,
@@ -221,13 +239,16 @@ const smtpService = {
 				secure: isSecure,
 				startTls: useStartTls,
 				socketTimeoutMs: 10000,
-				responseTimeoutMs: 5000
+				responseTimeoutMs: 5000,
+				rejectUnauthorized: false, // 允许自签名证书
+				proxy: false // 禁用代理
 			});
 			
 			// 连接成功，返回true
 			return { success: true, message: 'SMTP连接成功' };
 			
 		} catch (error) {
+			console.error('SMTP验证失败:', error);
 			return { success: false, message: error.message };
 		}
 	}

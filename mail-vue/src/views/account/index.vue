@@ -1,7 +1,7 @@
 <template>
   <div class="account-container">
     <div class="loading" :class="loading ? 'loading-show' : 'loading-hide'">
-      <loading/>
+      <LoadingComponent/>
     </div>
     <el-scrollbar class="scroll" v-if="!loading">
       <div class="scroll-body">
@@ -130,10 +130,10 @@
 </template>
 <script setup>
 import {reactive, ref, onMounted} from 'vue'
-import {accountAdd, accountDelete, accountList} from "@/request/account.js"
+import {accountAdd, accountDelete, accountList as fetchAccountList} from "@/request/account.js"
 import {useUserStore} from "@/store/user.js"
 import {Icon} from "@iconify/vue"
-import loading from "@/components/loading/index.vue"
+import LoadingComponent from "@/components/loading/index.vue"
 import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig} from "@/request/setting.js"
 import {useI18n} from 'vue-i18n'
 
@@ -169,7 +169,7 @@ onMounted(() => {
 async function loadAccounts() {
   loading.value = true
   try {
-    const data = await accountList()
+    const data = await fetchAccountList()
     accountList.value = data.map(item => ({
       ...item,
       createTime: new Date(item.createTime).toLocaleString()
