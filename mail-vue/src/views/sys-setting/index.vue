@@ -189,6 +189,13 @@
                   </el-button>
                 </div>
               </div>
+              <div class="setting-item">
+                <div><span>Resend 开关</span></div>
+                <div>
+                  <el-switch @change="change" :before-change="beforeChange" :active-value="1" :inactive-value="0"
+                             v-model="setting.resendEnabled"/>
+                </div>
+              </div>
             </div>
           </div>
 

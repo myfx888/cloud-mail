@@ -234,7 +234,7 @@ const emailService = {
 		const resendToken = resendTokens[domain];
 
 		//如果接收方存在站外邮箱，又没有resend token且不是使用SMTP发送
-		let actualSendMethod = sendMethod || emailConst.sendMethod.RESEND;
+		let actualSendMethod = sendMethod || (send.resendEnabled === 0 ? emailConst.sendMethod.SMTP : emailConst.sendMethod.RESEND);
 		if (!resendToken && !allInternal && actualSendMethod !== emailConst.sendMethod.SMTP) {
 			throw new BizError(t('noResendToken'));
 		}

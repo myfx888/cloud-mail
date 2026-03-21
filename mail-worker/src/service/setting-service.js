@@ -71,7 +71,8 @@ const settingService = {
 					smtp_user: '',
 					smtp_password: '',
 					smtp_secure: 0,
-					smtp_from_name: ''
+			smtp_from_name: '',
+			resend_enabled: 1
 				};
 			}
 		}
