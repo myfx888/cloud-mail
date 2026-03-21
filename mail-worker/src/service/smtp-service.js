@@ -179,6 +179,7 @@ const smtpService = {
 			});
 
 			return {
+				success: true,
 				messageId: `smtp-${Date.now()}@${smtpConfig.host}`
 			};
 
