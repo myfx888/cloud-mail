@@ -834,7 +834,7 @@
               </el-form-item>
             </el-form>
             <div class="form-buttons">
-              <el-button @click="testMailcowConnection">测试连接</el-button>
+              <el-button :loading="testConnectionLoading" @click="testMailcowConnection">测试连接</el-button>
               <el-button type="primary" @click="saveMailcowServer">保存</el-button>
             </div>
           </div>
@@ -846,7 +846,7 @@
 
 <script setup>
 import {computed, defineOptions, reactive, ref} from "vue";
-import {deleteBackground, setBackground, settingQuery, settingSet} from "@/request/setting.js";
+import {deleteBackground, setBackground, settingQuery, settingSet, testMailcowConnection as testMailcowConnectionApi} from "@/request/setting.js";
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
@@ -923,6 +923,7 @@ const currentMailcowServer = ref({
   smtpHost: '',
   isDefault: false
 })
+const testConnectionLoading = ref(false)
 
 const s3 = reactive({
   bucket: '',
@@ -1188,7 +1189,7 @@ function deleteMailcowServer(server) {
     const index = mailcowServers.value.findIndex(s => s.name === server.name)
     if (index !== -1) {
       mailcowServers.value.splice(index, 1)
-      editSetting({ mailcowServers: mailcowServers.value })
+      editSetting({ mailcowServers: mailcowServers.value }, false)
     }
   })
 }
@@ -1216,7 +1217,7 @@ function saveMailcowServer() {
     mailcowServers.value.push({ ...currentMailcowServer.value })
   }
 
-  editSetting({ mailcowServers: mailcowServers.value })
+  editSetting({ mailcowServers: mailcowServers.value }, false)
 }
 
 function testMailcowConnection() {
@@ -1228,10 +1229,19 @@ function testMailcowConnection() {
     return
   }
 
-  // 这里可以添加测试连接的逻辑
-  ElMessage({
-    message: '测试连接功能暂未实现',
-    type: 'info'
+  testConnectionLoading.value = true
+  testMailcowConnectionApi(currentMailcowServer.value).then(() => {
+    ElMessage({
+      message: '连接测试成功',
+      type: 'success'
+    })
+  }).catch((error) => {
+    ElMessage({
+      message: `连接测试失败: ${error.message}`,
+      type: 'error'
+    })
+  }).finally(() => {
+    testConnectionLoading.value = false
   })
 }
 

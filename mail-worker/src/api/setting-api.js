@@ -1,6 +1,7 @@
 import app from '../hono/hono';
 import result from '../model/result';
 import settingService from '../service/setting-service';
+import mailcowService from '../service/mailcow-service';
 
 app.put('/setting/set', async (c) => {
 	await settingService.set(c, await c.req.json());
@@ -25,5 +26,15 @@ app.put('/setting/setBackground', async (c) => {
 app.delete('/setting/deleteBackground', async (c) => {
 	await settingService.deleteBackground(c);
 	return c.json(result.ok());
+});
+
+app.post('/setting/mailcow/test-connection', async (c) => {
+	try {
+		const serverConfig = await c.req.json();
+		await mailcowService.testConnection(c, serverConfig);
+		return c.json(result.ok({ message: 'Connection test successful' }));
+	} catch (error) {
+		return c.json(result.error(error.message), 400);
+	}
 });
 

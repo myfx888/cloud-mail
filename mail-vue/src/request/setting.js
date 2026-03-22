@@ -56,3 +56,8 @@ export function deleteSignature(accountId, signatureId) {
 export function setDefaultSignature(accountId, signatureId) {
     return http.put(`/account/${accountId}/signatures/${signatureId}/setDefault`)
 }
+
+// Mailcow 连接测试
+export function testMailcowConnection(serverConfig) {
+    return http.post('/setting/mailcow/test-connection', serverConfig)
+}
