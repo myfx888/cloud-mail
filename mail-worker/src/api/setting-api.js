@@ -34,7 +34,7 @@ app.post('/setting/mailcow/test-connection', async (c) => {
 		await mailcowService.testConnection(c, serverConfig);
 		return c.json(result.ok({ message: 'Connection test successful' }));
 	} catch (error) {
-		return c.json(result.error(error.message), 400);
+		return c.json(result.fail(error.message), 400);
 	}
 });
 
