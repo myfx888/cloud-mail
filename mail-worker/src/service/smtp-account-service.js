@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import smtpAccount from '../entity/smtp-account';
 import orm from '../entity/orm';
 import smtpService from './smtp-service';
@@ -133,10 +133,8 @@ const smtpAccountService = {
 		const accounts = await orm(c).select().from(smtpAccount).where(
 			eq(smtpAccount.accountId, accountId)
 		).orderBy(
-			(smtpAccount, { desc }) => [
-				desc(smtpAccount.isDefault),
-				smtpAccount.createTime
-			]
+			desc(smtpAccount.isDefault),
+			smtpAccount.createTime
 		).all();
 
 		// 移除密码信息
