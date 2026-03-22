@@ -287,7 +287,12 @@ const settingService = {
 			linuxdoClientId: settingRow.linuxdoClientId,
 			linuxdoCallbackUrl: settingRow.linuxdoCallbackUrl,
 			linuxdoSwitch: settingRow.linuxdoSwitch,
-			minEmailPrefix: settingRow.minEmailPrefix
+			minEmailPrefix: settingRow.minEmailPrefix,
+			// Mailcow 相关设置
+			mailcowEnabled: settingRow.mailcowEnabled,
+			mailcowServers: settingRow.mailcowServers,
+			mailcowRetryCount: settingRow.mailcowRetryCount,
+			mailcowTimeout: settingRow.mailcowTimeout
 		};
 	}
 };
