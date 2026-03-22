@@ -40,6 +40,7 @@ const settingService = {
 				setting = await orm(c).select().from(setting).get();
 				setting.resendTokens = JSON.parse(setting.resendTokens);
 				setting.mailcowServers = JSON.parse(setting.mailcow_servers || '[]');
+				setting.mailcowEnabled = setting.mailcow_enabled;
 			} catch (error) {
 				// 数据库未初始化时返回默认设置
 				setting = {
@@ -75,15 +76,24 @@ const settingService = {
 					smtp_user: '',
 					smtp_password: '',
 					smtp_secure: 0,
-			smtp_from_name: '',
+				smtp_from_name: '',
 							resend_enabled: 1,
 							smtp_user_config: 1,
 							mailcow_enabled: 0,
+							mailcowEnabled: 0,
 							mailcow_servers: '[]',
+							mailcowServers: [],
 							mailcow_retry_count: 3,
-							mailcow_timeout: 30000
+							mailcowRetryCount: 3,
+							mailcow_timeout: 30000,
+							mailcowTimeout: 30000
 						};
 			}
+		} else {
+			// 从 KV 或数据库读取的设置，需要转换字段名
+			setting.mailcowEnabled = setting.mailcow_enabled;
+			setting.mailcowRetryCount = setting.mailcow_retry_count;
+			setting.mailcowTimeout = setting.mailcow_timeout;
 		}
 
 		let domainList = c.env.domain;
@@ -182,6 +192,12 @@ const settingService = {
 		if (params.mailcowServers) {
 			params.mailcow_servers = JSON.stringify(params.mailcowServers);
 			delete params.mailcowServers;
+		}
+
+		// 处理 mailcowEnabled 字段
+		if (params.mailcowEnabled !== undefined) {
+			params.mailcow_enabled = params.mailcowEnabled;
+			delete params.mailcowEnabled;
 		}
 
 		// 处理SMTP密码（如果不更新则保留原值）
