@@ -41,6 +41,7 @@ const dbInit = {
 			await this.v3_2DB(c);
 			await this.v3_3DB(c);
 			await this.v3_4DB(c);
+			await this.v3_5DB(c);
 			await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -169,6 +170,31 @@ const dbInit = {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN resend_enabled INTEGER NOT NULL DEFAULT 1;`).run();
 		} catch (e) {
 			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v3_5DB(c) {
+		// 创建smtp_account表
+		try {
+			await c.env.db.prepare(`
+				CREATE TABLE IF NOT EXISTS smtp_account (
+					smtp_account_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					account_id INTEGER NOT NULL,
+					name TEXT NOT NULL,
+					host TEXT NOT NULL,
+					port INTEGER NOT NULL,
+					user TEXT NOT NULL,
+					password TEXT NOT NULL,
+					secure INTEGER NOT NULL DEFAULT 1,
+					auth_type TEXT NOT NULL DEFAULT 'plain',
+					is_default INTEGER NOT NULL DEFAULT 0,
+					status INTEGER NOT NULL DEFAULT 1,
+					create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+					update_time DATETIME DEFAULT CURRENT_TIMESTAMP
+				)
+			`).run();
+		} catch (e) {
+			console.warn(`跳过创建smtp_account表：${e.message}`);
 		}
 	},
 
@@ -567,7 +593,10 @@ const dbInit = {
         (27, '邮件列表', '', 0, 1, 4),
         (28, '邮件查看', 'all-email:query', 27, 2, 0),
         (29, '邮件删除', 'all-email:delete', 27, 2, 0),
-				(30, '身份添加', 'role:add', 13, 2, -1)
+		(30, '身份添加', 'role:add', 13, 2, -1),
+        (33, 'SMTP设置', NULL, 0, 1, 6.1),
+        (34, 'SMTP配置查看', 'smtp:query', 33, 2, 0),
+        (35, 'SMTP配置修改', 'smtp:set', 33, 2, 1)
       `).run();
 		}
 
@@ -622,7 +651,10 @@ const dbInit = {
           (105, 1, 4),
           (106, 1, 5),
           (107, 1, 1),
-          (108, 1, 3)
+          (108, 1, 3),
+          (109, 1, 33),
+          (110, 1, 34),
+          (111, 1, 35)
       `).run();
 		}
 	},

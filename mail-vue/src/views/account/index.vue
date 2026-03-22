@@ -21,10 +21,13 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" :label="$t('createTime')" width="180"/>
-                <el-table-column :label="$t('action')" width="200" fixed="right">
+                <el-table-column :label="$t('action')" width="280" fixed="right">
                   <template #default="scope">
-                    <el-button size="small" type="primary" @click="openSmtpConfig(scope.row)">
+                    <el-button size="small" type="primary" @click="openSmtpConfig(scope.row)" v-perm="'smtp:set'">
                       {{ $t('smtpSetting') }}
+                    </el-button>
+                    <el-button size="small" type="success" @click="openSmtpAccountManager(scope.row)" v-perm="'smtp:set'">
+                      {{ $t('smtpAccountManager') }}
                     </el-button>
                     <el-button size="small" type="danger" @click="deleteAccount(scope.row)" v-if="scope.row.email !== userStore.user.email">
                       {{ $t('delete') }}
@@ -201,6 +204,97 @@
         </span>
       </template>
     </el-dialog>
+    
+    <!-- SMTP账户管理对话框 -->
+    <el-dialog v-model="smtpAccountManagerShow" :title="$t('smtpAccountManager')" width="600">
+      <div class="smtp-account-manager">
+        <div class="smtp-account-header">
+          <el-button type="primary" size="small" @click="addSmtpAccount">
+            {{ $t('addSmtpAccount') }}
+          </el-button>
+        </div>
+        <el-divider/>
+        <div class="smtp-account-list" v-if="smtpAccounts.length > 0">
+          <div class="smtp-account-item" v-for="account in smtpAccounts" :key="account.smtpAccountId">
+            <div class="smtp-account-info">
+              <div class="smtp-account-name">
+                {{ account.name }}
+                <el-tag v-if="account.isDefault" size="small" type="success">默认</el-tag>
+              </div>
+              <div class="smtp-account-details">
+                <div>{{ account.host }}:{{ account.port }}</div>
+                <div>{{ account.user }}</div>
+                <div>{{ account.secure === 1 ? 'SSL/TLS' : 'STARTTLS' }}</div>
+              </div>
+            </div>
+            <div class="smtp-account-actions">
+              <el-button size="small" @click="editSmtpAccount(account)">
+                {{ $t('edit') }}
+              </el-button>
+              <el-button size="small" @click="setDefaultSmtpAccount(account)" v-if="!account.isDefault">
+                {{ $t('setDefault') }}
+              </el-button>
+              <el-button size="small" type="danger" @click="deleteSmtpAccount(account)">
+                {{ $t('delete') }}
+              </el-button>
+            </div>
+          </div>
+        </div>
+        <div class="smtp-account-empty" v-else>
+          <el-empty description="暂无SMTP账户" />
+        </div>
+      </div>
+    </el-dialog>
+    
+    <!-- SMTP账户编辑对话框 -->
+    <el-dialog v-model="smtpAccountEditShow" :title="editingSmtpAccount ? $t('editSmtpAccount') : $t('addSmtpAccount')" width="500">
+      <div class="smtp-account-edit-form">
+        <el-form :model="smtpAccountForm" label-width="100px">
+          <el-form-item label="账户名称">
+            <el-input v-model="smtpAccountForm.name" placeholder="请输入SMTP账户名称" />
+          </el-form-item>
+          <el-form-item label="SMTP主机">
+            <el-input v-model="smtpAccountForm.host" placeholder="smtp.example.com" />
+          </el-form-item>
+          <el-form-item label="SMTP端口">
+            <el-input-number v-model="smtpAccountForm.port" :min="1" :max="65535" />
+          </el-form-item>
+          <el-form-item label="用户名">
+            <el-input v-model="smtpAccountForm.user" placeholder="user@example.com" />
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input type="password" show-password v-model="smtpAccountForm.password" />
+          </el-form-item>
+          <el-form-item label="加密方式">
+            <el-select v-model="smtpAccountForm.secure">
+              <el-option :value="0" label="STARTTLS"/>
+              <el-option :value="1" label="SSL/TLS"/>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="认证方式">
+            <el-select v-model="smtpAccountForm.authType">
+              <el-option value="plain" label="Plain"/>
+              <el-option value="login" label="Login"/>
+              <el-option value="cram-md5" label="CRAM-MD5"/>
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-checkbox v-model="smtpAccountForm.isDefault">{{ $t('setDefault') }}</el-checkbox>
+          </el-form-item>
+        </el-form>
+        <div class="smtp-verify-button" style="margin-top: 20px;">
+          <el-button type="primary" :loading="smtpAccountVerifying" @click="verifySmtpAccountConfig">
+            {{ $t('test') }}
+          </el-button>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="smtpAccountEditShow = false">取消</el-button>
+          <el-button type="primary" @click="saveSmtpAccount">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 <script setup>
@@ -212,6 +306,7 @@ import LoadingComponent from "@/components/loading/index.vue"
 import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig, settingQuery, getSignatures, addSignature as addSignatureApi, updateSignature, deleteSignature as deleteSignatureApi, setDefaultSignature as setDefaultSignatureApi} from "@/request/setting.js"
 import {useI18n} from 'vue-i18n'
 import {ElMessage, ElMessageBox} from 'element-plus'
+import {smtpAccountList, smtpAccountCreate, smtpAccountUpdate, smtpAccountDelete, smtpAccountVerify} from "@/request/smtp.js"
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -231,6 +326,23 @@ const editingSignature = ref(null)
 const signatureForm = reactive({
   name: '',
   content: '',
+  isDefault: false
+})
+
+// SMTP账户管理相关状态
+const smtpAccountManagerShow = ref(false)
+const smtpAccountEditShow = ref(false)
+const smtpAccounts = ref([])
+const editingSmtpAccount = ref(null)
+const smtpAccountVerifying = ref(false)
+const smtpAccountForm = reactive({
+  name: '',
+  host: '',
+  port: 587,
+  user: '',
+  password: '',
+  secure: 0,
+  authType: 'plain',
   isDefault: false
 })
 
@@ -507,6 +619,190 @@ async function setDefaultSignature(signature) {
     })
   }
 }
+
+// SMTP账户管理相关方法
+async function openSmtpAccountManager(account) {
+  currentAccount.value = account
+  smtpAccountManagerShow.value = true
+  
+  try {
+    const data = await smtpAccountList(account.accountId)
+    smtpAccounts.value = data
+  } catch (error) {
+    console.error('获取SMTP账户列表失败:', error)
+    ElMessage({
+      message: '获取SMTP账户列表失败',
+      type: 'error',
+      plain: true
+    })
+  }
+}
+
+function addSmtpAccount() {
+  editingSmtpAccount.value = null
+  smtpAccountForm.name = ''
+  smtpAccountForm.host = ''
+  smtpAccountForm.port = 587
+  smtpAccountForm.user = ''
+  smtpAccountForm.password = ''
+  smtpAccountForm.secure = 0
+  smtpAccountForm.authType = 'plain'
+  smtpAccountForm.isDefault = false
+  smtpAccountEditShow.value = true
+}
+
+function editSmtpAccount(account) {
+  editingSmtpAccount.value = account
+  smtpAccountForm.name = account.name
+  smtpAccountForm.host = account.host
+  smtpAccountForm.port = account.port
+  smtpAccountForm.user = account.user
+  smtpAccountForm.password = '' // 不显示密码
+  smtpAccountForm.secure = account.secure
+  smtpAccountForm.authType = account.authType
+  smtpAccountForm.isDefault = account.isDefault === 1
+  smtpAccountEditShow.value = true
+}
+
+async function saveSmtpAccount() {
+  if (!currentAccount.value) return
+  
+  if (!smtpAccountForm.name || !smtpAccountForm.host || !smtpAccountForm.user || !smtpAccountForm.password) {
+    ElMessage({
+      message: '请填写完整的SMTP账户信息',
+      type: 'error',
+      plain: true
+    })
+    return
+  }
+  
+  try {
+    const formData = {
+      ...smtpAccountForm,
+      accountId: currentAccount.value.accountId
+    }
+    
+    if (editingSmtpAccount.value) {
+      // 编辑SMTP账户
+      await smtpAccountUpdate(editingSmtpAccount.value.smtpAccountId, formData)
+      ElMessage({
+        message: 'SMTP账户更新成功',
+        type: 'success',
+        plain: true
+      })
+    } else {
+      // 添加SMTP账户
+      await smtpAccountCreate(formData)
+      ElMessage({
+        message: 'SMTP账户添加成功',
+        type: 'success',
+        plain: true
+      })
+    }
+    
+    // 重新加载SMTP账户列表
+    const data = await smtpAccountList(currentAccount.value.accountId)
+    smtpAccounts.value = data
+    
+    smtpAccountEditShow.value = false
+  } catch (error) {
+    console.error('保存SMTP账户失败:', error)
+    ElMessage({
+      message: '保存SMTP账户失败',
+      type: 'error',
+      plain: true
+    })
+  }
+}
+
+async function deleteSmtpAccount(account) {
+  ElMessageBox.confirm('确定要删除这个SMTP账户吗？', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    if (!currentAccount.value) return
+    
+    try {
+      await smtpAccountDelete(account.smtpAccountId, currentAccount.value.accountId)
+      ElMessage({
+        message: 'SMTP账户删除成功',
+        type: 'success',
+        plain: true
+      })
+      
+      // 重新加载SMTP账户列表
+      const data = await smtpAccountList(currentAccount.value.accountId)
+      smtpAccounts.value = data
+    } catch (error) {
+      console.error('删除SMTP账户失败:', error)
+      ElMessage({
+        message: '删除SMTP账户失败',
+        type: 'error',
+        plain: true
+      })
+    }
+  })
+}
+
+async function setDefaultSmtpAccount(account) {
+  if (!currentAccount.value) return
+  
+  try {
+    // 设置为默认账户
+    await smtpAccountUpdate(account.smtpAccountId, {
+      ...account,
+      accountId: currentAccount.value.accountId,
+      isDefault: true
+    })
+    ElMessage({
+      message: '已设为默认SMTP账户',
+      type: 'success',
+      plain: true
+    })
+    
+    // 重新加载SMTP账户列表
+    const data = await smtpAccountList(currentAccount.value.accountId)
+    smtpAccounts.value = data
+  } catch (error) {
+    console.error('设置默认SMTP账户失败:', error)
+    ElMessage({
+      message: '设置默认SMTP账户失败',
+      type: 'error',
+      plain: true
+    })
+  }
+}
+
+async function verifySmtpAccountConfig() {
+  if (!currentAccount.value) return
+  
+  smtpAccountVerifying.value = true
+  try {
+    const result = await smtpAccountVerify(currentAccount.value.accountId, smtpAccountForm)
+    if (result.success) {
+      ElMessage({
+        message: t('smtpConnectSuccess'),
+        type: 'success',
+        plain: true
+      })
+    } else {
+      ElMessage({
+        message: t('smtpConnectFailed') + ': ' + result.message,
+        type: 'error',
+        plain: true
+      })
+    }
+  } catch (error) {
+    ElMessage({
+      message: t('smtpConnectFailed') + ': ' + error.message,
+      type: 'error',
+      plain: true
+    })
+  } finally {
+    smtpAccountVerifying.value = false
+  }
+}
 </script>
 <style scoped lang="scss">
 .account-container {
@@ -646,6 +942,60 @@ async function setDefaultSignature(signature) {
   }
   
   .signature-edit-form {
+    .el-form {
+      max-width: 100%;
+    }
+  }
+  
+  .smtp-account-manager {
+    .smtp-account-header {
+      margin-bottom: 10px;
+    }
+    
+    .smtp-account-list {
+      .smtp-account-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 15px;
+        border: 1px solid var(--el-border-color);
+        border-radius: 4px;
+        margin-bottom: 10px;
+        
+        .smtp-account-info {
+          flex: 1;
+          
+          .smtp-account-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          
+          .smtp-account-details {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--el-text-color-secondary);
+          }
+        }
+        
+        .smtp-account-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          margin-left: 15px;
+        }
+      }
+    }
+    
+    .smtp-account-empty {
+      padding: 40px 0;
+      text-align: center;
+    }
+  }
+  
+  .smtp-account-edit-form {
     .el-form {
       max-width: 100%;
     }

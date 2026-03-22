@@ -1,8 +1,12 @@
 import { WorkerMailer } from 'worker-mailer';
+import { eq, and } from 'drizzle-orm';
 import BizError from '../error/biz-error';
 import { t } from '../i18n/i18n';
 import accountService from './account-service';
 import settingService from './setting-service';
+import smtpAccountService from './smtp-account-service';
+import { db } from '../db/db';
+import smtpAccount from '../entity/smtp-account';
 
 const smtpService = {
 
@@ -83,9 +87,9 @@ const smtpService = {
 	
 	/**
 	 * 获取有效的SMTP配置
-	 * 优先使用账号配置，其次使用全局配置
+	 * 优先使用指定的SMTP账户配置，其次使用账号配置，最后使用全局配置
 	 */
-	async getSmtpConfig(c, accountId) {
+	async getSmtpConfig(c, accountId, smtpAccountId = null) {
 		const [settingRow, accountRow] = await Promise.all([
 			settingService.query(c),
 			accountService.selectById(c, accountId)
@@ -93,9 +97,33 @@ const smtpService = {
 		
 		// 检查是否启用SMTP
 		const globalEnabled = settingRow.smtpEnabled === 1;
-		const accountOverride = accountRow?.smtpOverride === 1;
+		
+		// 如果指定了SMTP账户ID，使用该账户的配置
+		if (smtpAccountId) {
+			const smtpAccountRow = await db(c).query.smtpAccount.findFirst({
+				where: and(
+					eq(smtpAccount.smtpAccountId, smtpAccountId),
+					eq(smtpAccount.accountId, accountId),
+					eq(smtpAccount.status, 1)
+				)
+			});
+			
+			if (smtpAccountRow) {
+				return {
+					enabled: true,
+					host: smtpAccountRow.host,
+					port: smtpAccountRow.port,
+					user: smtpAccountRow.user,
+					password: smtpAccountRow.password,
+					secure: smtpAccountRow.secure,
+					authType: smtpAccountRow.authType || 'plain',
+					fromName: settingRow.smtpFromName
+				};
+			}
+		}
 		
 		// 如果账号覆盖，使用账号配置
+		const accountOverride = accountRow?.smtpOverride === 1;
 		if (accountOverride && accountRow.smtpHost) {
 			return {
 				enabled: true,

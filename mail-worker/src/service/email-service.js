@@ -162,7 +162,8 @@ const emailService = {
 			content, //邮件内容
 			subject, //邮件标题
 			attachments, //附件
-			sendMethod //发送方式：resend或smtp
+			sendMethod, //发送方式：resend或smtp
+			smtpAccountId //SMTP账户ID
 		} = params;
 
 		const { resendTokens, r2Domain, send, domainList } = await settingService.query(c);
@@ -265,7 +266,7 @@ const emailService = {
 		if (!allInternal) {
 			if (actualSendMethod === emailConst.sendMethod.SMTP) {
 				// 使用SMTP发送
-				const smtpConfig = await smtpService.getSmtpConfig(c, accountId);
+				const smtpConfig = await smtpService.getSmtpConfig(c, accountId, smtpAccountId);
 				
 				if (!smtpConfig.enabled) {
 					throw new BizError(t('smtpNotConfigured'));

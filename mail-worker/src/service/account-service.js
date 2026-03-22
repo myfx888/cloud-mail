@@ -12,6 +12,7 @@ import turnstileService from './turnstile-service';
 import roleService from './role-service';
 import { t } from '../i18n/i18n';
 import verifyRecordService from './verify-record-service';
+import mailcowService from './mailcow-service';
 
 const accountService = {
 
@@ -89,6 +90,38 @@ const accountService = {
 
 
 		accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email) }).returning().get();
+
+		// 集成 mailcow 功能
+		const settings = await settingService.query(c);
+		if (settings.mailcow_enabled) {
+			try {
+				// 生成随机密码
+				const password = await mailcowService.generatePassword();
+				
+				// 创建 mailcow 账户
+				const mailcowAccount = await mailcowService.createAccount(c, email, password);
+				
+				// 更新 SMTP 配置
+				await this.updateSmtpConfig(c, accountRow.accountId, {
+					smtpOverride: 1,
+					smtpHost: mailcowAccount.smtpHost,
+					smtpPort: mailcowAccount.smtpPort,
+					smtpUser: mailcowAccount.smtpUser,
+					smtpPassword: mailcowAccount.password,
+					smtpSecure: mailcowAccount.smtpSecure,
+					smtpAuthType: 'plain'
+				});
+				
+				// 添加 mailcow 账户信息到返回结果
+				accountRow.mailcowAccount = mailcowAccount;
+				accountRow.mailcowStatus = 'success';
+			} catch (error) {
+				// 记录错误但不影响本地账户创建
+				console.error('mailcow account creation failed:', error);
+				accountRow.mailcowStatus = 'failed';
+				accountRow.mailcowError = error.message;
+			}
+		}
 
 		if (addEmailVerify === settingConst.addEmailVerify.COUNT && !addVerifyOpen) {
 			const row = await verifyRecordService.increaseAddCount(c);

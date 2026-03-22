@@ -29,6 +29,9 @@ const settingService = {
 		let setting;
 		if (c.env.kv && c.env.kv.get) {
 			setting = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
+			if (setting && setting.mailcow_servers) {
+				setting.mailcowServers = JSON.parse(setting.mailcow_servers);
+			}
 		}
 
 		if (!setting) {
@@ -36,6 +39,7 @@ const settingService = {
 				// 从数据库读取设置
 				setting = await orm(c).select().from(setting).get();
 				setting.resendTokens = JSON.parse(setting.resendTokens);
+				setting.mailcowServers = JSON.parse(setting.mailcow_servers || '[]');
 			} catch (error) {
 				// 数据库未初始化时返回默认设置
 				setting = {
@@ -73,7 +77,11 @@ const settingService = {
 					smtp_secure: 0,
 			smtp_from_name: '',
 							resend_enabled: 1,
-							smtp_user_config: 1
+							smtp_user_config: 1,
+							mailcow_enabled: 0,
+							mailcow_servers: '[]',
+							mailcow_retry_count: 3,
+							mailcow_timeout: 30000
 						};
 			}
 		}
@@ -170,6 +178,11 @@ const settingService = {
 		}
 
 		params.resendTokens = JSON.stringify(resendTokens);
+
+		if (params.mailcowServers) {
+			params.mailcow_servers = JSON.stringify(params.mailcowServers);
+			delete params.mailcowServers;
+		}
 
 		// 处理SMTP密码（如果不更新则保留原值）
 		if (params.smtpPassword === '' || params.smtpPassword === undefined) {

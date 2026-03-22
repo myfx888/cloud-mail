@@ -71,6 +71,11 @@ const zh = {
 	smtpConnectionSuccess: 'SMTP连接成功',
 	smtpConnectionFailed: 'SMTP连接失败',
 	smtpConfigPermissionDenied: '无权限修改SMTP配置',
+	mailcowServerNotConfigured: 'mailcow服务器未配置',
+	mailcowAccountCreateFailed: '创建mailcow账户失败',
+	mailcowAccountQueryFailed: '查询mailcow账户失败',
+	mailcowAccountNotFound: 'mailcow账户不存在',
+	mailcowAccountDeleteFailed: '删除mailcow账户失败',
 	accountNotExist: '账号不存在',
 	perms: {
 		"邮件": "邮件",
@@ -84,14 +89,14 @@ const zh = {
 		"用户注销": "用户注销",
 		"分析页": "分析页",
 		"数据查看": "数据查看",
-		"用户信息": "用户列表",
+		"用户列表": "用户列表",
 		"用户查看": "用户查看",
 		"用户添加": "用户添加",
 		"密码修改": "密码修改",
 		"状态修改": "状态修改",
 		"权限修改": "权限修改",
 		"用户删除": "用户删除",
-		"邮件列表": "全部邮件",
+		"全部邮件": "全部邮件",
 		"邮件查看": "邮件查看",
 		"权限控制": "权限控制",
 		"身份查看": "身份查看",
@@ -105,6 +110,9 @@ const zh = {
 		"系统设置": "系统设置",
 		"设置查看": "设置查看",
 		"设置修改": "设置修改",
+		"SMTP设置": "SMTP设置",
+		"SMTP配置查看": "SMTP配置查看",
+		"SMTP配置修改": "SMTP配置修改",
 		'发件重置': '发件重置'
 	}
 }

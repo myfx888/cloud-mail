@@ -1,6 +1,8 @@
 import app from '../hono/hono';
 import smtpService from '../service/smtp-service';
+import smtpAccountService from '../service/smtp-account-service';
 import accountService from '../service/account-service';
+import settingService from '../service/setting-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 import BizError from '../error/biz-error';
@@ -115,4 +117,158 @@ app.post('/smtp/account-config', async (c) => {
 		});
 
 	return c.json(result.ok());
+});
+
+// 创建SMTP账户
+app.post('/smtp/accounts', async (c) => {
+	const params = await c.req.json();
+	const userId = userContext.getUserId(c);
+
+	// 验证账户所有权
+	const accountRow = await accountService.selectById(c, params.accountId);
+	if (!accountRow || accountRow.userId !== userId) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	// 检查用户是否有SMTP配置权限
+	const settingRow = await settingService.query(c);
+	const isAdmin = userContext.isAdmin(c);
+	
+	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
+		throw new BizError(t('smtpConfigPermissionDenied'));
+	}
+
+	// 创建SMTP账户
+	const smtpAccount = await smtpAccountService.create(c, params.accountId, {
+		name: params.name,
+		host: params.host,
+		port: params.port,
+		user: params.user,
+		password: params.password,
+		secure: params.secure,
+		authType: params.authType,
+		isDefault: params.isDefault
+	});
+
+	return c.json(result.ok(smtpAccount));
+});
+
+// 更新SMTP账户
+app.put('/smtp/accounts/:smtpAccountId', async (c) => {
+	const smtpAccountId = parseInt(c.req.param('smtpAccountId'), 10);
+	const params = await c.req.json();
+	const userId = userContext.getUserId(c);
+
+	// 验证账户所有权
+	const accountRow = await accountService.selectById(c, params.accountId);
+	if (!accountRow || accountRow.userId !== userId) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	// 检查用户是否有SMTP配置权限
+	const settingRow = await settingService.query(c);
+	const isAdmin = userContext.isAdmin(c);
+	
+	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
+		throw new BizError(t('smtpConfigPermissionDenied'));
+	}
+
+	// 更新SMTP账户
+	const smtpAccount = await smtpAccountService.update(c, smtpAccountId, params.accountId, {
+		name: params.name,
+		host: params.host,
+		port: params.port,
+		user: params.user,
+		password: params.password,
+		secure: params.secure,
+		authType: params.authType,
+		isDefault: params.isDefault
+	});
+
+	return c.json(result.ok(smtpAccount));
+});
+
+// 删除SMTP账户
+app.delete('/smtp/accounts/:smtpAccountId', async (c) => {
+	const smtpAccountId = parseInt(c.req.param('smtpAccountId'), 10);
+	const { accountId } = c.req.query();
+	const userId = userContext.getUserId(c);
+
+	// 验证账户所有权
+	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
+	if (!accountRow || accountRow.userId !== userId) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	// 检查用户是否有SMTP配置权限
+	const settingRow = await settingService.query(c);
+	const isAdmin = userContext.isAdmin(c);
+	
+	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
+		throw new BizError(t('smtpConfigPermissionDenied'));
+	}
+
+	// 删除SMTP账户
+	await smtpAccountService.delete(c, smtpAccountId, parseInt(accountId, 10));
+
+	return c.json(result.ok());
+});
+
+// 获取SMTP账户列表
+app.get('/smtp/accounts', async (c) => {
+	const { accountId } = c.req.query();
+	const userId = userContext.getUserId(c);
+
+	// 验证账户所有权
+	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
+	if (!accountRow || accountRow.userId !== userId) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	// 获取SMTP账户列表
+	const smtpAccounts = await smtpAccountService.list(c, parseInt(accountId, 10));
+
+	return c.json(result.ok(smtpAccounts));
+});
+
+// 获取指定SMTP账户
+app.get('/smtp/accounts/:smtpAccountId', async (c) => {
+	const smtpAccountId = parseInt(c.req.param('smtpAccountId'), 10);
+	const { accountId } = c.req.query();
+	const userId = userContext.getUserId(c);
+
+	// 验证账户所有权
+	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
+	if (!accountRow || accountRow.userId !== userId) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	// 获取SMTP账户
+	const smtpAccount = await smtpAccountService.getById(c, smtpAccountId, parseInt(accountId, 10));
+
+	return c.json(result.ok(smtpAccount));
+});
+
+// 验证SMTP账户配置
+app.post('/smtp/accounts/verify', async (c) => {
+	const params = await c.req.json();
+	const userId = userContext.getUserId(c);
+
+	// 验证账户所有权
+	const accountRow = await accountService.selectById(c, params.accountId);
+	if (!accountRow || accountRow.userId !== userId) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	// 验证SMTP配置
+	const verifyResult = await smtpAccountService.verify(c, {
+		host: params.host,
+		port: params.port,
+		user: params.user,
+		password: params.password,
+		secure: params.secure,
+		authType: params.authType
+	});
+
+	return c.json(result.ok(verifyResult));
 });

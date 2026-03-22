@@ -691,8 +691,40 @@ function handleDelete() {
 function handleExport() {
   const emailIds = getSelectedMailsIds();
   // 对于批量导出，我们可以循环下载每个邮件
-  emailIds.forEach(emailId => {
-    window.open(`/api/email/export?emailId=${emailId}`, '_blank');
+  emailIds.forEach(async (emailId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/email/export?emailId=${emailId}`, {
+        headers: {
+          'Authorization': token
+        }
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `email-${emailId}.eml`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        ElMessage({
+          message: t('exportFailed'),
+          type: 'error',
+          plain: true
+        });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      ElMessage({
+        message: t('exportFailed'),
+        type: 'error',
+        plain: true
+      });
+    }
   });
 }
 
@@ -701,12 +733,12 @@ function handleImport() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.eml';
-  input.multiple = false;
+  input.multiple = true;
   
   // 监听文件选择
   input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
+    const files = e.target.files;
+    if (files.length > 0) {
       try {
         // 显示上传进度
         const loadingInstance = ElMessage({
@@ -716,85 +748,81 @@ function handleImport() {
           showClose: true
         });
         
-        // 读取文件内容
-        const reader = new FileReader();
-        reader.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 100);
-            loadingInstance.text = `${t('importing')} ${percent}%`;
-          }
-        };
-        reader.onload = async (event) => {
-          const emlContent = event.target.result;
-          
-          // 获取当前账户 ID
-          const accountId = emailStore.contentData.email?.accountId || uiStore.currentAccountId;
-          
-          if (!accountId) {
-            loadingInstance.close();
-            ElMessage({
-              message: t('selectAccountFirst'),
-              type: 'warning',
-              plain: true
-            });
-            return;
-          }
-          
-          // 调用导入 API
-          try {
-            const response = await fetch('/api/email/import', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ emlContent, accountId })
-            });
-            
-            loadingInstance.close();
-            
-            if (response.ok) {
-              const data = await response.json();
-              if (data.code === 200) {
-                ElMessage({
-                  message: t('importSuccess'),
-                  type: 'success',
-                  plain: true
-                });
-                // 刷新邮件列表
-                refreshList();
-              } else {
-                ElMessage({
-                  message: data.message || t('importFailed'),
-                  type: 'error',
-                  plain: true
-                });
-              }
-            } else {
-              ElMessage({
-                message: t('importFailed'),
-                type: 'error',
-                plain: true
-              });
-            }
-          } catch (error) {
-            loadingInstance.close();
-            console.error('Import error:', error);
-            ElMessage({
-              message: t('importFailed'),
-              type: 'error',
-              plain: true
-            });
-          }
-        };
-        reader.onerror = () => {
+        // 获取当前账户 ID
+        const accountId = emailStore.contentData.email?.accountId || uiStore.currentAccountId;
+        
+        if (!accountId) {
           loadingInstance.close();
           ElMessage({
-            message: t('fileReadFailed'),
-            type: 'error',
+            message: t('selectAccountFirst'),
+            type: 'warning',
             plain: true
           });
-        };
-        reader.readAsText(file);
+          return;
+        }
+        
+        let importedCount = 0;
+        const totalFiles = files.length;
+        
+        // 处理每个文件
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          
+          // 更新进度
+          loadingInstance.text = `${t('importing')} ${Math.round((i / totalFiles) * 100)}% (${i}/${totalFiles})`;
+          
+          // 读取文件内容
+          const reader = new FileReader();
+          
+          await new Promise((resolve, reject) => {
+            reader.onload = async (event) => {
+              const emlContent = event.target.result;
+              
+              // 调用导入 API
+              try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/email/import', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token
+                  },
+                  body: JSON.stringify({ emlContent, accountId })
+                });
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  if (data.code === 200) {
+                    importedCount++;
+                  }
+                }
+              } catch (error) {
+                console.error('Import error:', error);
+              } finally {
+                resolve();
+              }
+            };
+            
+            reader.onerror = () => {
+              console.error('File read error');
+              resolve();
+            };
+            
+            reader.readAsText(file);
+          });
+        }
+        
+        loadingInstance.close();
+        
+        ElMessage({
+          message: t('importSuccess', {count: importedCount, total: totalFiles}),
+          type: 'success',
+          plain: true
+        });
+        
+        // 刷新邮件列表
+        refreshList();
+        
       } catch (error) {
         console.error('Import error:', error);
         ElMessage({

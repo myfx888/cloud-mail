@@ -67,14 +67,17 @@
             </div>
           </div>
           <div>
-            <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;">
-              <el-radio-button value="resend">Resend</el-radio-button>
-              <el-radio-button value="smtp">SMTP</el-radio-button>
-            </el-radio-group>
-            <el-button type="primary" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
-            <el-button type="primary" @click="sendEmail" v-else-if="form.sendType === 'forward'">{{ $t('forward') }}</el-button>
-            <el-button type="primary" @click="sendEmail" v-else>{{ $t('send') }}</el-button>
-          </div>
+              <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;">
+                <el-radio-button value="resend">Resend</el-radio-button>
+                <el-radio-button value="smtp">SMTP</el-radio-button>
+              </el-radio-group>
+              <el-select v-model="selectedSmtpAccountId" @change="handleSmtpAccountChange" size="small" placeholder="选择SMTP账户" style="margin-right: 10px;" v-if="form.sendMethod === 'smtp' && smtpAccounts.length > 0">
+                <el-option v-for="account in smtpAccounts" :key="account.smtpAccountId" :label="account.name" :value="account.smtpAccountId"/>
+              </el-select>
+              <el-button type="primary" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
+              <el-button type="primary" @click="sendEmail" v-else-if="form.sendType === 'forward'">{{ $t('forward') }}</el-button>
+              <el-button type="primary" @click="sendEmail" v-else>{{ $t('send') }}</el-button>
+            </div>
         </div>
       </div>
     </div>
@@ -108,6 +111,7 @@ import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
 import {getSmtpAccountConfig, getSignatures} from "@/request/setting.js";
+import {smtpAccountList} from "@/request/smtp.js";
 import {isEmail} from "@/utils/verify-utils.js";
 import {useAccountStore} from "@/store/account.js";
 import {useEmailStore} from "@/store/email.js";
@@ -153,6 +157,11 @@ let selectStatus = false
 // 签名相关状态
 const signatures = ref([])
 const selectedSignatureId = ref('')
+
+// SMTP账户相关状态
+const smtpAccounts = ref([])
+const selectedSmtpAccountId = ref('')
+
 const backReply = reactive({
   receiveEmail: [],
   subject: '',
@@ -172,6 +181,7 @@ const form = reactive({
   attachments: [],
   draftId: null,
   sendMethod: 'resend',
+  smtpAccountId: null,
 })
 
 const selectRecipientList = ref([])
@@ -533,13 +543,16 @@ async function open() {
   }
   show.value = true;
   
-  // 获取当前账户的签名列表
+  // 获取当前账户的签名列表和SMTP账户列表
   if (form.accountId > 0) {
     try {
-      const signatureList = await getSignatures(form.accountId);
-      signatures.value = signatureList;
+      const [signatureList, smtpAccountListResult] = await Promise.all([
+        getSignatures(form.accountId),
+        smtpAccountList(form.accountId)
+      ]);
       
-      // 找到默认签名
+      // 处理签名
+      signatures.value = signatureList;
       const defaultSignature = signatureList.find(sig => sig.isDefault);
       if (defaultSignature) {
         selectedSignatureId.value = defaultSignature.id;
@@ -553,9 +566,17 @@ async function open() {
           }
         }, 100);
       }
+      
+      // 处理SMTP账户
+      smtpAccounts.value = smtpAccountListResult;
+      const defaultSmtpAccount = smtpAccountListResult.find(acc => acc.isDefault === 1);
+      if (defaultSmtpAccount) {
+        selectedSmtpAccountId.value = defaultSmtpAccount.smtpAccountId;
+        form.smtpAccountId = defaultSmtpAccount.smtpAccountId;
+      }
     } catch (error) {
-      console.error('获取签名失败:', error);
-      // 即使获取签名失败，也继续打开编辑界面
+      console.error('获取签名或SMTP账户失败:', error);
+      // 即使获取失败，也继续打开编辑界面
     }
   }
   
@@ -579,6 +600,11 @@ function handleSignatureChange(signatureId) {
     // 添加新签名
     editor.value.setContent(cleanedContent + '<br><br>' + selectedSignature.content);
   }, 100);
+}
+
+// 处理SMTP账户选择变化
+function handleSmtpAccountChange(smtpAccountId) {
+  form.smtpAccountId = smtpAccountId;
 }
 
 function openDraft(draft) {
