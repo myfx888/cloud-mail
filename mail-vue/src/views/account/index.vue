@@ -209,7 +209,7 @@ import {accountAdd, accountDelete, accountList as fetchAccountList} from "@/requ
 import {useUserStore} from "@/store/user.js"
 import {Icon} from "@iconify/vue"
 import LoadingComponent from "@/components/loading/index.vue"
-import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig, settingQuery, getSignatures, addSignature, updateSignature, deleteSignature as deleteSignatureApi, setDefaultSignature as setDefaultSignatureApi} from "@/request/setting.js"
+import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig, settingQuery, getSignatures, addSignature as addSignatureApi, updateSignature, deleteSignature as deleteSignatureApi, setDefaultSignature as setDefaultSignatureApi} from "@/request/setting.js"
 import {useI18n} from 'vue-i18n'
 import {ElMessage, ElMessageBox} from 'element-plus'
 
@@ -431,7 +431,7 @@ async function saveSignature() {
       })
     } else {
       // 添加签名
-      await addSignature(currentAccount.value.accountId, signatureForm)
+      await addSignatureApi(currentAccount.value.accountId, signatureForm)
       ElMessage({
         message: '签名添加成功',
         type: 'success',
