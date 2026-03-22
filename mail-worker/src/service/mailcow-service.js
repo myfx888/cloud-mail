@@ -45,11 +45,28 @@ const mailcowService = {
             const response = await fetch(url, options);
             
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
+                let errorData = {};
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    // 如果响应不是有效的 JSON，使用状态文本作为错误信息
+                    throw new BizError(`mailcow API error: ${response.statusText}`, response.status);
+                }
                 throw new BizError(`mailcow API error: ${errorData.message || response.statusText}`, response.status);
             }
             
-            return await response.json();
+            // 检查响应是否为空
+            const responseText = await response.text();
+            if (!responseText) {
+                throw new BizError('mailcow API returned empty response');
+            }
+            
+            // 尝试解析 JSON 响应
+            try {
+                return JSON.parse(responseText);
+            } catch (e) {
+                throw new BizError(`mailcow API returned invalid JSON: ${e.message}`);
+            }
         } catch (error) {
             if (error instanceof BizError) {
                 throw error;
