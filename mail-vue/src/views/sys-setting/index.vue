@@ -1229,6 +1229,20 @@ function testMailcowConnection() {
     return
   }
 
+  // 验证 API 地址格式
+  let apiUrl = currentMailcowServer.value.apiUrl
+  if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+    apiUrl = 'https://' + apiUrl
+  }
+  
+  // 移除末尾的斜杠
+  if (apiUrl.endsWith('/')) {
+    apiUrl = apiUrl.slice(0, -1)
+  }
+  
+  // 更新当前服务器配置的 API 地址
+  currentMailcowServer.value.apiUrl = apiUrl
+
   testConnectionLoading.value = true
   testMailcowConnectionApi(currentMailcowServer.value).then(() => {
     ElMessage({
