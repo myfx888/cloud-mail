@@ -283,7 +283,7 @@
           </el-form-item>
         </el-form>
         <div class="smtp-verify-button" style="margin-top: 20px;">
-          <el-button type="primary" :loading="smtpAccountVerifying" @click="verifySmtpAccountConfig">
+          <el-button type="primary" :loading="smtpAccountVerifying" @click="verifySmtpAccountConfigLocal">
             {{ $t('test') }}
           </el-button>
         </div>
@@ -774,7 +774,7 @@ async function setDefaultSmtpAccount(account) {
   }
 }
 
-async function verifySmtpAccountConfig() {
+async function verifySmtpAccountConfigLocal() {
   if (!currentAccount.value) return
   
   smtpAccountVerifying.value = true
