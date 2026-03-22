@@ -5,7 +5,7 @@ import { t } from '../i18n/i18n';
 import accountService from './account-service';
 import settingService from './setting-service';
 import smtpAccountService from './smtp-account-service';
-import { db } from '../db/db';
+import orm from '../entity/orm';
 import smtpAccount from '../entity/smtp-account';
 
 const smtpService = {
@@ -100,13 +100,13 @@ const smtpService = {
 		
 		// 如果指定了SMTP账户ID，使用该账户的配置
 		if (smtpAccountId) {
-			const smtpAccountRow = await db(c).query.smtpAccount.findFirst({
-				where: and(
+			const smtpAccountRow = await orm(c).select().from(smtpAccount).where(
+				and(
 					eq(smtpAccount.smtpAccountId, smtpAccountId),
 					eq(smtpAccount.accountId, accountId),
 					eq(smtpAccount.status, 1)
 				)
-			});
+			).get();
 			
 			if (smtpAccountRow) {
 				return {

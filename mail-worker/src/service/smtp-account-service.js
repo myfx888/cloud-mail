@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import smtpAccount from '../entity/smtp-account';
-import { db } from '../db/db';
+import orm from '../entity/orm';
 import smtpService from './smtp-service';
 import BizError from '../error/biz-error';
 import { t } from '../i18n/i18n';
@@ -20,13 +20,13 @@ const smtpAccountService = {
 
 		// 如果设置为默认，先将其他账户设为非默认
 		if (smtpAccountData.isDefault) {
-			await db(c).update(smtpAccount)
+			await orm(c).update(smtpAccount)
 				.set({ isDefault: 0 })
 				.where(eq(smtpAccount.accountId, accountId));
 		}
 
 		// 创建SMTP账户
-		const [result] = await db(c).insert(smtpAccount).values({
+		const result = await orm(c).insert(smtpAccount).values({
 			accountId,
 			name: smtpAccountData.name,
 			host: smtpAccountData.host,
@@ -37,7 +37,7 @@ const smtpAccountService = {
 			authType: smtpAccountData.authType || 'plain',
 			isDefault: smtpAccountData.isDefault ? 1 : 0,
 			status: 1
-		}).returning();
+		}).returning().get();
 
 		return result;
 	},
@@ -55,12 +55,12 @@ const smtpAccountService = {
 		});
 
 		// 检查账户是否存在且属于该用户
-		const existingAccount = await db(c).query.smtpAccount.findFirst({
-			where: and(
+		const existingAccount = await orm(c).select().from(smtpAccount).where(
+			and(
 				eq(smtpAccount.smtpAccountId, smtpAccountId),
 				eq(smtpAccount.accountId, accountId)
 			)
-		});
+		).get();
 
 		if (!existingAccount) {
 			throw new BizError(t('smtpAccountNotFound'));
@@ -68,13 +68,13 @@ const smtpAccountService = {
 
 		// 如果设置为默认，先将其他账户设为非默认
 		if (smtpAccountData.isDefault) {
-			await db(c).update(smtpAccount)
+			await orm(c).update(smtpAccount)
 				.set({ isDefault: 0 })
 				.where(eq(smtpAccount.accountId, accountId));
 		}
 
 		// 更新SMTP账户
-		const [result] = await db(c).update(smtpAccount)
+		const result = await orm(c).update(smtpAccount)
 			.set({
 				name: smtpAccountData.name,
 				host: smtpAccountData.host,
@@ -90,7 +90,7 @@ const smtpAccountService = {
 				eq(smtpAccount.smtpAccountId, smtpAccountId),
 				eq(smtpAccount.accountId, accountId)
 			))
-			.returning();
+			.returning().get();
 
 		return result;
 	},
@@ -100,12 +100,12 @@ const smtpAccountService = {
 	 */
 	async delete(c, smtpAccountId, accountId) {
 		// 检查账户是否存在且属于该用户
-		const existingAccount = await db(c).query.smtpAccount.findFirst({
-			where: and(
+		const existingAccount = await orm(c).select().from(smtpAccount).where(
+			and(
 				eq(smtpAccount.smtpAccountId, smtpAccountId),
 				eq(smtpAccount.accountId, accountId)
 			)
-		});
+		).get();
 
 		if (!existingAccount) {
 			throw new BizError(t('smtpAccountNotFound'));
@@ -117,12 +117,12 @@ const smtpAccountService = {
 		}
 
 		// 删除SMTP账户
-		await db(c).delete(smtpAccount)
+		await orm(c).delete(smtpAccount)
 			.where(and(
 				eq(smtpAccount.smtpAccountId, smtpAccountId),
 				eq(smtpAccount.accountId, accountId)
 			));
-
+		
 		return { success: true };
 	},
 
@@ -130,13 +130,14 @@ const smtpAccountService = {
 	 * 获取SMTP账户列表
 	 */
 	async list(c, accountId) {
-		const accounts = await db(c).query.smtpAccount.findMany({
-			where: eq(smtpAccount.accountId, accountId),
-			orderBy: (smtpAccount, { desc }) => [
+		const accounts = await orm(c).select().from(smtpAccount).where(
+			eq(smtpAccount.accountId, accountId)
+		).orderBy(
+			(smtpAccount, { desc }) => [
 				desc(smtpAccount.isDefault),
 				smtpAccount.createTime
 			]
-		});
+		).all();
 
 		// 移除密码信息
 		return accounts.map(account => ({
@@ -149,25 +150,25 @@ const smtpAccountService = {
 	 * 获取默认SMTP账户
 	 */
 	async getDefault(c, accountId) {
-		return await db(c).query.smtpAccount.findFirst({
-			where: and(
+		return await orm(c).select().from(smtpAccount).where(
+			and(
 				eq(smtpAccount.accountId, accountId),
 				eq(smtpAccount.isDefault, 1),
 				eq(smtpAccount.status, 1)
 			)
-		});
+		).get();
 	},
 
 	/**
 	 * 获取指定SMTP账户
 	 */
 	async getById(c, smtpAccountId, accountId) {
-		const account = await db(c).query.smtpAccount.findFirst({
-			where: and(
+		const account = await orm(c).select().from(smtpAccount).where(
+			and(
 				eq(smtpAccount.smtpAccountId, smtpAccountId),
 				eq(smtpAccount.accountId, accountId)
 			)
-		});
+		).get();
 
 		if (!account) {
 			throw new BizError(t('smtpAccountNotFound'));
