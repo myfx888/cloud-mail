@@ -220,6 +220,40 @@
             </div>
           </div>
 
+          <!-- Mailcow Settings Card -->
+          <div class="settings-card">
+            <div class="card-title">Mailcow 设置</div>
+            <div class="card-content">
+              <div class="setting-item">
+                <div><span>Mailcow 功能</span></div>
+                <div>
+                  <el-switch @change="change" :before-change="beforeChange" :active-value="1" :inactive-value="0"
+                             v-model="setting.mailcowEnabled"/>
+                </div>
+              </div>
+              <div class="setting-item">
+                <div><span>服务器配置</span></div>
+                <div class="forward">
+                  <el-button class="opt-button" size="small" type="primary" @click="openMailcowServers">
+                    <Icon icon="fluent:settings-48-regular" width="18" height="18"/>
+                  </el-button>
+                </div>
+              </div>
+              <div class="setting-item">
+                <div><span>API 重试次数</span></div>
+                <div>
+                  <el-input-number size="small" v-model="mailcowRetryCount" @change="mailcowRetryCountChange" :min="1" :max="10"/>
+                </div>
+              </div>
+              <div class="setting-item">
+                <div><span>API 超时时间 (ms)</span></div>
+                <div>
+                  <el-input-number size="small" v-model="mailcowTimeout" @change="mailcowTimeoutChange" :min="5000" :max="60000" :step="5000"/>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Object Storage Card -->
           <div class="settings-card">
             <div class="card-title">{{ $t('oss') }}</div>
@@ -756,6 +790,56 @@
         </div>
         <el-button type="primary" style="width: 100%;" :loading="settingLoading" @click="saveEmailPrefix">{{ $t('save') }}</el-button>
       </el-dialog>
+
+      <!-- Mailcow Servers Dialog -->
+      <el-dialog v-model="mailcowServersShow" :title="'Mailcow 服务器配置'" width="500px" @closed="resetMailcowServer">
+        <div class="mailcow-servers">
+          <div class="server-list">
+            <h4>服务器列表</h4>
+            <el-table :data="mailcowServers" style="width: 100%">
+              <el-table-column prop="name" label="服务器名称" />
+              <el-table-column prop="apiUrl" label="API 地址" />
+              <el-table-column prop="smtpHost" label="SMTP 主机" />
+              <el-table-column prop="isDefault" label="默认" width="80">
+                <template #default="scope">
+                  <el-tag v-if="scope.row.isDefault" type="success">是</el-tag>
+                  <el-tag v-else>否</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="150">
+                <template #default="scope">
+                  <el-button size="small" @click="editMailcowServer(scope.row)">编辑</el-button>
+                  <el-button size="small" type="danger" @click="deleteMailcowServer(scope.row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+          <div class="server-form">
+            <h4>{{ currentMailcowServer.name ? '编辑服务器' : '添加服务器' }}</h4>
+            <el-form :model="currentMailcowServer" label-width="100px">
+              <el-form-item label="服务器名称">
+                <el-input v-model="currentMailcowServer.name" />
+              </el-form-item>
+              <el-form-item label="API 地址">
+                <el-input v-model="currentMailcowServer.apiUrl" placeholder="例如: https://mail.example.com" />
+              </el-form-item>
+              <el-form-item label="API 密钥">
+                <el-input v-model="currentMailcowServer.apiKey" type="password" />
+              </el-form-item>
+              <el-form-item label="SMTP 主机">
+                <el-input v-model="currentMailcowServer.smtpHost" placeholder="例如: smtp.example.com" />
+              </el-form-item>
+              <el-form-item label="设为默认">
+                <el-switch v-model="currentMailcowServer.isDefault" />
+              </el-form-item>
+            </el-form>
+            <div class="form-buttons">
+              <el-button @click="testMailcowConnection">测试连接</el-button>
+              <el-button type="primary" @click="saveMailcowServer">保存</el-button>
+            </div>
+          </div>
+        </div>
+      </el-dialog>
     </el-scrollbar>
   </div>
 </template>
@@ -820,6 +904,7 @@ let backup = '{}'
 const addS3Show = ref(false)
 const addVerifyCountShow = ref(false)
 const regVerifyCountShow = ref(false)
+const mailcowServersShow = ref(false)
 const resendTokenForm = reactive({
   domain: '',
   token: '',
@@ -827,6 +912,16 @@ const resendTokenForm = reactive({
 const turnstileForm = reactive({
   siteKey: '',
   secretKey: ''
+})
+const mailcowServers = ref([])
+const mailcowRetryCount = ref(3)
+const mailcowTimeout = ref(30000)
+const currentMailcowServer = ref({
+  name: '',
+  apiUrl: '',
+  apiKey: '',
+  smtpHost: '',
+  isDefault: false
 })
 
 const s3 = reactive({
@@ -899,6 +994,9 @@ function getSettings() {
     r2DomainInput.value = setting.value.r2Domain
     addVerifyCount.value = setting.value.addVerifyCount
     regVerifyCount.value = setting.value.regVerifyCount
+    mailcowServers.value = setting.value.mailcowServers || []
+    mailcowRetryCount.value = setting.value.mailcowRetryCount || 3
+    mailcowTimeout.value = setting.value.mailcowTimeout || 30000
     resetNoticeForm()
     resetAddS3Form()
     resetEmailPrefix()
@@ -1061,6 +1159,88 @@ function openForwardRules() {
     ruleEmail.value.push(...list)
   }
   forwardRulesShow.value = true
+}
+
+function openMailcowServers() {
+  mailcowServersShow.value = true
+}
+
+function resetMailcowServer() {
+  currentMailcowServer.value = {
+    name: '',
+    apiUrl: '',
+    apiKey: '',
+    smtpHost: '',
+    isDefault: false
+  }
+}
+
+function editMailcowServer(server) {
+  currentMailcowServer.value = { ...server }
+}
+
+function deleteMailcowServer(server) {
+  ElMessageBox.confirm('确定要删除该服务器吗？', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    const index = mailcowServers.value.findIndex(s => s.name === server.name)
+    if (index !== -1) {
+      mailcowServers.value.splice(index, 1)
+      editSetting({ mailcowServers: mailcowServers.value })
+    }
+  })
+}
+
+function saveMailcowServer() {
+  if (!currentMailcowServer.value.name || !currentMailcowServer.value.apiUrl || !currentMailcowServer.value.apiKey) {
+    ElMessage({
+      message: '请填写完整的服务器信息',
+      type: 'error'
+    })
+    return
+  }
+
+  // 如果设置为默认，将其他服务器的默认标志设为 false
+  if (currentMailcowServer.value.isDefault) {
+    mailcowServers.value.forEach(server => {
+      server.isDefault = false
+    })
+  }
+
+  const index = mailcowServers.value.findIndex(s => s.name === currentMailcowServer.value.name)
+  if (index !== -1) {
+    mailcowServers.value[index] = { ...currentMailcowServer.value }
+  } else {
+    mailcowServers.value.push({ ...currentMailcowServer.value })
+  }
+
+  editSetting({ mailcowServers: mailcowServers.value })
+}
+
+function testMailcowConnection() {
+  if (!currentMailcowServer.value.apiUrl || !currentMailcowServer.value.apiKey) {
+    ElMessage({
+      message: '请填写 API 地址和 API 密钥',
+      type: 'error'
+    })
+    return
+  }
+
+  // 这里可以添加测试连接的逻辑
+  ElMessage({
+    message: '测试连接功能暂未实现',
+    type: 'info'
+  })
+}
+
+function mailcowRetryCountChange() {
+  editSetting({ mailcowRetryCount: mailcowRetryCount.value })
+}
+
+function mailcowTimeoutChange() {
+  editSetting({ mailcowTimeout: mailcowTimeout.value })
 }
 
 function emailAddTag(val) {
@@ -1429,6 +1609,30 @@ function editSetting(settingForm, refreshStatus = true) {
   height: 140px;
   border-radius: 4px;
   border: 1px solid var(--light-border);
+}
+
+.mailcow-servers {
+  .server-list {
+    margin-bottom: 20px;
+    h4 {
+      margin-bottom: 10px;
+    }
+    .el-table {
+      margin-bottom: 15px;
+    }
+  }
+  .server-form {
+    h4 {
+      margin-bottom: 15px;
+    }
+    .form-buttons {
+      margin-top: 20px;
+      text-align: right;
+    }
+  }
+}
+
+.background {
   @media (max-width: 500px) {
     width: 160px;
     height: 90px;
