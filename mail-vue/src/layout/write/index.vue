@@ -68,7 +68,7 @@
           </div>
           <div>
               <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;">
-                <el-radio-button value="resend">Resend</el-radio-button>
+                <el-radio-button v-if="settingStore.settings.resendEnabled" value="resend">Resend</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
               </el-radio-group>
               <el-select v-model="selectedSmtpAccountId" @change="handleSmtpAccountChange" size="small" placeholder="选择SMTP账户" style="margin-right: 10px;" v-if="form.sendMethod === 'smtp' && smtpAccounts.length > 0">
@@ -541,6 +541,14 @@ async function open() {
     form.accountId = accountStore.currentAccount.accountId;
     form.name = accountStore.currentAccount.name;
   }
+  
+  // 根据 resendEnabled 设置默认发送方式
+  if (settingStore.settings.resendEnabled) {
+    form.sendMethod = 'resend';
+  } else {
+    form.sendMethod = 'smtp';
+  }
+  
   show.value = true;
   
   // 获取当前账户的签名列表和SMTP账户列表
