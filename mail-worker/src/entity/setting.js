@@ -54,6 +54,7 @@ export const setting = sqliteTable('setting', {
 	smtpPassword: text('smtp_password').default('').notNull(),
 	smtpSecure: integer('smtp_secure').default(0).notNull(),
 	smtpFromName: text('smtp_from_name').default('').notNull(),
-	resendEnabled: integer('resend_enabled').default(1).notNull()
+	resendEnabled: integer('resend_enabled').default(1).notNull(),
+	smtpUserConfig: integer('smtp_user_config').default(1).notNull()
 });
 export default setting

@@ -57,7 +57,8 @@ export const emailConst = {
 	},
 	sendMethod: {
 		RESEND: 'resend',
-		SMTP: 'smtp'
+		SMTP: 'smtp',
+		IMPORTED: 'imported'
 	}
 }
 

@@ -9,6 +9,7 @@
       </span>
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openReply" icon="la:reply" width="21" height="21" />
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openForward" icon="iconoir:arrow-up-right" width="20" height="20" />
+      <Icon class="icon" @click="exportEmail" icon="material-symbols-light:download" width="20" height="20" />
     </div>
     <div></div>
     <el-scrollbar class="scrollbar">
@@ -212,6 +213,11 @@ const handleDelete = () => {
 
     router.back()
   })
+}
+
+const exportEmail = () => {
+  // 调用导出 API，下载 .eml 文件
+  window.location.href = `/api/email/export?emailId=${email.emailId}`
 }
 </script>
 <style scoped lang="scss">

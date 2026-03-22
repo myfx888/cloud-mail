@@ -274,8 +274,7 @@ const accountService = {
 			smtpPort: config.smtpPort,
 			smtpUser: config.smtpUser,
 			smtpSecure: config.smtpSecure,
-			smtpAuthType: config.smtpAuthType || 'plain',
-			signature: config.signature || ''
+			smtpAuthType: config.smtpAuthType || 'plain'
 		};
 		
 		// 只有提供密码时才更新
@@ -284,6 +283,158 @@ const accountService = {
 		}
 		
 		await orm(c).update(account).set(updateData).where(eq(account.accountId, accountId)).run();
+	},
+
+	// 签名管理相关方法
+	async getSignatures(c, accountId, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+		
+		try {
+			return JSON.parse(accountRow.signatures || '[]');
+		} catch (e) {
+			return [];
+		}
+	},
+
+	async addSignature(c, accountId, signatureData, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+		
+		const signatures = JSON.parse(accountRow.signatures || '[]');
+		
+		// 生成唯一ID
+		const signatureId = `sig_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+		
+		const newSignature = {
+			id: signatureId,
+			name: signatureData.name || '新签名',
+			content: signatureData.content || '',
+			isDefault: signatureData.isDefault || false
+		};
+		
+		// 如果设置为默认，将其他签名的默认标志设为false
+		if (newSignature.isDefault) {
+			signatures.forEach(sig => {
+				sig.isDefault = false;
+			});
+		}
+		
+		signatures.push(newSignature);
+		
+		await orm(c).update(account)
+			.set({ signatures: JSON.stringify(signatures) })
+			.where(eq(account.accountId, accountId))
+			.run();
+		
+		return newSignature;
+	},
+
+	async updateSignature(c, accountId, signatureId, signatureData, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+		
+		const signatures = JSON.parse(accountRow.signatures || '[]');
+		const signatureIndex = signatures.findIndex(sig => sig.id === signatureId);
+		
+		if (signatureIndex === -1) {
+			throw new BizError(t('signatureNotExist'));
+		}
+		
+		// 如果设置为默认，将其他签名的默认标志设为false
+		if (signatureData.isDefault) {
+			signatures.forEach(sig => {
+				sig.isDefault = false;
+			});
+		}
+		
+		// 更新签名
+		signatures[signatureIndex] = {
+			...signatures[signatureIndex],
+			name: signatureData.name || signatures[signatureIndex].name,
+			content: signatureData.content || signatures[signatureIndex].content,
+			isDefault: signatureData.isDefault !== undefined ? signatureData.isDefault : signatures[signatureIndex].isDefault
+		};
+		
+		await orm(c).update(account)
+			.set({ signatures: JSON.stringify(signatures) })
+			.where(eq(account.accountId, accountId))
+			.run();
+		
+		return signatures[signatureIndex];
+	},
+
+	async deleteSignature(c, accountId, signatureId, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+		
+		const signatures = JSON.parse(accountRow.signatures || '[]');
+		const signatureIndex = signatures.findIndex(sig => sig.id === signatureId);
+		
+		if (signatureIndex === -1) {
+			throw new BizError(t('signatureNotExist'));
+		}
+		
+		// 删除签名
+		signatures.splice(signatureIndex, 1);
+		
+		// 如果删除的是默认签名，将第一个签名设为默认
+		if (signatures.length > 0 && !signatures.some(sig => sig.isDefault)) {
+			signatures[0].isDefault = true;
+		}
+		
+		await orm(c).update(account)
+			.set({ signatures: JSON.stringify(signatures) })
+			.where(eq(account.accountId, accountId))
+			.run();
+	},
+
+	async setDefaultSignature(c, accountId, signatureId, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+		
+		const signatures = JSON.parse(accountRow.signatures || '[]');
+		const signatureIndex = signatures.findIndex(sig => sig.id === signatureId);
+		
+		if (signatureIndex === -1) {
+			throw new BizError(t('signatureNotExist'));
+		}
+		
+		// 将所有签名的默认标志设为false，然后将指定签名设为默认
+		signatures.forEach(sig => {
+			sig.isDefault = false;
+		});
+		signatures[signatureIndex].isDefault = true;
+		
+		await orm(c).update(account)
+			.set({ signatures: JSON.stringify(signatures) })
+			.where(eq(account.accountId, accountId))
+			.run();
 	}
 };
 

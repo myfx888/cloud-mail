@@ -18,6 +18,11 @@
         <Icon v-perm="'email:delete'" class="icon delete" icon="fluent:mail-read-20-regular" width="21" height="21"
               v-if="getSelectedMailsIds().length > 0 && showUnread"
               @click="handleRead"/>
+        <Icon class="icon" icon="material-symbols-light:download" width="20" height="20"
+              v-if="getSelectedMailsIds().length > 0"
+              @click="handleExport"/>
+        <Icon class="icon" icon="material-symbols-light:upload" width="20" height="20"
+              @click="handleImport"/>
       </div>
 
       <div class="header-right">
@@ -679,6 +684,128 @@ function handleDelete() {
       emailStore.deleteIds = emailIds;
     })
   })
+}
+
+function handleExport() {
+  const emailIds = getSelectedMailsIds();
+  // 对于批量导出，我们可以循环下载每个邮件
+  emailIds.forEach(emailId => {
+    window.open(`/api/email/export?emailId=${emailId}`, '_blank');
+  });
+}
+
+function handleImport() {
+  // 创建文件输入元素
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.eml';
+  input.multiple = false;
+  
+  // 监听文件选择
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        // 显示上传进度
+        const loadingInstance = ElMessage({
+          message: t('importing'),
+          type: 'info',
+          duration: 0,
+          showClose: true
+        });
+        
+        // 读取文件内容
+        const reader = new FileReader();
+        reader.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            loadingInstance.text = `${t('importing')} ${percent}%`;
+          }
+        };
+        reader.onload = async (event) => {
+          const emlContent = event.target.result;
+          
+          // 获取当前账户 ID
+          const accountId = emailStore.contentData.email?.accountId || uiStore.currentAccountId;
+          
+          if (!accountId) {
+            loadingInstance.close();
+            ElMessage({
+              message: t('selectAccountFirst'),
+              type: 'warning',
+              plain: true
+            });
+            return;
+          }
+          
+          // 调用导入 API
+          try {
+            const response = await fetch('/api/email/import', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ emlContent, accountId })
+            });
+            
+            loadingInstance.close();
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.code === 200) {
+                ElMessage({
+                  message: t('importSuccess'),
+                  type: 'success',
+                  plain: true
+                });
+                // 刷新邮件列表
+                refreshList();
+              } else {
+                ElMessage({
+                  message: data.message || t('importFailed'),
+                  type: 'error',
+                  plain: true
+                });
+              }
+            } else {
+              ElMessage({
+                message: t('importFailed'),
+                type: 'error',
+                plain: true
+              });
+            }
+          } catch (error) {
+            loadingInstance.close();
+            console.error('Import error:', error);
+            ElMessage({
+              message: t('importFailed'),
+              type: 'error',
+              plain: true
+            });
+          }
+        };
+        reader.onerror = () => {
+          loadingInstance.close();
+          ElMessage({
+            message: t('fileReadFailed'),
+            type: 'error',
+            plain: true
+          });
+        };
+        reader.readAsText(file);
+      } catch (error) {
+        console.error('Import error:', error);
+        ElMessage({
+          message: t('importFailed'),
+          type: 'error',
+          plain: true
+        });
+      }
+    }
+  };
+  
+  // 触发文件选择
+  input.click();
 }
 
 function deleteEmail(emailIds) {

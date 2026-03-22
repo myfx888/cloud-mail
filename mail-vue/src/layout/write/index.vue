@@ -2,18 +2,23 @@
   <div class="send" v-show="show">
     <div class="write-box">
       <div class="title">
-        <div class="title-left">
-          <span class="title-text">
-            <Icon icon="hugeicons:quill-write-01" width="28" height="28"/>
-          </span>
-          <span class="sender">{{ $t('sender') }}:</span>
-          <span class="sender-name">{{ form.name }}</span>
-          <span class="send-email"><{{ form.sendEmail }}></span>
+          <div class="title-left">
+            <span class="title-text">
+              <Icon icon="hugeicons:quill-write-01" width="28" height="28"/>
+            </span>
+            <span class="sender">{{ $t('sender') }}:</span>
+            <span class="sender-name">{{ form.name }}</span>
+            <span class="send-email"><{{ form.sendEmail }}></span>
+            <div class="signature-selector" v-if="signatures.length > 0">
+              <el-select v-model="selectedSignatureId" @change="handleSignatureChange" size="small" placeholder="选择签名">
+                <el-option v-for="signature in signatures" :key="signature.id" :label="signature.name" :value="signature.id"/>
+              </el-select>
+            </div>
+          </div>
+          <div @click="close" style="cursor: pointer;">
+            <Icon icon="material-symbols-light:close-rounded" width="22" height="22"/>
+          </div>
         </div>
-        <div @click="close" style="cursor: pointer;">
-          <Icon icon="material-symbols-light:close-rounded" width="22" height="22"/>
-        </div>
-      </div>
       <div class="container">
         <el-input-tag  @add-tag="addTagChange" tag-type="primary" @input="inputChange" size="default" v-model="form.receiveEmail" >
           <template #prefix>
@@ -102,7 +107,7 @@ import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed} fro
 import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
-import {getSmtpAccountConfig} from "@/request/setting.js";
+import {getSmtpAccountConfig, getSignatures} from "@/request/setting.js";
 import {isEmail} from "@/utils/verify-utils.js";
 import {useAccountStore} from "@/store/account.js";
 import {useEmailStore} from "@/store/email.js";
@@ -144,6 +149,10 @@ const contactsTabRef = ref({})
 const showContacts = ref(false)
 const mySelect = ref()
 let selectStatus = false
+
+// 签名相关状态
+const signatures = ref([])
+const selectedSignatureId = ref('')
 const backReply = reactive({
   receiveEmail: [],
   subject: '',
@@ -524,18 +533,23 @@ async function open() {
   }
   show.value = true;
   
-  // 获取当前账户的签名信息
+  // 获取当前账户的签名列表
   if (form.accountId > 0) {
     try {
-      const config = await getSmtpAccountConfig(form.accountId);
-      if (config && config.signature) {
-        // 在编辑器中添加签名
+      const signatureList = await getSignatures(form.accountId);
+      signatures.value = signatureList;
+      
+      // 找到默认签名
+      const defaultSignature = signatureList.find(sig => sig.isDefault);
+      if (defaultSignature) {
+        selectedSignatureId.value = defaultSignature.id;
+        // 在编辑器中添加默认签名
         setTimeout(() => {
           const content = editor.value.getContent();
           if (!content) {
-            editor.value.setContent(config.signature);
+            editor.value.setContent(defaultSignature.content);
           } else {
-            editor.value.setContent(content + '<br><br>' + config.signature);
+            editor.value.setContent(content + '<br><br>' + defaultSignature.content);
           }
         }, 100);
       }
@@ -546,6 +560,25 @@ async function open() {
   }
   
   editor.value.focus()
+}
+
+// 处理签名选择变化
+function handleSignatureChange(signatureId) {
+  if (!signatureId) return;
+  
+  const selectedSignature = signatures.value.find(sig => sig.id === signatureId);
+  if (!selectedSignature) return;
+  
+  // 在编辑器中添加选择的签名
+  setTimeout(() => {
+    const content = editor.value.getContent();
+    // 移除之前的签名
+    const signatureRegex = /<br\s*\/?>\s*<br\s*\/?>\s*<div[^>]*>.*?<\/div>$/s;
+    const cleanedContent = content.replace(signatureRegex, '');
+    
+    // 添加新签名
+    editor.value.setContent(cleanedContent + '<br><br>' + selectedSignature.content);
+  }, 100);
 }
 
 function openDraft(draft) {
@@ -679,42 +712,47 @@ function close() {
     }
 
     .title {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 10px;
-
-      .title-left {
-        align-items: center;
-        display: grid;
-        grid-template-columns: auto auto auto 1fr;
-      }
-
-      .title-text {
-      }
-
-      .sender {
-        margin-left: 8px;
-      }
-
-      .sender-name {
-        margin-left: 8px;
-        font-weight: bold;
-      }
-
-      .send-email {
-        color: #999896;
-        margin-left: 5px;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        overflow: hidden;
-      }
-
-
-      div {
         display: flex;
-        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+
+        .title-left {
+          align-items: center;
+          display: grid;
+          grid-template-columns: auto auto auto auto 1fr;
+          gap: 10px;
+        }
+
+        .title-text {
+        }
+
+        .sender {
+          margin-left: 8px;
+        }
+
+        .sender-name {
+          margin-left: 8px;
+          font-weight: bold;
+        }
+
+        .send-email {
+          color: #999896;
+          margin-left: 5px;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          overflow: hidden;
+        }
+
+        .signature-selector {
+          margin-left: 15px;
+          min-width: 150px;
+        }
+
+        div {
+          display: flex;
+          align-items: center;
+        }
       }
-    }
 
     .container {
       height: 100%;

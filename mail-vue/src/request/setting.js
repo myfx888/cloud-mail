@@ -35,3 +35,24 @@ export function saveSmtpAccountConfig(accountId, smtpConfig) {
 export function verifySmtpAccountConfig(accountId, smtpConfig) {
     return http.post('/smtp/verify-account', { ...smtpConfig, accountId })
 }
+
+// 签名管理相关 API 调用
+export function getSignatures(accountId) {
+    return http.get(`/account/${accountId}/signatures`)
+}
+
+export function addSignature(accountId, signatureData) {
+    return http.post(`/account/${accountId}/signatures`, signatureData)
+}
+
+export function updateSignature(accountId, signatureId, signatureData) {
+    return http.put(`/account/${accountId}/signatures/${signatureId}`, signatureData)
+}
+
+export function deleteSignature(accountId, signatureId) {
+    return http.delete(`/account/${accountId}/signatures/${signatureId}`)
+}
+
+export function setDefaultSignature(accountId, signatureId) {
+    return http.put(`/account/${accountId}/signatures/${signatureId}/setDefault`)
+}

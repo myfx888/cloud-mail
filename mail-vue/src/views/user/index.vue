@@ -200,12 +200,13 @@
             <el-tag type="info" disable-transitions v-if="props.row.isDel === 1">{{$t('deleted')}}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('action')" :width="locale === 'en' ? 75 : 65" >
+        <el-table-column :label="t('action')" :width="locale === 'en' ? 150 : 120" >
           <template #default="props">
             <el-dropdown trigger="click">
               <el-button type="primary" size="small">{{t('action')}}</el-button>
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item @click="openSmtpConfig(props.row)">{{ $t('smtpSetting') }}</el-dropdown-item>
                   <el-dropdown-item @click="deleteAccount(props.row)">{{ $t('delete') }}</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -286,6 +287,89 @@
                      v-if="userDetails.sendAction.hasPerm && userDetails.sendAction.sendCount"
                      @click="resetSendCount(userDetails)" type="primary">{{ $t('reset') }}
           </el-button>
+        </div>
+      </div>
+    </el-dialog>
+    <!-- SMTP Config Dialog -->
+    <el-dialog v-model="smtpConfigShow" :title="$t('smtpSetting')" width="400">
+      <div class="smtp-config-form">
+        <div class="setting-item">
+          <div><span>{{ $t('smtpOverride') }}</span></div>
+          <div>
+            <el-switch @change="smtpConfigChange" :active-value="1" :inactive-value="0" v-model="smtpForm.smtpOverride"/>
+          </div>
+        </div>
+        
+        <template v-if="smtpForm.smtpOverride">
+          <div class="setting-item">
+            <div><span>{{ $t('smtpHost') }}</span></div>
+            <div>
+              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpHost" placeholder="smtp.example.com"/>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div><span>{{ $t('smtpPort') }}</span></div>
+            <div>
+              <el-input-number size="small" @change="smtpConfigChange" v-model="smtpForm.smtpPort" :min="1" :max="65535"/>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div><span>{{ $t('smtpUser') }}</span></div>
+            <div>
+              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpUser" placeholder="user@example.com"/>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div><span>{{ $t('smtpPassword') }}</span></div>
+            <div>
+              <el-input size="small" type="password" show-password style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpPassword"/>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div><span>{{ $t('smtpSecure') }}</span></div>
+            <div>
+              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpSecure">
+                <el-option :value="0" label="STARTTLS"/>
+                <el-option :value="1" label="SSL/TLS"/>
+              </el-select>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div><span>{{ $t('smtpAuthType') }}</span></div>
+            <div>
+              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpAuthType">
+                <el-option value="plain" label="Plain"/>
+                <el-option value="login" label="Login"/>
+                <el-option value="cram-md5" label="CRAM-MD5"/>
+              </el-select>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div><span>{{ $t('smtpVerify') }}</span></div>
+            <div>
+              <el-button size="small" type="primary" :loading="smtpVerifying" @click="verifySmtpConfig">
+                {{ $t('test') }}
+              </el-button>
+            </div>
+          </div>
+        </template>
+        
+        <!-- 邮件签名设置 -->
+        <div class="setting-item">
+          <div><span>邮件签名</span></div>
+          <div>
+            <el-input
+              type="textarea"
+              rows="4"
+              style="width: 250px"
+              @change="smtpConfigChange"
+              v-model="smtpForm.signature"
+              placeholder="输入邮件签名内容，支持HTML格式"
+            />
+            <div style="font-size: 12px; color: #999; margin-top: 5px;">
+              提示：签名将在发送邮件时自动添加到邮件末尾
+            </div>
+          </div>
         </div>
       </div>
     </el-dialog>
@@ -387,6 +471,7 @@ import {isEmail} from "@/utils/verify-utils.js";
 import {useRoleStore} from "@/store/role.js";
 import {useUserStore} from "@/store/user.js";
 import {useI18n} from 'vue-i18n';
+import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig} from "@/request/setting.js";
 
 defineOptions({
   name: 'user'
@@ -473,6 +558,21 @@ const accountParams = reactive({
   num: 0,
   total: 0,
   userId: 0,
+})
+
+// SMTP配置相关
+const smtpConfigShow = ref(false)
+const smtpVerifying = ref(false)
+const currentAccount = ref(null)
+const smtpForm = reactive({
+  smtpOverride: 0,
+  smtpHost: '',
+  smtpPort: 587,
+  smtpUser: '',
+  smtpPassword: '',
+  smtpSecure: 0,
+  smtpAuthType: 'plain',
+  signature: ''
 })
 
 roleSelectUse().then(list => {
@@ -1039,6 +1139,65 @@ function adjustWidth() {
   pageSize.value = width < 380 ? 'small' : ''
 }
 
+// SMTP配置相关函数
+async function openSmtpConfig(account) {
+  currentAccount.value = account
+  smtpConfigShow.value = true
+  
+  try {
+    const config = await getSmtpAccountConfig(account.accountId)
+    Object.assign(smtpForm, config)
+  } catch (error) {
+    console.error('获取SMTP配置失败:', error)
+  }
+}
+
+function smtpConfigChange() {
+  if (currentAccount.value) {
+    saveSmtpConfig()
+  }
+}
+
+async function saveSmtpConfig() {
+  if (!currentAccount.value) return
+  
+  try {
+    await saveSmtpAccountConfig(currentAccount.value.accountId, smtpForm)
+  } catch (error) {
+    console.error('保存SMTP配置失败:', error)
+  }
+}
+
+async function verifySmtpConfig() {
+  if (!currentAccount.value || !smtpForm.smtpOverride) return
+  
+  smtpVerifying.value = true
+  try {
+    const result = await verifySmtpAccountConfig(currentAccount.value.accountId, smtpForm)
+    if (result.success) {
+      ElMessage({
+        message: t('smtpConnectSuccess'),
+        type: 'success',
+        plain: true
+      })
+    } else {
+      ElMessage({
+        message: t('smtpConnectFailed') + ': ' + result.message,
+        type: 'error',
+        plain: true
+      })
+    }
+  } catch (error) {
+    ElMessage({
+      message: t('smtpConnectFailed') + ': ' + error.message,
+      type: 'error',
+      plain: true
+    })
+  } finally {
+    smtpVerifying.value = false
+  }
+}
+
 </script>
 
 <style>
@@ -1243,6 +1402,20 @@ function adjustWidth() {
 
 .btn {
   width: 100%;
+}
+
+.smtp-config-form {
+  .setting-item {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 10px;
+    margin-bottom: 15px;
+    align-items: center;
+    
+    div:first-child {
+      font-weight: bold;
+    }
+  }
 }
 
 :deep(.el-pagination .el-select) {

@@ -11,7 +11,7 @@ export default {
 
 		const url = new URL(req.url)
 
-		if (url.pathname.startsWith('/api/')) {
+		if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/init/')) {
 			url.pathname = url.pathname.replace('/api', '')
 			req = new Request(url.toString(), req)
 			return app.fetch(req, env, ctx);
@@ -19,7 +19,7 @@ export default {
 
 		 if (['/static/','/attachments/'].some(p => url.pathname.startsWith(p))) {
 			 return await kvObjService.toObjResp( { env }, url.pathname.substring(1));
-		 }
+		}
 
 		return env.assets.fetch(req);
 	},

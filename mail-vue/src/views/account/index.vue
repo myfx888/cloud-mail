@@ -56,10 +56,18 @@
     <!-- SMTP Config Dialog -->
     <el-dialog v-model="smtpConfigShow" :title="$t('smtpSetting')" width="400">
       <div class="smtp-config-form">
+        <div v-if="!smtpConfigPermission" class="permission-tip">
+          <el-alert
+            title="无权限修改SMTP配置"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
+        </div>
         <div class="setting-item">
           <div><span>{{ $t('smtpOverride') }}</span></div>
           <div>
-            <el-switch @change="smtpConfigChange" :active-value="1" :inactive-value="0" v-model="smtpForm.smtpOverride"/>
+            <el-switch @change="smtpConfigChange" :active-value="1" :inactive-value="0" v-model="smtpForm.smtpOverride" :disabled="!smtpConfigPermission"/>
           </div>
         </div>
         
@@ -67,31 +75,31 @@
           <div class="setting-item">
             <div><span>{{ $t('smtpHost') }}</span></div>
             <div>
-              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpHost" placeholder="smtp.example.com"/>
+              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpHost" placeholder="smtp.example.com" :disabled="!smtpConfigPermission"/>
             </div>
           </div>
           <div class="setting-item">
             <div><span>{{ $t('smtpPort') }}</span></div>
             <div>
-              <el-input-number size="small" @change="smtpConfigChange" v-model="smtpForm.smtpPort" :min="1" :max="65535"/>
+              <el-input-number size="small" @change="smtpConfigChange" v-model="smtpForm.smtpPort" :min="1" :max="65535" :disabled="!smtpConfigPermission"/>
             </div>
           </div>
           <div class="setting-item">
             <div><span>{{ $t('smtpUser') }}</span></div>
             <div>
-              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpUser" placeholder="user@example.com"/>
+              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpUser" placeholder="user@example.com" :disabled="!smtpConfigPermission"/>
             </div>
           </div>
           <div class="setting-item">
             <div><span>{{ $t('smtpPassword') }}</span></div>
             <div>
-              <el-input size="small" type="password" show-password style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpPassword"/>
+              <el-input size="small" type="password" show-password style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpPassword" :disabled="!smtpConfigPermission"/>
             </div>
           </div>
           <div class="setting-item">
             <div><span>{{ $t('smtpSecure') }}</span></div>
             <div>
-              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpSecure">
+              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpSecure" :disabled="!smtpConfigPermission">
                 <el-option :value="0" label="STARTTLS"/>
                 <el-option :value="1" label="SSL/TLS"/>
               </el-select>
@@ -100,7 +108,7 @@
           <div class="setting-item">
             <div><span>{{ $t('smtpAuthType') }}</span></div>
             <div>
-              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpAuthType">
+              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpAuthType" :disabled="!smtpConfigPermission">
                 <el-option value="plain" label="Plain"/>
                 <el-option value="login" label="Login"/>
                 <el-option value="cram-md5" label="CRAM-MD5"/>
@@ -110,7 +118,7 @@
           <div class="setting-item">
             <div><span>{{ $t('smtpVerify') }}</span></div>
             <div>
-              <el-button size="small" type="primary" :loading="smtpVerifying" @click="verifySmtpConfig">
+              <el-button size="small" type="primary" :loading="smtpVerifying" @click="verifySmtpConfig" :disabled="!smtpConfigPermission">
                 {{ $t('test') }}
               </el-button>
             </div>
@@ -121,20 +129,77 @@
         <div class="setting-item">
           <div><span>邮件签名</span></div>
           <div>
-            <el-input
-              type="textarea"
-              rows="4"
-              style="width: 250px"
-              @change="smtpConfigChange"
-              v-model="smtpForm.signature"
-              placeholder="输入邮件签名内容，支持HTML格式"
-            />
-            <div style="font-size: 12px; color: #999; margin-top: 5px;">
-              提示：签名将在发送邮件时自动添加到邮件末尾
-            </div>
+            <el-button type="primary" size="small" @click="openSignatureManager">
+              管理签名
+            </el-button>
           </div>
         </div>
       </div>
+    </el-dialog>
+    
+    <!-- 签名管理对话框 -->
+    <el-dialog v-model="signatureManagerShow" title="签名管理" width="600">
+      <div class="signature-manager">
+        <div class="signature-header">
+          <el-button type="primary" size="small" @click="addSignature">
+            添加签名
+          </el-button>
+        </div>
+        <el-divider/>
+        <div class="signature-list" v-if="signatures.length > 0">
+          <div class="signature-item" v-for="signature in signatures" :key="signature.id">
+            <div class="signature-info">
+              <div class="signature-name">
+                {{ signature.name }}
+                <el-tag v-if="signature.isDefault" size="small" type="success">默认</el-tag>
+              </div>
+              <div class="signature-content" v-html="signature.content"></div>
+            </div>
+            <div class="signature-actions">
+              <el-button size="small" @click="editSignature(signature)">
+                编辑
+              </el-button>
+              <el-button size="small" @click="setDefaultSignature(signature)" v-if="!signature.isDefault">
+                设为默认
+              </el-button>
+              <el-button size="small" type="danger" @click="deleteSignature(signature)">
+                删除
+              </el-button>
+            </div>
+          </div>
+        </div>
+        <div class="signature-empty" v-else>
+          <el-empty description="暂无签名" />
+        </div>
+      </div>
+    </el-dialog>
+    
+    <!-- 签名编辑对话框 -->
+    <el-dialog v-model="signatureEditShow" :title="editingSignature ? '编辑签名' : '添加签名'" width="500">
+      <div class="signature-edit-form">
+        <el-form :model="signatureForm" label-width="80px">
+          <el-form-item label="签名名称">
+            <el-input v-model="signatureForm.name" placeholder="请输入签名名称" />
+          </el-form-item>
+          <el-form-item label="签名内容">
+            <el-input
+              type="textarea"
+              rows="6"
+              v-model="signatureForm.content"
+              placeholder="输入签名内容，支持HTML格式"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-checkbox v-model="signatureForm.isDefault">设为默认签名</el-checkbox>
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="signatureEditShow = false">取消</el-button>
+          <el-button type="primary" @click="saveSignature">保存</el-button>
+        </span>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -144,8 +209,9 @@ import {accountAdd, accountDelete, accountList as fetchAccountList} from "@/requ
 import {useUserStore} from "@/store/user.js"
 import {Icon} from "@iconify/vue"
 import LoadingComponent from "@/components/loading/index.vue"
-import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig} from "@/request/setting.js"
+import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig, settingQuery, getSignatures, addSignature, updateSignature, deleteSignature as deleteSignatureApi, setDefaultSignature as setDefaultSignatureApi} from "@/request/setting.js"
 import {useI18n} from 'vue-i18n'
+import {ElMessage, ElMessageBox} from 'element-plus'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -155,6 +221,18 @@ const smtpConfigShow = ref(false)
 const addLoading = ref(false)
 const smtpVerifying = ref(false)
 const currentAccount = ref(null)
+const smtpConfigPermission = ref(true)
+
+// 签名管理相关状态
+const signatureManagerShow = ref(false)
+const signatureEditShow = ref(false)
+const signatures = ref([])
+const editingSignature = ref(null)
+const signatureForm = reactive({
+  name: '',
+  content: '',
+  isDefault: false
+})
 
 const addForm = reactive({
   email: ''
@@ -180,11 +258,16 @@ onMounted(() => {
 async function loadAccounts() {
   loading.value = true
   try {
-    const data = await fetchAccountList()
+    const [data, settingData] = await Promise.all([
+      fetchAccountList(),
+      settingQuery()
+    ])
     accountList.value = data.map(item => ({
       ...item,
       createTime: new Date(item.createTime).toLocaleString()
     }))
+    // 检查用户是否有SMTP配置权限
+    smtpConfigPermission.value = settingData.smtpUserConfig === 1
   } finally {
     loading.value = false
   }
@@ -289,6 +372,141 @@ async function verifySmtpConfig() {
     smtpVerifying.value = false
   }
 }
+
+// 签名管理相关方法
+async function openSignatureManager() {
+  if (!currentAccount.value) return
+  
+  try {
+    const data = await getSignatures(currentAccount.value.accountId)
+    signatures.value = data
+  } catch (error) {
+    console.error('获取签名列表失败:', error)
+    ElMessage({
+      message: '获取签名列表失败',
+      type: 'error',
+      plain: true
+    })
+  }
+  
+  signatureManagerShow.value = true
+}
+
+function addSignature() {
+  editingSignature.value = null
+  signatureForm.name = ''
+  signatureForm.content = ''
+  signatureForm.isDefault = false
+  signatureEditShow.value = true
+}
+
+function editSignature(signature) {
+  editingSignature.value = signature
+  signatureForm.name = signature.name
+  signatureForm.content = signature.content
+  signatureForm.isDefault = signature.isDefault
+  signatureEditShow.value = true
+}
+
+async function saveSignature() {
+  if (!currentAccount.value) return
+  
+  if (!signatureForm.name) {
+    ElMessage({
+      message: '请输入签名名称',
+      type: 'error',
+      plain: true
+    })
+    return
+  }
+  
+  try {
+    if (editingSignature.value) {
+      // 编辑签名
+      await updateSignature(currentAccount.value.accountId, editingSignature.value.id, signatureForm)
+      ElMessage({
+        message: '签名更新成功',
+        type: 'success',
+        plain: true
+      })
+    } else {
+      // 添加签名
+      await addSignature(currentAccount.value.accountId, signatureForm)
+      ElMessage({
+        message: '签名添加成功',
+        type: 'success',
+        plain: true
+      })
+    }
+    
+    // 重新加载签名列表
+    const data = await getSignatures(currentAccount.value.accountId)
+    signatures.value = data
+    
+    signatureEditShow.value = false
+  } catch (error) {
+    console.error('保存签名失败:', error)
+    ElMessage({
+      message: '保存签名失败',
+      type: 'error',
+      plain: true
+    })
+  }
+}
+
+async function deleteSignature(signature) {
+  ElMessageBox.confirm('确定要删除这个签名吗？', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    if (!currentAccount.value) return
+    
+    try {
+      await deleteSignatureApi(currentAccount.value.accountId, signature.id)
+      ElMessage({
+        message: '签名删除成功',
+        type: 'success',
+        plain: true
+      })
+      
+      // 重新加载签名列表
+      const data = await getSignatures(currentAccount.value.accountId)
+      signatures.value = data
+    } catch (error) {
+      console.error('删除签名失败:', error)
+      ElMessage({
+        message: '删除签名失败',
+        type: 'error',
+        plain: true
+      })
+    }
+  })
+}
+
+async function setDefaultSignature(signature) {
+  if (!currentAccount.value) return
+  
+  try {
+    await setDefaultSignatureApi(currentAccount.value.accountId, signature.id)
+    ElMessage({
+      message: '已设为默认签名',
+      type: 'success',
+      plain: true
+    })
+    
+    // 重新加载签名列表
+    const data = await getSignatures(currentAccount.value.accountId)
+    signatures.value = data
+  } catch (error) {
+    console.error('设置默认签名失败:', error)
+    ElMessage({
+      message: '设置默认签名失败',
+      type: 'error',
+      plain: true
+    })
+  }
+}
 </script>
 <style scoped lang="scss">
 .account-container {
@@ -362,6 +580,10 @@ async function verifySmtpConfig() {
   }
   
   .smtp-config-form {
+    .permission-tip {
+      margin-bottom: 20px;
+    }
+    
     .setting-item {
       display: grid;
       grid-template-columns: 120px 1fr;
@@ -372,6 +594,60 @@ async function verifySmtpConfig() {
       div:first-child {
         font-weight: bold;
       }
+    }
+  }
+  
+  .signature-manager {
+    .signature-header {
+      margin-bottom: 10px;
+    }
+    
+    .signature-list {
+      .signature-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 15px;
+        border: 1px solid var(--el-border-color);
+        border-radius: 4px;
+        margin-bottom: 10px;
+        
+        .signature-info {
+          flex: 1;
+          
+          .signature-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          
+          .signature-content {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--el-text-color-secondary);
+          }
+        }
+        
+        .signature-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          margin-left: 15px;
+        }
+      }
+    }
+    
+    .signature-empty {
+      padding: 40px 0;
+      text-align: center;
+    }
+  }
+  
+  .signature-edit-form {
+    .el-form {
+      max-width: 100%;
     }
   }
 }

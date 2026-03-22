@@ -72,8 +72,9 @@ const settingService = {
 					smtp_password: '',
 					smtp_secure: 0,
 			smtp_from_name: '',
-			resend_enabled: 1
-				};
+							resend_enabled: 1,
+							smtp_user_config: 1
+						};
 			}
 		}
 

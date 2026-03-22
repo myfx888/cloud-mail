@@ -37,6 +37,10 @@ const dbInit = {
 			await this.v2_8DB(c);
 			await this.v2_9DB(c);
 			await this.v3_0DB(c);
+			await this.v3_1DB(c);
+			await this.v3_2DB(c);
+			await this.v3_3DB(c);
+			await this.v3_4DB(c);
 			await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -101,6 +105,73 @@ const dbInit = {
 			console.warn(`跳过字段：${e.message}`);
 		}
 	},
+
+	async v3_1DB(c) {
+		// setting表添加SMTP用户配置权限开关
+		try {
+			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN smtp_user_config INTEGER NOT NULL DEFAULT 1;`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v3_2DB(c) {
+		// account表添加signatures字段，用于存储多个签名
+		try {
+			await c.env.db.prepare(`ALTER TABLE account ADD COLUMN signatures TEXT NOT NULL DEFAULT '[]';`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+		
+		// 将现有signature字段数据迁移到signatures字段
+		try {
+			// 检查signature字段是否存在
+			const signatureColumn = await c.env.db.prepare(`SELECT * FROM pragma_table_info('account') WHERE name = 'signature' limit 1`).first();
+			if (signatureColumn) {
+				// 迁移数据
+				const {results} = await c.env.db.prepare(`SELECT account_id, signature FROM account WHERE signature != ''`).all();
+				const queryList = [];
+				results.forEach(row => {
+					if (row.signature) {
+						// 构建签名对象
+						const signatureObj = {
+							id: `sig_${Date.now()}_${row.account_id}`,
+							name: '默认签名',
+							content: row.signature,
+							isDefault: true
+						};
+						const signatures = JSON.stringify([signatureObj]);
+						queryList.push(c.env.db.prepare(`UPDATE account SET signatures = ? WHERE account_id = ?`).bind(signatures, row.account_id));
+					}
+				});
+				if (queryList.length > 0) {
+					await c.env.db.batch(queryList);
+				}
+			}
+		} catch (e) {
+			console.warn(`迁移签名数据失败：${e.message}`);
+		}
+	},
+
+	async v3_3DB(c) {
+		// 为邮件导入导出功能初始化数据库
+		// 确保email表的send_method字段存在
+		try {
+			await c.env.db.prepare(`ALTER TABLE email ADD COLUMN send_method TEXT NOT NULL DEFAULT 'resend';`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v3_4DB(c) {
+		// 添加resend_enabled字段到setting表
+		try {
+			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN resend_enabled INTEGER NOT NULL DEFAULT 1;`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
 
 	async v2_8DB(c) {
 		try {

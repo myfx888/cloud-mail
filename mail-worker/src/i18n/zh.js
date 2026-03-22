@@ -70,6 +70,7 @@ const zh = {
 	smtpConfigIncomplete: 'SMTP配置不完整，请填写服务器、用户名和密码',
 	smtpConnectionSuccess: 'SMTP连接成功',
 	smtpConnectionFailed: 'SMTP连接失败',
+	smtpConfigPermissionDenied: '无权限修改SMTP配置',
 	accountNotExist: '账号不存在',
 	perms: {
 		"邮件": "邮件",

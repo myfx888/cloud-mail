@@ -34,3 +34,17 @@ app.put('/email/read', async (c) => {
 	return c.json(result.ok());
 })
 
+app.get('/email/export', async (c) => {
+	const { emailId } = c.req.query();
+	const emlContent = await emailService.exportEmail(c, Number(emailId), userContext.getUserId(c));
+	c.header('Content-Type', 'message/rfc822');
+	c.header('Content-Disposition', `attachment; filename="email-${emailId}.eml"`);
+	return c.body(emlContent);
+})
+
+app.post('/email/import', async (c) => {
+	const { emlContent, accountId } = await c.req.json();
+	const email = await emailService.importEmail(c, emlContent, userContext.getUserId(c), Number(accountId));
+	return c.json(result.ok(email));
+})
+

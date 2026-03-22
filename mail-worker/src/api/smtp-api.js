@@ -88,12 +88,20 @@ app.get('/smtp/account-config', async (c) => {
 app.post('/smtp/account-config', async (c) => {
 	const params = await c.req.json();
 	const userId = userContext.getUserId(c);
-	
+
 	const accountRow = await accountService.selectById(c, params.accountId);
 	if (!accountRow || accountRow.userId !== userId) {
 		throw new BizError(t('accountNotExist'));
 	}
+
+	// 检查用户是否有SMTP配置权限
+	const settingRow = await settingService.query(c);
+	const isAdmin = userContext.isAdmin(c);
 	
+	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
+		throw new BizError(t('smtpConfigPermissionDenied'));
+	}
+
 	// 更新账号SMTP配置
 		await accountService.updateSmtpConfig(c, params.accountId, {
 			smtpOverride: params.smtpOverride,
@@ -105,6 +113,6 @@ app.post('/smtp/account-config', async (c) => {
 			smtpAuthType: params.smtpAuthType || 'plain',
 			signature: params.signature
 		});
-	
+
 	return c.json(result.ok());
 });
