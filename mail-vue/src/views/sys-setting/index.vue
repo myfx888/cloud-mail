@@ -1236,8 +1236,10 @@ function testMailcowConnection() {
       type: 'success'
     })
   }).catch((error) => {
+    console.error('连接测试错误:', error)
+    const errorMessage = error.response?.data?.message || error.message || '未知错误'
     ElMessage({
-      message: `连接测试失败: ${error.message}`,
+      message: `连接测试失败: ${errorMessage}`,
       type: 'error'
     })
   }).finally(() => {
