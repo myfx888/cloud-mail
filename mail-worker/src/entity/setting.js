@@ -55,6 +55,10 @@ export const setting = sqliteTable('setting', {
 	smtpSecure: integer('smtp_secure').default(0).notNull(),
 	smtpFromName: text('smtp_from_name').default('').notNull(),
 	resendEnabled: integer('resend_enabled').default(1).notNull(),
-	smtpUserConfig: integer('smtp_user_config').default(1).notNull()
+	smtpUserConfig: integer('smtp_user_config').default(1).notNull(),
+	mailcowEnabled: integer('mailcow_enabled').default(0).notNull(),
+	mailcowServers: text('mailcow_servers').default('[]').notNull(),
+	mailcowRetryCount: integer('mailcow_retry_count').default(3).notNull(),
+	mailcowTimeout: integer('mailcow_timeout').default(30000).notNull()
 });
 export default setting

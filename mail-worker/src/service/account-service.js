@@ -93,7 +93,7 @@ const accountService = {
 
 		// 集成 mailcow 功能
 		const settings = await settingService.query(c);
-		if (settings.mailcow_enabled) {
+		if (settings.mailcowEnabled) {
 			try {
 				// 生成随机密码
 				const password = await mailcowService.generatePassword();

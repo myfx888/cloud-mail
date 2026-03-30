@@ -42,6 +42,7 @@ const dbInit = {
 			await this.v3_3DB(c);
 			await this.v3_4DB(c);
 			await this.v3_5DB(c);
+			await this.v3_6DB(c);
 			await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -195,6 +196,23 @@ const dbInit = {
 			`).run();
 		} catch (e) {
 			console.warn(`跳过创建smtp_account表：${e.message}`);
+		}
+	},
+
+	async v3_6DB(c) {
+		const settingMigrations = [
+			`ALTER TABLE setting ADD COLUMN mailcow_enabled INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE setting ADD COLUMN mailcow_servers TEXT NOT NULL DEFAULT '[]';`,
+			`ALTER TABLE setting ADD COLUMN mailcow_retry_count INTEGER NOT NULL DEFAULT 3;`,
+			`ALTER TABLE setting ADD COLUMN mailcow_timeout INTEGER NOT NULL DEFAULT 30000;`
+		];
+
+		for (const sql of settingMigrations) {
+			try {
+				await c.env.db.prepare(sql).run();
+			} catch (e) {
+				console.warn(`跳过字段：${e.message}`);
+			}
 		}
 	},
 

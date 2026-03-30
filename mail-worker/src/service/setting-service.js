@@ -29,8 +29,14 @@ const settingService = {
 		let setting;
 		if (c.env.kv && c.env.kv.get) {
 			setting = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
-			if (setting && setting.mailcow_servers) {
-				setting.mailcowServers = JSON.parse(setting.mailcow_servers);
+			if (setting) {
+				const mailcowServersRaw = setting.mailcowServers ?? setting.mailcow_servers ?? '[]';
+				setting.mailcowServers = Array.isArray(mailcowServersRaw)
+					? mailcowServersRaw
+					: JSON.parse(mailcowServersRaw);
+				if (setting.mailcowEnabled === undefined && setting.mailcow_enabled !== undefined) {
+					setting.mailcowEnabled = setting.mailcow_enabled;
+				}
 			}
 		}
 
@@ -39,7 +45,7 @@ const settingService = {
 				// 从数据库读取设置
 				setting = await orm(c).select().from(setting).get();
 				setting.resendTokens = JSON.parse(setting.resendTokens);
-				setting.mailcowServers = JSON.parse(setting.mailcow_servers || '[]');
+				setting.mailcowServers = JSON.parse(setting.mailcowServers || '[]');
 			} catch (error) {
 				// 数据库未初始化时返回默认设置
 				setting = {
@@ -78,10 +84,10 @@ const settingService = {
 			smtp_from_name: '',
 							resend_enabled: 1,
 							smtp_user_config: 1,
-							mailcow_enabled: 0,
-							mailcow_servers: '[]',
-							mailcow_retry_count: 3,
-							mailcow_timeout: 30000
+							mailcowEnabled: 0,
+							mailcowServers: '[]',
+							mailcowRetryCount: 3,
+							mailcowTimeout: 30000
 						};
 			}
 		}
@@ -179,9 +185,30 @@ const settingService = {
 
 		params.resendTokens = JSON.stringify(resendTokens);
 
-		if (params.mailcowServers) {
-			params.mailcow_servers = JSON.stringify(params.mailcowServers);
-			delete params.mailcowServers;
+		if (params.mailcow_enabled !== undefined && params.mailcowEnabled === undefined) {
+			params.mailcowEnabled = params.mailcow_enabled;
+			delete params.mailcow_enabled;
+		}
+
+		if (params.mailcow_retry_count !== undefined && params.mailcowRetryCount === undefined) {
+			params.mailcowRetryCount = params.mailcow_retry_count;
+			delete params.mailcow_retry_count;
+		}
+
+		if (params.mailcow_timeout !== undefined && params.mailcowTimeout === undefined) {
+			params.mailcowTimeout = params.mailcow_timeout;
+			delete params.mailcow_timeout;
+		}
+
+		if (params.mailcow_servers !== undefined && params.mailcowServers === undefined) {
+			params.mailcowServers = params.mailcow_servers;
+			delete params.mailcow_servers;
+		}
+
+		if (params.mailcowServers !== undefined) {
+			params.mailcowServers = Array.isArray(params.mailcowServers)
+				? JSON.stringify(params.mailcowServers)
+				: params.mailcowServers;
 		}
 
 		// 处理SMTP密码（如果不更新则保留原值）
