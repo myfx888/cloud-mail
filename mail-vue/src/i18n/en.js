@@ -348,6 +348,10 @@ const en = {
     test: 'Test',
     sendMethod: 'Send Method',
     resend: 'Resend',
-    smtp: 'SMTP'
+    smtp: 'SMTP',
+    smtpAccountManager: 'SMTP Account Manager',
+    addSmtpAccount: 'Add SMTP Account',
+    editSmtpAccount: 'Edit SMTP Account',
+    setDefault: 'Set as Default'
 }
 export default en

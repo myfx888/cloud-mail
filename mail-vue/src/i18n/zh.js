@@ -349,6 +349,10 @@ const zh = {
     test: '测试',
     sendMethod: '发送方式',
     resend: 'Resend',
-    smtp: 'SMTP'
+    smtp: 'SMTP',
+    smtpAccountManager: 'SMTP 账户管理',
+    addSmtpAccount: '添加 SMTP 账户',
+    editSmtpAccount: '编辑 SMTP 账户',
+    setDefault: '设为默认'
 }
 export default zh
