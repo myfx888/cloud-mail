@@ -106,6 +106,21 @@ const smtpService = {
 			throw new BizError(t('smtpPasswordRequired'));
 		}
 	},
+
+	resolveSecurityOptions(smtpSecure, smtpPort) {
+		const mode = Number(smtpSecure ?? 0);
+		const port = Number(smtpPort || 587);
+
+		if (mode === 1) {
+			return { mode, port, secure: true, startTls: false };
+		}
+
+		if (mode === 2) {
+			return { mode, port, secure: false, startTls: true };
+		}
+
+		return { mode: 0, port, secure: false, startTls: false };
+	},
 	
 	/**
 	 * 获取有效的SMTP配置
@@ -184,15 +199,15 @@ const smtpService = {
 
 		let mailer = null;
 		try {
-			const isSecure = smtpConfig.secure === 1;
-			const useStartTls = !isSecure && smtpConfig.port === 587;
+			const securityOptions = this.resolveSecurityOptions(smtpConfig.secure, smtpConfig.port);
 
 			console.log('SMTP发送配置:', {
 				host: smtpConfig.host,
-				port: smtpConfig.port,
+				port: securityOptions.port,
 				user: smtpConfig.user,
-				secure: isSecure,
-				startTls: useStartTls
+				secure: securityOptions.secure,
+				startTls: securityOptions.startTls,
+				securityMode: securityOptions.mode
 			});
 
 			mailer = await WorkerMailer.connect({
@@ -202,12 +217,11 @@ const smtpService = {
 				},
 				authType: smtpConfig.authType || 'plain',
 				host: smtpConfig.host,
-				port: smtpConfig.port,
-				secure: isSecure,
-				startTls: useStartTls,
+				port: securityOptions.port,
+				secure: securityOptions.secure,
+				startTls: securityOptions.startTls,
 				socketTimeoutMs: 30000,
-				responseTimeoutMs: 15000,
-				rejectUnauthorized: false // 允许自签名证书
+				responseTimeoutMs: 15000
 			});
 
 			const recipients = emailData.recipient.map(r => ({
@@ -240,6 +254,9 @@ const smtpService = {
 				code: error.code,
 				errno: error.errno,
 				syscall: error.syscall,
+				host: smtpConfig.host,
+				port: smtpConfig.port,
+				secure: smtpConfig.secure,
 				stack: error.stack
 			});
 			throw new BizError(t('smtpSendFailed') + ': ' + error.message);
@@ -267,7 +284,7 @@ const smtpService = {
 		return attachments.map(att => ({
 			filename: att.filename,
 			content: att.content,  // base64编码
-			contentType: att.contentType || att.mime_type
+			mimeType: att.mimeType || att.contentType || att.mime_type
 		}));
 	},
 	
@@ -275,36 +292,33 @@ const smtpService = {
 	 * 验证SMTP配置
 	 */
 	async verify(c, smtpConfig) {
+		this.validateSmtpConfig(smtpConfig);
+
+		let mailer = null;
 		try {
-			const isSecure = smtpConfig.secure === 1;
-			const useStartTls = !isSecure && smtpConfig.port === 587;
+			const securityOptions = this.resolveSecurityOptions(smtpConfig.secure, smtpConfig.port);
 			
 			console.log('SMTP验证配置:', {
 				host: smtpConfig.host,
-				port: smtpConfig.port,
+				port: securityOptions.port,
 				user: smtpConfig.user,
-				secure: isSecure,
-				startTls: useStartTls
+				secure: securityOptions.secure,
+				startTls: securityOptions.startTls,
+				securityMode: securityOptions.mode
 			});
 			
-			const mailer = await WorkerMailer.connect({
+			mailer = await WorkerMailer.connect({
 				credentials: {
 					username: smtpConfig.user,
 					password: smtpConfig.password
 				},
 				authType: smtpConfig.authType || 'plain',
 				host: smtpConfig.host,
-				port: smtpConfig.port,
-				secure: isSecure,
-				startTls: useStartTls,
+				port: securityOptions.port,
+				secure: securityOptions.secure,
+				startTls: securityOptions.startTls,
 				socketTimeoutMs: 10000,
-				responseTimeoutMs: 5000,
-				rejectUnauthorized: false, // 允许自签名证书
-				tls: {
-					minVersion: 'TLSv1', // 降低最低 TLS 版本要求
-					ciphers: 'ALL', // 使用所有可用的加密套件
-					ignoreTLSErrors: true // 忽略 TLS 错误，如证书过期
-				}
+				responseTimeoutMs: 5000
 			});
 			
 			// 连接成功，返回true
@@ -317,9 +331,22 @@ const smtpService = {
 				code: error.code,
 				errno: error.errno,
 				syscall: error.syscall,
+				host: smtpConfig.host,
+				port: smtpConfig.port,
+				secure: smtpConfig.secure,
 				stack: error.stack
 			});
 			return { success: false, message: error.message };
+		} finally {
+			if (mailer) {
+				try {
+					if (typeof mailer.close === 'function') {
+						await mailer.close();
+					}
+				} catch (e) {
+					console.warn('关闭SMTP验证连接失败:', e);
+				}
+			}
 		}
 	}
 };
