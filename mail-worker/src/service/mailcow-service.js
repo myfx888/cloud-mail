@@ -283,30 +283,18 @@ const mailcowService = {
 
             const accountPassword = await this.resolvePassword(c, password);
             const data = {
-                force_pw_update: '0',
-                force_tfa: '0',
-                sogo_access: ['0', '1'],
-                protocol_access: ['0', 'imap', 'pop3', 'smtp', 'sieve'],
-                authsource: 'mailcow',
+                active: '1',
+                domain: email.split('@')[1],
                 local_part: email.split('@')[0],
                 name: '',
-                domain: email.split('@')[1],
+                authsource: 'mailcow',
                 password: accountPassword,
                 password2: accountPassword,
-                tags: '',
                 quota: '30720',
-                tagged_mail_handler: 'none',
-                quarantine_notification: 'hourly',
-                quarantine_category: 'reject',
-                acl: [
-                    'spam_alias', 'tls_policy', 'spam_score', 'spam_policy',
-                    'delimiter_action', 'eas_reset', 'pushover', 'quarantine',
-                    'quarantine_attachments', 'quarantine_notification',
-                    'quarantine_category', 'app_passwds'
-                ],
-                rl_value: '',
-                rl_frame: 's',
-                active: '1'
+                force_pw_update: '0',
+                tls_enforce_in: '0',
+                tls_enforce_out: '0',
+                tags: []
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
