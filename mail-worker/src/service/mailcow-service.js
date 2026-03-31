@@ -103,8 +103,8 @@ const mailcowService = {
                     return itemDomain === String(domain).toLowerCase();
                 }
             }
-        } catch (e) {
-            console.warn(`Mailcow domain precheck failed for ${domain}, continue with create flow: ${e.message}`);
+        } catch (error) {
+            console.warn(`Mailcow domain precheck failed for ${domain}, continue with create flow: ${error.message}`);
             return true;
         }
 
