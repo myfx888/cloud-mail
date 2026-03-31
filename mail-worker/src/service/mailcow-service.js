@@ -152,7 +152,15 @@ const mailcowService = {
 
     async createAccount(c, email, password = '', serverConfig = null) {
         try {
-            const server = serverConfig || await this.getDefaultServer(c);
+            const server = serverConfig || await this.getServerById(c, serverConfig?.id);
+            const domain = email.split('@')[1];
+            
+            // 1. Check if domain exists
+            const domainOk = await this.domainExists(c, domain, server);
+            if (!domainOk) {
+                throw new BizError(`${t('mailcowAccountCreateFailed')}: domain ${domain} does not exist in mailcow`);
+            }
+
             const accountPassword = await this.resolvePassword(c, password);
             const data = {
                 local_part: email.split('@')[0],
