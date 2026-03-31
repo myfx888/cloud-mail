@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import ServerMigration from '../components/ServerMigration';
 import { fetchWithRetry } from '../utils/api';
 
 const MailAccounts = () => {
@@ -47,10 +45,9 @@ const MailAccounts = () => {
       <h1 className="text-3xl font-bold mb-6">邮件账号</h1>
 
       <Tabs defaultValue="accounts" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
           <TabsTrigger value="accounts">账户列表</TabsTrigger>
           <TabsTrigger value="smtp">SMTP 设置</TabsTrigger>
-          <TabsTrigger value="migration">账户迁移</TabsTrigger>
         </TabsList>
         <TabsContent value="accounts" className="space-y-4">
           <Card>
@@ -83,17 +80,6 @@ const MailAccounts = () => {
             </CardHeader>
             <CardContent>
               <p className="text-gray-500">这里可以添加 SMTP 设置的内容。</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="migration" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>账户迁移</CardTitle>
-              <CardDescription>将账户从一个服务器迁移到另一个服务器。</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ServerMigration />
             </CardContent>
           </Card>
         </TabsContent>

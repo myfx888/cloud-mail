@@ -1,6 +1,7 @@
 import BizError from '../error/biz-error';
 import { t } from '../i18n/i18n';
 import settingService from './setting-service';
+import { sleep } from '../utils/time-utils';
 
 const mailcowService = {
 
@@ -74,16 +75,47 @@ const mailcowService = {
         };
     },
 
-    async accountExists(c, email, serverConfig = null) {
-        try {
-            const result = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
-            if (!Array.isArray(result)) {
-                return false;
-            }
-            return result.some(mailbox => mailbox.username === email);
-        } catch (e) {
+    normalizeEmail(email) {
+        return String(email || '').trim().toLowerCase();
+    },
+
+    mailboxMatchesEmail(mailbox, email) {
+        if (!mailbox || typeof mailbox !== 'object') {
             return false;
         }
+        const targetEmail = this.normalizeEmail(email);
+        const mailboxEmail = this.normalizeEmail(mailbox.username || mailbox.address || mailbox.mailbox);
+        return !!targetEmail && mailboxEmail === targetEmail;
+    },
+
+    isEmptyApiResponse(result) {
+        return !result
+            || (Array.isArray(result) && result.length === 0)
+            || (typeof result === 'object' && result !== null && Object.keys(result).length === 0);
+    },
+
+    async accountExists(c, email, serverConfig = null, options = {}) {
+        const attemptsRaw = Number(options.attempts ?? 1);
+        const attempts = Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.floor(attemptsRaw) : 1;
+        const delayMsRaw = Number(options.delayMs ?? 0);
+        const delayMs = Number.isFinite(delayMsRaw) && delayMsRaw > 0 ? Math.floor(delayMsRaw) : 0;
+
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                const result = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
+                if (Array.isArray(result) && result.some(mailbox => this.mailboxMatchesEmail(mailbox, email))) {
+                    return true;
+                }
+            } catch (e) {
+                // Ignore intermediate query failures and retry.
+            }
+
+            if (attempt < attempts && delayMs > 0) {
+                await sleep(delayMs);
+            }
+        }
+
+        return false;
     },
 
     async domainExists(c, domain, serverConfig = null) {
@@ -182,6 +214,13 @@ const mailcowService = {
             if (!server || !server.apiUrl || !server.apiKey) {
                 server = await this.getServerById(c, server?.id);
             }
+
+            const settings = await settingService.query(c);
+            const verifyAttemptsRaw = Number(settings.mailcowRetryCount ?? 3);
+            const verifyAttempts = Number.isFinite(verifyAttemptsRaw) && verifyAttemptsRaw > 0 ? Math.floor(verifyAttemptsRaw) : 3;
+            const verifyWindowRaw = Number(settings.mailcowTimeout ?? 30000);
+            const verifyWindow = Number.isFinite(verifyWindowRaw) && verifyWindowRaw > 0 ? verifyWindowRaw : 30000;
+            const verifyDelayMs = Math.max(300, Math.floor(verifyWindow / Math.max(verifyAttempts, 1)));
             
             const domain = email.split('@')[1];
             
@@ -217,7 +256,7 @@ const mailcowService = {
             let result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
             console.log(`Result check: result=${!!result}, typeof result=${typeof result}, Array.isArray=${Array.isArray(result)}, length=${Array.isArray(result) ? result.length : 'N/A'}, Object.keys=${typeof result === 'object' && result !== null ? Object.keys(result).length : 'N/A'}`);
-            if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && result !== null && Object.keys(result).length === 0)) {
+            if (this.isEmptyApiResponse(result)) {
                 console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters...`);
                 const minimalData = {
                     local_part: email.split('@')[0],
@@ -231,12 +270,15 @@ const mailcowService = {
                 const retryResult = await this.callApi(c, 'add/mailbox', 'POST', minimalData, server);
                 console.log('Mailcow Retry Create Account Result:', JSON.stringify(retryResult));
                 result = retryResult;
-                if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && result !== null && Object.keys(result).length === 0)) {
-                    console.log(`Mailcow add/mailbox retry also returned empty response for ${email}, verifying mailbox existence...`);
-                    const mailboxes = await this.callApi(c, 'get/mailbox/all', 'GET', null, server);
-                    console.log('Mailbox Verification Result:', JSON.stringify(mailboxes));
-                    if (mailboxes && Array.isArray(mailboxes) && mailboxes.some(mb => mb.username === email)) {
-                        console.log(`Mailbox ${email} found after empty response, treating as success.`);
+                if (this.isEmptyApiResponse(result)) {
+                    console.log(`Mailcow add/mailbox retry also returned empty response for ${email}, verifying mailbox existence with retry (${verifyAttempts} attempts, delay ${verifyDelayMs}ms)...`);
+                    const existsAfterEmptyResponse = await this.accountExists(c, email, server, {
+                        attempts: verifyAttempts,
+                        delayMs: verifyDelayMs
+                    });
+
+                    if (existsAfterEmptyResponse) {
+                        console.log(`Mailbox ${email} found after empty response verification, treating as success.`);
                         const smtpConfig = await this.getSmtpConfig(c, server);
                         return {
                             email,
@@ -248,15 +290,18 @@ const mailcowService = {
                             smtpUser: email,
                             mailcowServerId: server?.id || ''
                         };
-                    } else {
-                        throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response and mailbox not found`);
                     }
+
+                    throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response and mailbox not found`);
                 }
             }
             let createdWithEmptyResponse = false;
             if (!result) {
                 console.warn(`Mailcow add/mailbox returned empty response for ${email}, verifying mailbox existence...`);
-                const existsAfterCreate = await this.accountExists(c, email, server);
+                const existsAfterCreate = await this.accountExists(c, email, server, {
+                    attempts: verifyAttempts,
+                    delayMs: verifyDelayMs
+                });
                 if (!existsAfterCreate) {
                     throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response`);
                 }

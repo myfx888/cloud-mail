@@ -1,13 +1,9 @@
 import React, { useState } from 'react';
-import { useToast } from '@/components/ui/use-toast';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ServerMigration from '../components/ServerMigration';
-import { fetchWithRetry } from '../utils/api';
 
 const Settings = () => {
-  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('general');
 
   return (
