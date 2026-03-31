@@ -214,10 +214,10 @@ const mailcowService = {
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
             console.log(`Request payload for add/mailbox: ${JSON.stringify(data, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
-            const result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
+            let result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
-            if (!result) {
-                console.log('Mailcow add/mailbox returned empty response, retrying with minimal parameters...');
+            if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && Object.keys(result).length === 0)) {
+                console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters...`);
                 const minimalData = {
                     local_part: email.split('@')[0],
                     domain: email.split('@')[1],
@@ -229,9 +229,11 @@ const mailcowService = {
                 console.log(`Retrying with minimal payload: ${JSON.stringify(minimalData, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
                 const retryResult = await this.callApi(c, 'add/mailbox', 'POST', minimalData, server);
                 console.log('Mailcow Retry Create Account Result:', JSON.stringify(retryResult));
-                if (!retryResult) {
-                    console.log('Mailcow add/mailbox retry also returned empty response, verifying mailbox existence...');
+                result = retryResult;
+                if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && Object.keys(result).length === 0)) {
+                    console.log(`Mailcow add/mailbox retry also returned empty response for ${email}, verifying mailbox existence...`);
                     const mailboxes = await this.callApi(c, 'get/mailbox/all', 'GET', null, server);
+                    console.log('Mailbox Verification Result:', JSON.stringify(mailboxes));
                     if (mailboxes && Array.isArray(mailboxes) && mailboxes.some(mb => mb.username === email)) {
                         console.log(`Mailbox ${email} found after empty response, treating as success.`);
                         const smtpConfig = await this.getSmtpConfig(c, server);
@@ -246,7 +248,7 @@ const mailcowService = {
                             mailcowServerId: server?.id || ''
                         };
                     } else {
-                        throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response`);
+                        throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response and mailbox not found`);
                     }
                 }
             }
