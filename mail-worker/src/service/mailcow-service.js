@@ -80,11 +80,19 @@ const mailcowService = {
     },
 
     mailboxMatchesEmail(mailbox, email) {
-        if (!mailbox || typeof mailbox !== 'object') {
+        if (!mailbox) return false;
+        
+        // Handle array response if API returns a list even for single query
+        if (Array.isArray(mailbox)) {
+            return mailbox.some(m => this.mailboxMatchesEmail(m, email));
+        }
+
+        if (typeof mailbox !== 'object') {
             return false;
         }
+
         const targetEmail = this.normalizeEmail(email);
-        const mailboxEmail = this.normalizeEmail(mailbox.username || mailbox.address || mailbox.mailbox);
+        const mailboxEmail = this.normalizeEmail(mailbox.username || mailbox.address || mailbox.mailbox || mailbox.email);
         return !!targetEmail && mailboxEmail === targetEmail;
     },
 
@@ -104,15 +112,15 @@ const mailcowService = {
             try {
                 // Try targeted query first for better performance
                 const result = await this.callApi(c, `get/mailbox/${encodeURIComponent(email)}`, 'GET', null, serverConfig);
+                console.log(`accountExists attempt ${attempt} for ${email} result:`, JSON.stringify(result));
                 
-                // If the targeted API returns the mailbox object directly
-                if (result && typeof result === 'object' && this.mailboxMatchesEmail(result, email)) {
+                if (this.mailboxMatchesEmail(result, email)) {
                     return true;
                 }
                 
                 // Fallback: If targeted API returns nothing but get/mailbox/all might have it
                 const allMailboxes = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
-                if (Array.isArray(allMailboxes) && allMailboxes.some(mailbox => this.mailboxMatchesEmail(mailbox, email))) {
+                if (this.mailboxMatchesEmail(allMailboxes, email)) {
                     return true;
                 }
             } catch (e) {
@@ -133,6 +141,7 @@ const mailcowService = {
     async domainExists(c, domain, serverConfig = null) {
         try {
             const result = await this.callApi(c, `get/domain/${encodeURIComponent(domain)}`, 'GET', null, serverConfig);
+            console.log(`Mailcow domainExists check for ${domain} result:`, JSON.stringify(result));
 
             if (Array.isArray(result)) {
                 return result.some(item => {
@@ -159,15 +168,22 @@ const mailcowService = {
         try {
             const server = serverConfig || await this.getDefaultServer(c);
             
+            // Normalize apiUrl: remove trailing slash and redundant /api/v1
+            let baseApiUrl = String(server.apiUrl || '').trim().replace(/\/+$/, '');
+            if (baseApiUrl.toLowerCase().endsWith('/api/v1')) {
+                baseApiUrl = baseApiUrl.substring(0, baseApiUrl.length - 7).replace(/\/+$/, '');
+            }
+            const url = `${baseApiUrl}/api/v1/${endpoint}`;
+            
             // Explicit check for masked API key
             if (server.apiKey && server.apiKey.includes('****')) {
                 throw new BizError('Mailcow API Key is masked (contains ****). Please re-enter and save your correct API key in Settings.', 401);
             }
 
-            const url = `${server.apiUrl}/api/v1/${endpoint}`;
-            
             const headers = {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
                 'X-API-Key': server.apiKey
             };
             
@@ -197,6 +213,9 @@ const mailcowService = {
             const response = await fetch(url, options);
             console.log(`Mailcow API Response: ${response.status}, ${response.statusText}`);
             
+            // Log important headers for debugging
+            console.log(`Mailcow API Response Content-Type: ${response.headers.get('Content-Type')}`);
+            
             if (!response.ok) {
                 const errorText = await response.text().catch(() => '');
                 console.error(`Mailcow API Error Detail: Status=${response.status}, Body=${errorText}`);
@@ -215,6 +234,7 @@ const mailcowService = {
             
             const responseText = await response.text().catch(() => '');
             if (!responseText) {
+                console.warn(`Mailcow API returned completely empty body for ${method} ${url}`);
                 return null;
             }
 
@@ -223,10 +243,12 @@ const mailcowService = {
                 try {
                     return JSON.parse(responseText);
                 } catch (e) {
-                    console.warn('Failed to parse mailcow JSON response:', e);
+                    console.warn(`Failed to parse mailcow JSON response from ${url}:`, e.message);
+                    console.warn('Response preview:', responseText.slice(0, 200));
                     return responseText;
                 }
             }
+            console.log(`Mailcow API returned non-JSON response (${contentType || 'no-content-type'}) for ${url}. Preview:`, responseText.slice(0, 200));
             return responseText;
         } catch (error) {
             if (error instanceof BizError) {
@@ -286,14 +308,16 @@ const mailcowService = {
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
             console.log(`Result check: result=${!!result}, typeof result=${typeof result}, Array.isArray=${Array.isArray(result)}, length=${Array.isArray(result) ? result.length : 'N/A'}, Object.keys=${typeof result === 'object' && result !== null ? Object.keys(result).length : 'N/A'}`);
             if (this.isEmptyApiResponse(result)) {
-                console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters...`);
+                console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters after 500ms...`);
+                await sleep(500);
                 const minimalData = {
                     local_part: email.split('@')[0],
                     domain: email.split('@')[1],
                     password: accountPassword,
                     password2: accountPassword,
                     name: email,
-                    active: 1
+                    quota: '3072',
+                    active: '1'
                 };
                 console.log(`Retrying with minimal payload: ${JSON.stringify(minimalData, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
                 const retryResult = await this.callApi(c, 'add/mailbox', 'POST', minimalData, server);
@@ -426,8 +450,10 @@ const mailcowService = {
     },
 
     async generatePassword(length = 16) {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+        // Use a more conservative character set to avoid issues with some Mailcow versions/filters
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^*()_+-=[]{}|;:,./?';
         let password = '';
+        
         for (let i = 0; i < length; i++) {
             password += chars.charAt(Math.floor(Math.random() * chars.length));
         }
