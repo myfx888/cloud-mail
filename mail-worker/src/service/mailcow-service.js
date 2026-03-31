@@ -111,11 +111,35 @@ const mailcowService = {
             const response = await fetch(url, options);
             
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new BizError(`mailcow API error: ${errorData.message || response.statusText}`, response.status);
+                const errorText = await response.text().catch(() => '');
+                let errorMessage = response.statusText;
+                try {
+                    if (errorText) {
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.message || errorMessage;
+                    }
+                } catch (e) {
+                    // Ignore JSON parse error for error response
+                    if (errorText) errorMessage = errorText;
+                }
+                throw new BizError(`mailcow API error: ${errorMessage}`, response.status);
             }
             
-            return await response.json();
+            const responseText = await response.text().catch(() => '');
+            if (!responseText) {
+                return null;
+            }
+
+            const contentType = response.headers.get('Content-Type');
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    return JSON.parse(responseText);
+                } catch (e) {
+                    console.warn('Failed to parse mailcow JSON response:', e);
+                    return responseText;
+                }
+            }
+            return responseText;
         } catch (error) {
             if (error instanceof BizError) {
                 throw error;
