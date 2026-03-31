@@ -86,6 +86,31 @@ const mailcowService = {
         }
     },
 
+    async domainExists(c, domain, serverConfig = null) {
+        try {
+            const result = await this.callApi(c, `get/domain/${encodeURIComponent(domain)}`, 'GET', null, serverConfig);
+
+            if (Array.isArray(result)) {
+                return result.some(item => {
+                    const itemDomain = String(item?.domain_name || item?.domain || '').toLowerCase();
+                    return itemDomain === String(domain).toLowerCase();
+                });
+            }
+
+            if (result && typeof result === 'object') {
+                const itemDomain = String(result.domain_name || result.domain || '').toLowerCase();
+                if (itemDomain) {
+                    return itemDomain === String(domain).toLowerCase();
+                }
+            }
+        } catch (e) {
+            console.warn(`Mailcow domain precheck failed for ${domain}, continue with create flow: ${e.message}`);
+            return true;
+        }
+
+        return false;
+    },
+
     async callApi(c, endpoint, method = 'GET', data = null, serverConfig = null) {
         try {
             const server = serverConfig || await this.getDefaultServer(c);
@@ -171,24 +196,32 @@ const mailcowService = {
                 local_part: email.split('@')[0],
                 domain: email.split('@')[1],
                 password: accountPassword,
+                password2: accountPassword,
                 name: email,
-                active: true
+                quota: 3072,
+                active: 1
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
             const result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
             
+            let createdWithEmptyResponse = false;
             if (!result) {
-                throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response`);
+                console.warn(`Mailcow add/mailbox returned empty response for ${email}, verifying mailbox existence...`);
+                const existsAfterCreate = await this.accountExists(c, email, server);
+                if (!existsAfterCreate) {
+                    throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response`);
+                }
+                createdWithEmptyResponse = true;
+                console.log(`Mailcow mailbox exists after empty response: ${email}`);
             }
 
-            // Mailcow API usually returns an array of result objects like:
-            // [{"type":"success","msg":"mailbox_added","log":["..."]}]
-            // Or a single object if there's an error.
-            const isSuccess = Array.isArray(result) 
-                ? result.some(r => r.type === 'success' || r.status === 'success' || r.status === true)
-                : (result?.type === 'success' || result?.status === 'success' || result?.status === true);
+            const isSuccess = createdWithEmptyResponse
+                ? true
+                : (Array.isArray(result)
+                    ? result.some(r => r.type === 'success' || r.status === 'success' || r.status === true)
+                    : (result?.type === 'success' || result?.status === 'success' || result?.status === true));
 
             if (!isSuccess) {
                 // Extract error details from result
