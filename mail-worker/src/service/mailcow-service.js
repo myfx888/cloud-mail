@@ -216,7 +216,40 @@ const mailcowService = {
             console.log(`Request payload for add/mailbox: ${JSON.stringify(data, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
             const result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
-            
+            if (!result) {
+                console.log('Mailcow add/mailbox returned empty response, retrying with minimal parameters...');
+                const minimalData = {
+                    local_part: email.split('@')[0],
+                    domain: email.split('@')[1],
+                    password: accountPassword,
+                    password2: accountPassword,
+                    name: email,
+                    active: 1
+                };
+                console.log(`Retrying with minimal payload: ${JSON.stringify(minimalData, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
+                const retryResult = await this.callApi(c, 'add/mailbox', 'POST', minimalData, server);
+                console.log('Mailcow Retry Create Account Result:', JSON.stringify(retryResult));
+                if (!retryResult) {
+                    console.log('Mailcow add/mailbox retry also returned empty response, verifying mailbox existence...');
+                    const mailboxes = await this.callApi(c, 'get/mailbox/all', 'GET', null, server);
+                    if (mailboxes && Array.isArray(mailboxes) && mailboxes.some(mb => mb.username === email)) {
+                        console.log(`Mailbox ${email} found after empty response, treating as success.`);
+                        const smtpConfig = await this.getSmtpConfig(c, server);
+                        return {
+                            email,
+                            password: accountPassword,
+                            smtpHost: smtpConfig.smtpHost,
+                            smtpPort: smtpConfig.smtpPort,
+                            smtpSecure: smtpConfig.smtpSecure,
+                            smtpAuthType: smtpConfig.smtpAuthType,
+                            smtpUser: email,
+                            mailcowServerId: server?.id || ''
+                        };
+                    } else {
+                        throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response`);
+                    }
+                }
+            }
             let createdWithEmptyResponse = false;
             if (!result) {
                 console.warn(`Mailcow add/mailbox returned empty response for ${email}, verifying mailbox existence...`);
