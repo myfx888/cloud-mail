@@ -283,30 +283,30 @@ const mailcowService = {
 
             const accountPassword = await this.resolvePassword(c, password);
             const data = {
-                local_part: email.split('@')[0],
-                domain: email.split('@')[1],
-                password: accountPassword,
-                password2: accountPassword,
-                name: '',
-                quota: '30720',
-                active: '1',
                 force_pw_update: '0',
                 force_tfa: '0',
                 sogo_access: ['0', '1'],
                 protocol_access: ['0', 'imap', 'pop3', 'smtp', 'sieve'],
                 authsource: 'mailcow',
+                local_part: email.split('@')[0],
+                name: '',
+                domain: email.split('@')[1],
+                password: accountPassword,
+                password2: accountPassword,
                 tags: '',
+                quota: '30720',
                 tagged_mail_handler: 'none',
                 quarantine_notification: 'hourly',
                 quarantine_category: 'reject',
                 acl: [
-                    'spam_alias', 'tls_policy', 'spam_score', 'spam_policy', 
-                    'delimiter_action', 'eas_reset', 'pushover', 'quarantine', 
-                    'quarantine_attachments', 'quarantine_notification', 
+                    'spam_alias', 'tls_policy', 'spam_score', 'spam_policy',
+                    'delimiter_action', 'eas_reset', 'pushover', 'quarantine',
+                    'quarantine_attachments', 'quarantine_notification',
                     'quarantine_category', 'app_passwds'
                 ],
                 rl_value: '',
-                rl_frame: 's'
+                rl_frame: 's',
+                active: '1'
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
@@ -314,47 +314,29 @@ const mailcowService = {
             let result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
             
+            // mailcow 可能返回空 body（HTTP 200），不再重试，直接验证邮箱是否存在
             if (this.isEmptyApiResponse(result)) {
-                console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters after 500ms...`);
-                await sleep(500);
-                const minimalData = {
-                    local_part: email.split('@')[0],
-                    domain: email.split('@')[1],
-                    password: accountPassword,
-                    password2: accountPassword,
-                    name: '',
-                    quota: '30720',
-                    active: '1'
-                };
-                console.log(`Retrying with minimal payload: ${JSON.stringify(minimalData, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
-                const retryResult = await this.callApi(c, 'add/mailbox', 'POST', minimalData, server);
-                console.log('Mailcow Retry Create Account Result:', JSON.stringify(retryResult));
-                result = retryResult;
-                
-                if (this.isEmptyApiResponse(result)) {
-                    console.log(`Mailcow add/mailbox retry also returned empty response for ${email}, verifying mailbox existence with retry (${verifyAttempts} attempts, delay ${verifyDelayMs}ms)...`);
-                    const existsAfterEmptyResponse = await this.accountExists(c, email, server, {
-                        attempts: verifyAttempts,
-                        delayMs: verifyDelayMs
-                    });
+                console.log(`Mailcow add/mailbox returned empty response for ${email}, verifying mailbox existence...`);
+                const existsAfterCreate = await this.accountExists(c, email, server, {
+                    attempts: verifyAttempts,
+                    delayMs: verifyDelayMs
+                });
 
-                    if (existsAfterEmptyResponse) {
-                        console.log(`Mailbox ${email} found after empty response verification, treating as success.`);
-                        const smtpConfig = await this.getSmtpConfig(c, server);
-                        return {
-                            email,
-                            password: accountPassword,
-                            smtpHost: smtpConfig.smtpHost,
-                            smtpPort: smtpConfig.smtpPort,
-                            smtpSecure: smtpConfig.smtpSecure,
-                            smtpAuthType: smtpConfig.smtpAuthType,
-                            smtpUser: email,
-                            mailcowServerId: server?.id || ''
-                        };
-                    }
-
+                if (!existsAfterCreate) {
                     throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response and mailbox not found`);
                 }
+                console.log(`Mailbox ${email} found after empty response, treating as success.`);
+                const smtpConfig = await this.getSmtpConfig(c, server);
+                return {
+                    email,
+                    password: accountPassword,
+                    smtpHost: smtpConfig.smtpHost,
+                    smtpPort: smtpConfig.smtpPort,
+                    smtpSecure: smtpConfig.smtpSecure,
+                    smtpAuthType: smtpConfig.smtpAuthType,
+                    smtpUser: email,
+                    mailcowServerId: server?.id || ''
+                };
             }
             
             let createdWithEmptyResponse = false;
