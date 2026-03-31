@@ -288,7 +288,7 @@ const mailcowService = {
                 password: accountPassword,
                 password2: accountPassword,
                 name: '',
-                quota: '0',
+                quota: '30720',
                 active: '1',
                 force_pw_update: '0',
                 force_tfa: '0',
@@ -323,7 +323,7 @@ const mailcowService = {
                     password: accountPassword,
                     password2: accountPassword,
                     name: '',
-                    quota: '0',
+                    quota: '30720',
                     active: '1'
                 };
                 console.log(`Retrying with minimal payload: ${JSON.stringify(minimalData, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
@@ -434,15 +434,27 @@ const mailcowService = {
         }
     },
 
-    async deleteAccount(c, email, serverConfig = null) {
+    async deleteAccount(c, emailOrItems, serverConfig = null) {
         try {
+            const items = Array.isArray(emailOrItems)
+                ? emailOrItems.filter(item => !!item).map(item => String(item).trim())
+                : [String(emailOrItems || '').trim()].filter(item => !!item);
+
+            if (items.length === 0) {
+                throw new BizError(t('mailcowAccountDeleteFailed'));
+            }
+
             const data = {
-                items: [email]
+                items
             };
             
             const result = await this.callApi(c, 'delete/mailbox', 'POST', data, serverConfig);
-            
-            if (!result || !result.status) {
+
+            const isSuccess = Array.isArray(result)
+                ? result.some(r => r?.type === 'success' || r?.status === 'success' || r?.status === true)
+                : !!(result && (result.status === true || result.status === 'success' || result.type === 'success'));
+
+            if (!isSuccess) {
                 throw new BizError(t('mailcowAccountDeleteFailed'));
             }
             
