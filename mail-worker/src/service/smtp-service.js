@@ -235,6 +235,13 @@ const smtpService = {
 
 		} catch (error) {
 			console.error('SMTP发送失败:', error);
+			console.error('详细错误信息:', {
+				message: error.message,
+				code: error.code,
+				errno: error.errno,
+				syscall: error.syscall,
+				stack: error.stack
+			});
 			throw new BizError(t('smtpSendFailed') + ': ' + error.message);
 		} finally {
 			if (mailer) {
@@ -300,6 +307,13 @@ const smtpService = {
 			
 		} catch (error) {
 			console.error('SMTP验证失败:', error);
+			console.error('详细错误信息:', {
+				message: error.message,
+				code: error.code,
+				errno: error.errno,
+				syscall: error.syscall,
+				stack: error.stack
+			});
 			return { success: false, message: error.message };
 		}
 	}
