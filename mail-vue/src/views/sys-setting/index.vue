@@ -220,6 +220,28 @@
             </div>
           </div>
 
+          <div class="settings-card">
+            <div class="card-title">Mailcow</div>
+            <div class="card-content">
+              <div class="setting-item">
+                <div><span>Mailcow 开关</span></div>
+                <div>
+                  <el-switch @change="change" :before-change="beforeChange" :active-value="1" :inactive-value="0"
+                             v-model="setting.mailcowEnabled"/>
+                </div>
+              </div>
+              <div class="setting-item">
+                <div><span>Mailcow 配置</span></div>
+                <div class="forward">
+                  <span>{{ mailcowServerCount }} 个服务器</span>
+                  <el-button class="opt-button" size="small" type="primary" @click="openMailcowConfig">
+                    <Icon icon="fluent:settings-48-regular" width="18" height="18"/>
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Object Storage Card -->
           <div class="settings-card">
             <div class="card-title">{{ $t('oss') }}</div>
@@ -468,6 +490,19 @@
           <el-input type="text" placeholder="Site Key" v-model="turnstileForm.siteKey"/>
           <el-input type="text" style="margin-top: 15px" placeholder="Secret Key" v-model="turnstileForm.secretKey"/>
           <el-button type="primary" :loading="settingLoading" @click="saveTurnstileKey">{{ $t('save') }}</el-button>
+        </form>
+      </el-dialog>
+      <el-dialog v-model="mailcowConfigShow" title="Mailcow 配置" width="520" @closed="resetMailcowConfig">
+        <form>
+          <el-input class="dialog-input" v-model.number="setting.mailcowRetryCount" type="number" placeholder="重试次数"/>
+          <el-input class="dialog-input" v-model.number="setting.mailcowTimeout" type="number" placeholder="请求超时(毫秒)"/>
+          <el-input
+              type="textarea"
+              :rows="10"
+              v-model="mailcowServersText"
+              placeholder='服务器列表 JSON，例如: [{"name":"default","apiUrl":"https://mail.example.com","apiKey":"xxx","smtpHost":"smtp.example.com","isDefault":true}]'
+          />
+          <el-button type="primary" :loading="settingLoading" @click="saveMailcowConfig">{{ $t('save') }}</el-button>
         </form>
       </el-dialog>
       <el-dialog
@@ -800,6 +835,7 @@ const noticePopupShow = ref(false)
 const thirdEmailShow = ref(false)
 const forwardRulesShow = ref(false)
 const emailPrefixShow = ref(false)
+const mailcowConfigShow = ref(false)
 const showResendList = ref(false)
 const settingStore = useSettingStore();
 const uiStore = useUiStore();
@@ -882,12 +918,30 @@ const tgMsgFromOption = [{label: t('show'), value: 'show'}, {label: t('hide'), v
 const tgMsgToOption = [{label: t('show'), value: 'show'}, {label: t('hide'), value: 'hide'}]
 const tgMsgTextOption = [{label: t('show'), value: 'show'}, {label: t('hide'), value: 'hide'}]
 const tgMsgLabelWidth = computed(() => locale.value === 'en' ? '120px' : '100px');
+const mailcowServersText = ref('[]')
+const mailcowServerCount = computed(() => {
+  const list = setting.value.mailcowServers
+  return Array.isArray(list) ? list.length : 0
+})
 
 getSettings()
 getUpdate()
 
 function getSettings() {
   settingQuery().then(settingData => {
+    if (settingData.mailcowEnabled === undefined) {
+      settingData.mailcowEnabled = 0
+    }
+    if (!Array.isArray(settingData.mailcowServers)) {
+      settingData.mailcowServers = []
+    }
+    if (settingData.mailcowRetryCount === undefined) {
+      settingData.mailcowRetryCount = 3
+    }
+    if (settingData.mailcowTimeout === undefined) {
+      settingData.mailcowTimeout = 30000
+    }
+
     setting.value = settingData
     settingStore.domainList = settingData.domainList;
     resendTokenForm.domain = setting.value.domainList[0]
@@ -908,6 +962,43 @@ function getSettings() {
 
 function openNoticePopup() {
   uiStore.showNotice()
+}
+
+function resetMailcowConfig() {
+  const servers = Array.isArray(setting.value.mailcowServers) ? setting.value.mailcowServers : []
+  mailcowServersText.value = JSON.stringify(servers, null, 2)
+}
+
+function openMailcowConfig() {
+  if (settingLoading.value) return
+  resetMailcowConfig()
+  mailcowConfigShow.value = true
+}
+
+function saveMailcowConfig() {
+  let servers = []
+  try {
+    const parsed = JSON.parse(mailcowServersText.value || '[]')
+    if (!Array.isArray(parsed)) {
+      throw new Error('Mailcow servers must be an array')
+    }
+    servers = parsed
+  } catch (e) {
+    ElMessage({
+      message: 'Mailcow 服务器配置 JSON 格式错误',
+      type: 'error',
+      plain: true,
+    })
+    return
+  }
+
+  const form = {
+    mailcowServers: servers,
+    mailcowRetryCount: Number(setting.value.mailcowRetryCount || 3),
+    mailcowTimeout: Number(setting.value.mailcowTimeout || 30000),
+  }
+
+  editSetting(form)
 }
 
 function openAddVerifyCount() {
@@ -1345,6 +1436,7 @@ function editSetting(settingForm, refreshStatus = true) {
     resendTokenFormShow.value = false
     turnstileShow.value = false
     tgSettingShow.value = false
+    mailcowConfigShow.value = false
     thirdEmailShow.value = false
     forwardRulesShow.value = false
     addVerifyCountShow.value = false
