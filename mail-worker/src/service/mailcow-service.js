@@ -287,19 +287,26 @@ const mailcowService = {
                 domain: email.split('@')[1],
                 password: accountPassword,
                 password2: accountPassword,
-                name: email,
-                quota: 3072,
-                active: 1,
-                force_pw_update: 0,
-                tls_enforce_in: 0,
-                tls_enforce_out: 0,
-                sogo_access: 1,
-                imap_access: 1,
-                smtp_access: 1,
-                pop3_access: 1,
-                quarantine_access: 0,
-                caldav_access: 1,
-                carddav_access: 1
+                name: '',
+                quota: '3072',
+                active: '1',
+                force_pw_update: '0',
+                force_tfa: '0',
+                sogo_access: ['0', '1'],
+                protocol_access: ['0', 'imap', 'pop3', 'smtp', 'sieve'],
+                authsource: 'mailcow',
+                tags: '',
+                tagged_mail_handler: 'none',
+                quarantine_notification: 'hourly',
+                quarantine_category: 'reject',
+                acl: [
+                    'spam_alias', 'tls_policy', 'spam_score', 'spam_policy', 
+                    'delimiter_action', 'eas_reset', 'pushover', 'quarantine', 
+                    'quarantine_attachments', 'quarantine_notification', 
+                    'quarantine_category', 'app_passwds'
+                ],
+                rl_value: '',
+                rl_frame: 's'
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
@@ -307,6 +314,7 @@ const mailcowService = {
             let result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
             console.log(`Result check: result=${!!result}, typeof result=${typeof result}, Array.isArray=${Array.isArray(result)}, length=${Array.isArray(result) ? result.length : 'N/A'}, Object.keys=${typeof result === 'object' && result !== null ? Object.keys(result).length : 'N/A'}`);
+            
             if (this.isEmptyApiResponse(result)) {
                 console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters after 500ms...`);
                 await sleep(500);
@@ -315,7 +323,7 @@ const mailcowService = {
                     domain: email.split('@')[1],
                     password: accountPassword,
                     password2: accountPassword,
-                    name: email,
+                    name: '',
                     quota: '3072',
                     active: '1'
                 };
@@ -323,6 +331,7 @@ const mailcowService = {
                 const retryResult = await this.callApi(c, 'add/mailbox', 'POST', minimalData, server);
                 console.log('Mailcow Retry Create Account Result:', JSON.stringify(retryResult));
                 result = retryResult;
+                
                 if (this.isEmptyApiResponse(result)) {
                     console.log(`Mailcow add/mailbox retry also returned empty response for ${email}, verifying mailbox existence with retry (${verifyAttempts} attempts, delay ${verifyDelayMs}ms)...`);
                     const existsAfterEmptyResponse = await this.accountExists(c, email, server, {
@@ -348,6 +357,7 @@ const mailcowService = {
                     throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response and mailbox not found`);
                 }
             }
+            
             let createdWithEmptyResponse = false;
             if (!result) {
                 console.warn(`Mailcow add/mailbox returned empty response for ${email}, verifying mailbox existence...`);
@@ -399,6 +409,9 @@ const mailcowService = {
                 mailcowServerId: server?.id || ''
             };
         } catch (error) {
+            if (error instanceof BizError) {
+                throw error;
+            }
             throw new BizError(`Failed to create mailcow account: ${error.message}`);
         }
     },
