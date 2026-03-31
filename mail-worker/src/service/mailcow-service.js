@@ -110,17 +110,11 @@ const mailcowService = {
 
         for (let attempt = 1; attempt <= attempts; attempt++) {
             try {
-                // Try targeted query first for better performance
+                // 使用精确查询（对应 yaml: GET /api/v1/get/mailbox/{id}，id 为邮箱地址）
                 const result = await this.callApi(c, `get/mailbox/${encodeURIComponent(email)}`, 'GET', null, serverConfig);
                 console.log(`accountExists attempt ${attempt} for ${email} result:`, JSON.stringify(result));
                 
                 if (this.mailboxMatchesEmail(result, email)) {
-                    return true;
-                }
-                
-                // Fallback: If targeted API returns nothing but get/mailbox/all might have it
-                const allMailboxes = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
-                if (this.mailboxMatchesEmail(allMailboxes, email)) {
                     return true;
                 }
             } catch (e) {
@@ -182,8 +176,6 @@ const mailcowService = {
 
             const headers = {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
                 'X-API-Key': server.apiKey
             };
             
@@ -282,19 +274,13 @@ const mailcowService = {
             }
 
             const accountPassword = await this.resolvePassword(c, password);
+            // 最小化请求体，仅包含必需字段（对应 yaml: POST /api/v1/add/mailbox）
             const data = {
-                active: '1',
                 domain: email.split('@')[1],
                 local_part: email.split('@')[0],
-                name: '',
-                authsource: 'mailcow',
                 password: accountPassword,
                 password2: accountPassword,
-                quota: '30720',
-                force_pw_update: '0',
-                tls_enforce_in: '0',
-                tls_enforce_out: '0',
-                tags: []
+                quota: 30720
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
@@ -327,25 +313,9 @@ const mailcowService = {
                 };
             }
             
-            let createdWithEmptyResponse = false;
-            if (!result) {
-                console.warn(`Mailcow add/mailbox returned empty response for ${email}, verifying mailbox existence...`);
-                const existsAfterCreate = await this.accountExists(c, email, server, {
-                    attempts: verifyAttempts,
-                    delayMs: verifyDelayMs
-                });
-                if (!existsAfterCreate) {
-                    throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response`);
-                }
-                createdWithEmptyResponse = true;
-                console.log(`Mailcow mailbox exists after empty response: ${email}`);
-            }
-
-            const isSuccess = createdWithEmptyResponse
-                ? true
-                : (Array.isArray(result)
-                    ? result.some(r => r.type === 'success' || r.status === 'success' || r.status === true)
-                    : (result?.type === 'success' || result?.status === 'success' || result?.status === true));
+            const isSuccess = Array.isArray(result)
+                ? result.some(r => r.type === 'success' || r.status === 'success' || r.status === true)
+                : (result?.type === 'success' || result?.status === 'success' || result?.status === true);
 
             if (!isSuccess) {
                 // Extract error details from result
@@ -387,19 +357,25 @@ const mailcowService = {
 
     async getAccount(c, email, serverConfig = null) {
         try {
-            const result = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
+            // 使用精确查询（对应 yaml: GET /api/v1/get/mailbox/{id}）
+            const result = await this.callApi(c, `get/mailbox/${encodeURIComponent(email)}`, 'GET', null, serverConfig);
             
-            if (!Array.isArray(result)) {
-                throw new BizError(t('mailcowAccountQueryFailed'));
-            }
-            
-            const account = result.find(mailbox => mailbox.username === email);
-            if (!account) {
+            if (!result || (Array.isArray(result) && result.length === 0)) {
                 throw new BizError(t('mailcowAccountNotFound'));
             }
             
-            return account;
+            // API 返回数组时取匹配项
+            if (Array.isArray(result)) {
+                const account = result.find(mailbox => mailbox.username === email);
+                if (!account) {
+                    throw new BizError(t('mailcowAccountNotFound'));
+                }
+                return account;
+            }
+            
+            return result;
         } catch (error) {
+            if (error instanceof BizError) throw error;
             throw new BizError(`Failed to get mailcow account: ${error.message}`);
         }
     },
@@ -414,11 +390,8 @@ const mailcowService = {
                 throw new BizError(t('mailcowAccountDeleteFailed'));
             }
 
-            const data = {
-                items
-            };
-            
-            const result = await this.callApi(c, 'delete/mailbox', 'POST', data, serverConfig);
+            // yaml 规范：请求体直接是 JSON 数组
+            const result = await this.callApi(c, 'delete/mailbox', 'POST', items, serverConfig);
 
             const isSuccess = Array.isArray(result)
                 ? result.some(r => r?.type === 'success' || r?.status === 'success' || r?.status === true)
@@ -436,7 +409,8 @@ const mailcowService = {
 
     async testConnection(c, serverConfig) {
         try {
-            await this.callApi(c, 'get/status', 'GET', null, serverConfig);
+            // yaml 规范：使用 /api/v1/get/status/version 验证连接（最轻量）
+            await this.callApi(c, 'get/status/version', 'GET', null, serverConfig);
             return true;
         } catch (error) {
             throw new BizError(`Connection test failed: ${error.message}`);

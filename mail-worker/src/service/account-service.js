@@ -621,25 +621,14 @@ const accountService = {
                 // Generate a temporary password or use a placeholder if needed
                 const tempPassword = await mailcowService.resolvePassword(c);
                 
-                // Prepare data for creating account on target server
+                // 最小化请求体，仅包含 add/mailbox 规范中的字段（对应 yaml: POST /api/v1/add/mailbox）
                 const data = {
                     local_part: email.split('@')[0],
                     domain: email.split('@')[1],
                     password: tempPassword,
                     password2: tempPassword,
-                    name: account.name || email,
-                    quota: account.quota || 3072,
-                    active: account.active || 1,
-                    force_pw_update: account.force_pw_update || 0,
-                    tls_enforce_in: account.tls_enforce_in || 0,
-                    tls_enforce_out: account.tls_enforce_out || 0,
-                    sogo_access: account.sogo_access || 1,
-                    imap_access: account.imap_access || 1,
-                    smtp_access: account.smtp_access || 1,
-                    pop3_access: account.pop3_access || 1,
-                    quarantine_access: account.quarantine_access || 0,
-                    caldav_access: account.caldav_access || 1,
-                    carddav_access: account.carddav_access || 1
+                    name: account.name || '',
+                    quota: account.quota || 3072
                 };
                 
                 // Create account on target server
