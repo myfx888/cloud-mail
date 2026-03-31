@@ -216,7 +216,8 @@ const mailcowService = {
             console.log(`Request payload for add/mailbox: ${JSON.stringify(data, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
             let result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
-            if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && Object.keys(result).length === 0)) {
+            console.log(`Result check: result=${!!result}, typeof result=${typeof result}, Array.isArray=${Array.isArray(result)}, length=${Array.isArray(result) ? result.length : 'N/A'}, Object.keys=${typeof result === 'object' && result !== null ? Object.keys(result).length : 'N/A'}`);
+            if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && result !== null && Object.keys(result).length === 0)) {
                 console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters...`);
                 const minimalData = {
                     local_part: email.split('@')[0],
@@ -230,7 +231,7 @@ const mailcowService = {
                 const retryResult = await this.callApi(c, 'add/mailbox', 'POST', minimalData, server);
                 console.log('Mailcow Retry Create Account Result:', JSON.stringify(retryResult));
                 result = retryResult;
-                if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && Object.keys(result).length === 0)) {
+                if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && result !== null && Object.keys(result).length === 0)) {
                     console.log(`Mailcow add/mailbox retry also returned empty response for ${email}, verifying mailbox existence...`);
                     const mailboxes = await this.callApi(c, 'get/mailbox/all', 'GET', null, server);
                     console.log('Mailbox Verification Result:', JSON.stringify(mailboxes));
