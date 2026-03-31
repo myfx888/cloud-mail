@@ -203,6 +203,7 @@ const mailcowService = {
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
+            console.log(`Request payload for add/mailbox: ${JSON.stringify(data, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
             const result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
             
