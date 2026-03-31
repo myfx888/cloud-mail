@@ -331,7 +331,7 @@ const accountService = {
 
 		num = (num - 1) * size;
 
-		const userRow = await userService.selectByIdIncludeDel(c, userId);
+		const userRow = await userService.selectById(c, userId);
 
 		const list = await orm(c).select().from(account).where(and(eq(account.userId, userId),ne(account.email,userRow.email))).limit(size).offset(num);
 		const { total } = await orm(c).select({ total: count() }).from(account).where(eq(account.userId, userId)).get();
@@ -595,7 +595,76 @@ const accountService = {
 			.set({ signatures: JSON.stringify(signatures) })
 			.where(eq(account.accountId, accountId))
 			.run();
-	}
+	},
+
+	async migrateAccounts(c, sourceServerId, targetServerId) {
+        try {
+            const sourceServer = await mailcowService.getServerById(c, sourceServerId);
+            const targetServer = await mailcowService.getServerById(c, targetServerId);
+            
+            console.log(`Migrating accounts from server ${sourceServer.apiUrl} to ${targetServer.apiUrl}`);
+            
+            // Fetch all accounts from source server
+            const accounts = await mailcowService.callApi(c, 'get/mailbox/all', 'GET', null, sourceServer);
+            
+            if (!Array.isArray(accounts)) {
+                throw new BizError(t('mailcowAccountQueryFailed'));
+            }
+            
+            console.log(`Found ${accounts.length} accounts to migrate.`);
+            
+            // Iterate through accounts and create them on the target server
+            for (const account of accounts) {
+                const email = account.username;
+                console.log(`Migrating account: ${email}`);
+                
+                // Generate a temporary password or use a placeholder if needed
+                const tempPassword = await mailcowService.resolvePassword(c);
+                
+                // Prepare data for creating account on target server
+                const data = {
+                    local_part: email.split('@')[0],
+                    domain: email.split('@')[1],
+                    password: tempPassword,
+                    password2: tempPassword,
+                    name: account.name || email,
+                    quota: account.quota || 3072,
+                    active: account.active || 1,
+                    force_pw_update: account.force_pw_update || 0,
+                    tls_enforce_in: account.tls_enforce_in || 0,
+                    tls_enforce_out: account.tls_enforce_out || 0,
+                    sogo_access: account.sogo_access || 1,
+                    imap_access: account.imap_access || 1,
+                    smtp_access: account.smtp_access || 1,
+                    pop3_access: account.pop3_access || 1,
+                    quarantine_access: account.quarantine_access || 0,
+                    caldav_access: account.caldav_access || 1,
+                    carddav_access: account.carddav_access || 1
+                };
+                
+                // Create account on target server
+                const result = await mailcowService.callApi(c, 'add/mailbox', 'POST', data, targetServer);
+                
+                if (!result || (Array.isArray(result) && result.length === 0) || (typeof result === 'object' && result !== null && Object.keys(result).length === 0)) {
+                    console.log(`Failed to migrate account ${email} to target server, empty response received.`);
+                    continue;
+                }
+                
+                console.log(`Successfully migrated account ${email} to target server.`);
+                
+                // Optionally delete account from source server after successful migration
+                // await mailcowService.deleteAccount(c, email, sourceServer);
+            }
+            
+            return {
+                success: true,
+                message: `Successfully migrated ${accounts.length} accounts from server ${sourceServer.apiUrl} to ${targetServer.apiUrl}.`
+            };
+        } catch (error) {
+            throw new BizError(`Failed to migrate accounts: ${error.message}`);
+        }
+    },
+
 };
 
 export default accountService;
