@@ -288,7 +288,7 @@ const mailcowService = {
                 password: accountPassword,
                 password2: accountPassword,
                 name: '',
-                quota: '3072',
+                quota: '0',
                 active: '1',
                 force_pw_update: '0',
                 force_tfa: '0',
@@ -313,7 +313,6 @@ const mailcowService = {
             console.log(`Request payload for add/mailbox: ${JSON.stringify(data, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
             let result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
-            console.log(`Result check: result=${!!result}, typeof result=${typeof result}, Array.isArray=${Array.isArray(result)}, length=${Array.isArray(result) ? result.length : 'N/A'}, Object.keys=${typeof result === 'object' && result !== null ? Object.keys(result).length : 'N/A'}`);
             
             if (this.isEmptyApiResponse(result)) {
                 console.log(`Mailcow add/mailbox returned empty response for ${email}, retrying with minimal parameters after 500ms...`);
@@ -324,7 +323,7 @@ const mailcowService = {
                     password: accountPassword,
                     password2: accountPassword,
                     name: '',
-                    quota: '3072',
+                    quota: '0',
                     active: '1'
                 };
                 console.log(`Retrying with minimal payload: ${JSON.stringify(minimalData, null, 2).replace(/"password": ".*?"/, '"password": "[REDACTED]"').replace(/"password2": ".*?"/, '"password2": "[REDACTED]"')}`);
