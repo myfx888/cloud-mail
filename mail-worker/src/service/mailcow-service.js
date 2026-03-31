@@ -135,7 +135,7 @@ const mailcowService = {
             
             console.log(`Mailcow API Call: ${method} ${url}`);
             const response = await fetch(url, options);
-            console.log(`Mailcow API Response: ${response.status} ${response.statusText}`);
+            console.log(`Mailcow API Response: ${response.status}, ${response.statusText}`);
             
             if (!response.ok) {
                 const errorText = await response.text().catch(() => '');
