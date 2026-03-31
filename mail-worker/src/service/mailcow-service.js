@@ -109,7 +109,7 @@ const mailcowService = {
         }
 
         return false;
-    },
+    }.bind(mailcowService),
 
     async callApi(c, endpoint, method = 'GET', data = null, serverConfig = null) {
         try {
@@ -313,5 +313,9 @@ const mailcowService = {
         return password;
     }
 };
+
+Object.assign(mailcowService, {
+    domainExists: mailcowService.domainExists.bind(mailcowService)
+});
 
 export default mailcowService;
