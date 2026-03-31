@@ -10,9 +10,22 @@ const mailcowService = {
         }
         const settings = await settingService.query(c);
         const mailcowServers = settings.mailcowServers || [];
-        const target = mailcowServers.find(item => String(item.id) === String(serverId));
+        
+        // 1. 尝试通过 ID 匹配
+        let target = mailcowServers.find(item => String(item.id) === String(serverId));
+        
+        // 2. 如果 ID 没匹配到，尝试通过 apiUrl 匹配（处理旧数据或误传域名的情况）
         if (!target) {
-            throw new BizError('mailcow server not found');
+            target = mailcowServers.find(item => {
+                if (!item.apiUrl) return false;
+                const url = item.apiUrl.toLowerCase();
+                const search = String(serverId).toLowerCase();
+                return url.includes(search) || search.includes(url.replace(/^https?:\/\//, ''));
+            });
+        }
+
+        if (!target) {
+            throw new BizError(`${serverId}: mailcow server not found`);
         }
         return target;
     },

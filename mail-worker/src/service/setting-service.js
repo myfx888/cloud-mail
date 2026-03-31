@@ -33,13 +33,23 @@ const settingService = {
 			settingRow = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
 			if (settingRow) {
 				const mailcowServersRaw = settingRow.mailcowServers ?? settingRow.mailcow_servers ?? '[]';
-				settingRow.mailcowServers = Array.isArray(mailcowServersRaw)
+				settingRow.mailcowServers = (Array.isArray(mailcowServersRaw)
 					? mailcowServersRaw
-					: JSON.parse(mailcowServersRaw);
+					: JSON.parse(mailcowServersRaw)).map((server, index) => {
+						if (!server.id) {
+							server.id = `mc_${index}_${server.apiUrl?.replace(/[^a-z0-9]/gi, '_')}`;
+						}
+						return server;
+					});
 				const smtpServersRaw = settingRow.smtpServers ?? settingRow.smtp_servers ?? '[]';
-				settingRow.smtpServers = Array.isArray(smtpServersRaw)
+				settingRow.smtpServers = (Array.isArray(smtpServersRaw)
 					? smtpServersRaw
-					: JSON.parse(smtpServersRaw);
+					: JSON.parse(smtpServersRaw)).map((server, index) => {
+						if (!server.id) {
+							server.id = `smtp_${index}_${server.smtpHost?.replace(/[^a-z0-9]/gi, '_')}`;
+						}
+						return server;
+					});
 				const mailcowGlobalSmtpTemplateRaw = settingRow.mailcowGlobalSmtpTemplate ?? settingRow.mailcow_global_smtp_template ?? '{}';
 				settingRow.mailcowGlobalSmtpTemplate = typeof mailcowGlobalSmtpTemplateRaw === 'object'
 					? mailcowGlobalSmtpTemplateRaw
@@ -64,8 +74,18 @@ const settingService = {
 				// 从数据库读取设置
 				settingRow = await orm(c).select().from(setting).get();
 				settingRow.resendTokens = JSON.parse(settingRow.resendTokens);
-				settingRow.mailcowServers = JSON.parse(settingRow.mailcowServers || '[]');
-				settingRow.smtpServers = JSON.parse(settingRow.smtpServers || '[]');
+				settingRow.mailcowServers = JSON.parse(settingRow.mailcowServers || '[]').map((server, index) => {
+					if (!server.id) {
+						server.id = `mc_${index}_${server.apiUrl?.replace(/[^a-z0-9]/gi, '_')}`;
+					}
+					return server;
+				});
+				settingRow.smtpServers = JSON.parse(settingRow.smtpServers || '[]').map((server, index) => {
+					if (!server.id) {
+						server.id = `smtp_${index}_${server.smtpHost?.replace(/[^a-z0-9]/gi, '_')}`;
+					}
+					return server;
+				});
 				settingRow.mailcowGlobalSmtpTemplate = JSON.parse(settingRow.mailcowGlobalSmtpTemplate || '{}');
 			} catch (error) {
 				// 数据库未初始化时返回默认设置
