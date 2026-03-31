@@ -188,7 +188,7 @@ const mailcowService = {
             // 1. Check if domain exists
             const domainOk = await this.domainExists(c, domain, server);
             if (!domainOk) {
-                throw new BizError(`${t('mailcowAccountCreateFailed')}: domain ${domain} does not exist in mailcow (tried server ${server.apiUrl})`);
+                console.warn(`Mailcow domain precheck returned false for ${domain} on ${server.apiUrl}, continue to add/mailbox and rely on API result`);
             }
 
             const accountPassword = await this.resolvePassword(c, password);
