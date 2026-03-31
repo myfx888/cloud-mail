@@ -299,7 +299,11 @@ const smtpService = {
 				startTls: useStartTls,
 				socketTimeoutMs: 10000,
 				responseTimeoutMs: 5000,
-				rejectUnauthorized: false // 允许自签名证书
+				rejectUnauthorized: false, // 允许自签名证书
+				tls: {
+					minVersion: 'TLSv1', // 尝试降低最低 TLS 版本要求
+					ciphers: 'ALL' // 使用所有可用的加密套件
+				}
 			});
 			
 			// 连接成功，返回true
