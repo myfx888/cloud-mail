@@ -111,7 +111,7 @@ const mailcowService = {
         for (let attempt = 1; attempt <= attempts; attempt++) {
             try {
                 // 使用精确查询（对应 yaml: GET /api/v1/get/mailbox/{id}，id 为邮箱地址）
-                const result = await this.callApi(c, `get/mailbox/${encodeURIComponent(email)}`, 'GET', null, serverConfig);
+                const result = await this.callApi(c, `get/mailbox/${email}`, 'GET', null, serverConfig);
                 console.log(`accountExists attempt ${attempt} for ${email} result:`, JSON.stringify(result));
                 
                 if (this.mailboxMatchesEmail(result, email)) {
@@ -276,6 +276,7 @@ const mailcowService = {
             const accountPassword = await this.resolvePassword(c, password);
             // 最小化请求体，仅包含必需字段（对应 yaml: POST /api/v1/add/mailbox）
             const data = {
+                active: '1',
                 domain: email.split('@')[1],
                 local_part: email.split('@')[0],
                 password: accountPassword,
@@ -358,7 +359,7 @@ const mailcowService = {
     async getAccount(c, email, serverConfig = null) {
         try {
             // 使用精确查询（对应 yaml: GET /api/v1/get/mailbox/{id}）
-            const result = await this.callApi(c, `get/mailbox/${encodeURIComponent(email)}`, 'GET', null, serverConfig);
+            const result = await this.callApi(c, `get/mailbox/${email}`, 'GET', null, serverConfig);
             
             if (!result || (Array.isArray(result) && result.length === 0)) {
                 throw new BizError(t('mailcowAccountNotFound'));
