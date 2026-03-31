@@ -199,7 +199,10 @@ const mailcowService = {
                 password2: accountPassword,
                 name: email,
                 quota: 3072,
-                active: 1
+                active: 1,
+                force_pw_update: 0,
+                tls_enforce_in: 0,
+                tls_enforce_out: 0
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
