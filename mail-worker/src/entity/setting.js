@@ -58,6 +58,11 @@ export const setting = sqliteTable('setting', {
 	smtpUserConfig: integer('smtp_user_config').default(1).notNull(),
 	mailcowEnabled: integer('mailcow_enabled').default(0).notNull(),
 	mailcowServers: text('mailcow_servers').default('[]').notNull(),
+	mailcowPasswordMode: text('mailcow_password_mode').default('random').notNull(),
+	mailcowProvisionPassword: text('mailcow_provision_password').default('').notNull(),
+	mailcowCreateStrict: integer('mailcow_create_strict').default(0).notNull(),
+	mailcowGlobalSmtpTemplate: text('mailcow_global_smtp_template').default('{}').notNull(),
+	smtpServers: text('smtp_servers').default('[]').notNull(),
 	mailcowRetryCount: integer('mailcow_retry_count').default(3).notNull(),
 	mailcowTimeout: integer('mailcow_timeout').default(30000).notNull()
 });

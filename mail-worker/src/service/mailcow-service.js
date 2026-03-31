@@ -4,6 +4,19 @@ import settingService from './setting-service';
 
 const mailcowService = {
 
+    async getServerById(c, serverId) {
+        if (!serverId) {
+            return this.getDefaultServer(c);
+        }
+        const settings = await settingService.query(c);
+        const mailcowServers = settings.mailcowServers || [];
+        const target = mailcowServers.find(item => String(item.id) === String(serverId));
+        if (!target) {
+            throw new BizError('mailcow server not found');
+        }
+        return target;
+    },
+
     async getDefaultServer(c) {
         const settings = await settingService.query(c);
         const mailcowServers = settings.mailcowServers || [];
@@ -18,6 +31,46 @@ const mailcowService = {
         }
         
         return mailcowServers[0];
+    },
+
+    async resolvePassword(c, explicitPassword = '') {
+        if (explicitPassword) {
+            return explicitPassword;
+        }
+        const settings = await settingService.query(c);
+        const mode = settings.mailcowPasswordMode || 'random';
+        if (mode === 'fixed') {
+            if (!settings.mailcowProvisionPassword) {
+                throw new BizError('mailcow fixed password is empty');
+            }
+            return settings.mailcowProvisionPassword;
+        }
+        return this.generatePassword();
+    },
+
+    async getSmtpConfig(c, serverConfig = null) {
+        const settings = await settingService.query(c);
+        const server = serverConfig || await this.getDefaultServer(c);
+        const globalTemplate = settings.mailcowGlobalSmtpTemplate || {};
+
+        return {
+            smtpHost: server?.smtpHost || globalTemplate.smtpHost || 'smtp.mailcow.email',
+            smtpPort: Number(server?.smtpPort || globalTemplate.smtpPort || 587),
+            smtpSecure: Number(server?.smtpSecure ?? globalTemplate.smtpSecure ?? 0),
+            smtpAuthType: server?.smtpAuthType || globalTemplate.smtpAuthType || 'plain'
+        };
+    },
+
+    async accountExists(c, email, serverConfig = null) {
+        try {
+            const result = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
+            if (!Array.isArray(result)) {
+                return false;
+            }
+            return result.some(mailbox => mailbox.username === email);
+        } catch (e) {
+            return false;
+        }
     },
 
     async callApi(c, endpoint, method = 'GET', data = null, serverConfig = null) {
@@ -58,29 +111,35 @@ const mailcowService = {
         }
     },
 
-    async createAccount(c, email, password, serverConfig = null) {
+    async createAccount(c, email, password = '', serverConfig = null) {
         try {
+            const server = serverConfig || await this.getDefaultServer(c);
+            const accountPassword = await this.resolvePassword(c, password);
             const data = {
                 local_part: email.split('@')[0],
                 domain: email.split('@')[1],
-                password,
+                password: accountPassword,
                 name: email,
                 active: true
             };
             
-            const result = await this.callApi(c, 'add/mailbox', 'POST', data, serverConfig);
+            const result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             
-            if (!result || !result.status) {
+            if (!result || (!result.status && !Array.isArray(result))) {
                 throw new BizError(t('mailcowAccountCreateFailed'));
             }
+
+            const smtpConfig = await this.getSmtpConfig(c, server);
             
             return {
                 email,
-                password,
-                smtpHost: serverConfig?.smtpHost || 'smtp.mailcow.email',
-                smtpPort: 587,
-                smtpSecure: 0,
-                smtpUser: email
+                password: accountPassword,
+                smtpHost: smtpConfig.smtpHost,
+                smtpPort: smtpConfig.smtpPort,
+                smtpSecure: smtpConfig.smtpSecure,
+                smtpAuthType: smtpConfig.smtpAuthType,
+                smtpUser: email,
+                mailcowServerId: server?.id || ''
             };
         } catch (error) {
             throw new BizError(`Failed to create mailcow account: ${error.message}`);

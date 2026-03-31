@@ -36,6 +36,10 @@ export function verifySmtpAccountConfig(accountId, smtpConfig) {
     return http.post('/smtp/verify-account', { ...smtpConfig, accountId })
 }
 
+export function mailcowTestConnection(serverId) {
+    return http.post('/setting/mailcow/testConnection', { serverId })
+}
+
 // 签名管理相关 API 调用
 export function getSignatures(accountId) {
     return http.get(`/account/${accountId}/signatures`)

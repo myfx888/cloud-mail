@@ -21,13 +21,31 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" :label="$t('createTime')" width="180"/>
-                <el-table-column :label="$t('action')" width="280" fixed="right">
+                <el-table-column :label="$t('action')" width="220" fixed="right">
                   <template #default="scope">
-                    <el-button size="small" type="primary" @click="openSmtpConfig(scope.row)" v-perm="'smtp:set'">
-                      {{ $t('smtpSetting') }}
-                    </el-button>
-                    <el-button size="small" type="success" @click="openSmtpAccountManager(scope.row)" v-perm="'smtp:set'">
-                      {{ $t('smtpAccountManager') }}
+                    <el-dropdown trigger="click" v-perm="'smtp:set'">
+                      <el-button size="small" type="primary">
+                        {{ $t('smtpSetting') }}
+                      </el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item @click="openSmtpConfig(scope.row)">
+                            {{ $t('smtpSetting') }}
+                          </el-dropdown-item>
+                          <el-dropdown-item @click="openSmtpAccountManager(scope.row)">
+                            {{ $t('smtpAccountManager') }}
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                    <el-button
+                      size="small"
+                      type="warning"
+                      :loading="retryingAccountId === scope.row.accountId"
+                      @click="retryMailcow(scope.row)"
+                      v-if="canRetryMailcow(scope.row)"
+                    >
+                      重试
                     </el-button>
                     <el-button size="small" type="danger" @click="deleteAccount(scope.row)" v-if="scope.row.email !== userStore.user.email">
                       {{ $t('delete') }}
@@ -299,7 +317,7 @@
 </template>
 <script setup>
 import {reactive, ref, onMounted} from 'vue'
-import {accountAdd, accountDelete, accountList as fetchAccountList} from "@/request/account.js"
+import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow} from "@/request/account.js"
 import {useUserStore} from "@/store/user.js"
 import {Icon} from "@iconify/vue"
 import LoadingComponent from "@/components/loading/index.vue"
@@ -317,6 +335,8 @@ const addLoading = ref(false)
 const smtpVerifying = ref(false)
 const currentAccount = ref(null)
 const smtpConfigPermission = ref(true)
+const mailcowEnabled = ref(false)
+const retryingAccountId = ref(0)
 
 // 签名管理相关状态
 const signatureManagerShow = ref(false)
@@ -380,8 +400,35 @@ async function loadAccounts() {
     }))
     // 检查用户是否有SMTP配置权限
     smtpConfigPermission.value = settingData.smtpUserConfig === 1
+    mailcowEnabled.value = Number(settingData.mailcowEnabled || 0) === 1
   } finally {
     loading.value = false
+  }
+}
+
+function canRetryMailcow(account) {
+  if (!mailcowEnabled.value) return false
+  return Number(account.smtpOverride || 0) !== 1
+}
+
+async function retryMailcow(account) {
+  retryingAccountId.value = account.accountId
+  try {
+    await accountRetryMailcow(account.accountId)
+    ElMessage({
+      message: 'Mailcow 重试成功',
+      type: 'success',
+      plain: true
+    })
+    await loadAccounts()
+  } catch (error) {
+    ElMessage({
+      message: error?.message || 'Mailcow 重试失败',
+      type: 'error',
+      plain: true
+    })
+  } finally {
+    retryingAccountId.value = 0
   }
 }
 

@@ -67,11 +67,18 @@
             </div>
           </div>
           <div>
-              <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;">
+              <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;" v-if="form.sendType !== 'reply'">
                 <el-radio-button value="resend">Resend</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
               </el-radio-group>
-              <el-select v-model="selectedSmtpAccountId" @change="handleSmtpAccountChange" size="small" placeholder="选择SMTP账户" style="margin-right: 10px;" v-if="form.sendMethod === 'smtp' && smtpAccounts.length > 0">
+              <el-select
+                  v-model="selectedSmtpAccountId"
+                  @change="handleSmtpAccountChange"
+                  size="small"
+                  placeholder="选择SMTP账户"
+                  style="margin-right: 10px;"
+                  v-if="showSmtpSelector"
+              >
                 <el-option v-for="account in smtpAccounts" :key="account.smtpAccountId" :label="account.name" :value="account.smtpAccountId"/>
               </el-select>
               <el-button type="primary" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
@@ -187,6 +194,12 @@ const form = reactive({
 const selectRecipientList = ref([])
 
 const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
+const showSmtpSelector = computed(() => {
+  if (form.sendType === 'reply') {
+    return smtpAccounts.value.length > 1
+  }
+  return form.sendMethod === 'smtp' && smtpAccounts.value.length > 0
+})
 
 function openContacts() {
   showContacts.value = true
@@ -497,6 +510,7 @@ function openReply(email) {
       email.subject.startsWith('回复：') ||
       email.subject.startsWith('回复:')) ? email.subject : 'Re: ' + email.subject
   form.sendType = 'reply'
+  form.sendMethod = 'smtp'
   form.emailId = email.emailId
 
   defValue.value = ''
@@ -573,6 +587,9 @@ async function open() {
       if (defaultSmtpAccount) {
         selectedSmtpAccountId.value = defaultSmtpAccount.smtpAccountId;
         form.smtpAccountId = defaultSmtpAccount.smtpAccountId;
+      } else if (smtpAccountListResult.length > 0) {
+        selectedSmtpAccountId.value = smtpAccountListResult[0].smtpAccountId;
+        form.smtpAccountId = smtpAccountListResult[0].smtpAccountId;
       }
     } catch (error) {
       console.error('获取签名或SMTP账户失败:', error);

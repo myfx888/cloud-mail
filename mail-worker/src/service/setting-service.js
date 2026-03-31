@@ -26,29 +26,48 @@ const settingService = {
 			return c.get('setting')
 		}
 
-		let setting;
+		let settingRow;
 		if (c.env.kv && c.env.kv.get) {
-			setting = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
-			if (setting) {
-				const mailcowServersRaw = setting.mailcowServers ?? setting.mailcow_servers ?? '[]';
-				setting.mailcowServers = Array.isArray(mailcowServersRaw)
+			settingRow = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
+			if (settingRow) {
+				const mailcowServersRaw = settingRow.mailcowServers ?? settingRow.mailcow_servers ?? '[]';
+				settingRow.mailcowServers = Array.isArray(mailcowServersRaw)
 					? mailcowServersRaw
 					: JSON.parse(mailcowServersRaw);
-				if (setting.mailcowEnabled === undefined && setting.mailcow_enabled !== undefined) {
-					setting.mailcowEnabled = setting.mailcow_enabled;
+				const smtpServersRaw = settingRow.smtpServers ?? settingRow.smtp_servers ?? '[]';
+				settingRow.smtpServers = Array.isArray(smtpServersRaw)
+					? smtpServersRaw
+					: JSON.parse(smtpServersRaw);
+				const mailcowGlobalSmtpTemplateRaw = settingRow.mailcowGlobalSmtpTemplate ?? settingRow.mailcow_global_smtp_template ?? '{}';
+				settingRow.mailcowGlobalSmtpTemplate = typeof mailcowGlobalSmtpTemplateRaw === 'object'
+					? mailcowGlobalSmtpTemplateRaw
+					: JSON.parse(mailcowGlobalSmtpTemplateRaw || '{}');
+				if (settingRow.mailcowEnabled === undefined && settingRow.mailcow_enabled !== undefined) {
+					settingRow.mailcowEnabled = settingRow.mailcow_enabled;
+				}
+				if (settingRow.mailcowPasswordMode === undefined && settingRow.mailcow_password_mode !== undefined) {
+					settingRow.mailcowPasswordMode = settingRow.mailcow_password_mode;
+				}
+				if (settingRow.mailcowProvisionPassword === undefined && settingRow.mailcow_provision_password !== undefined) {
+					settingRow.mailcowProvisionPassword = settingRow.mailcow_provision_password;
+				}
+				if (settingRow.mailcowCreateStrict === undefined && settingRow.mailcow_create_strict !== undefined) {
+					settingRow.mailcowCreateStrict = settingRow.mailcow_create_strict;
 				}
 			}
 		}
 
-		if (!setting) {
+		if (!settingRow) {
 			try {
 				// 从数据库读取设置
-				setting = await orm(c).select().from(setting).get();
-				setting.resendTokens = JSON.parse(setting.resendTokens);
-				setting.mailcowServers = JSON.parse(setting.mailcowServers || '[]');
+				settingRow = await orm(c).select().from(setting).get();
+				settingRow.resendTokens = JSON.parse(settingRow.resendTokens);
+				settingRow.mailcowServers = JSON.parse(settingRow.mailcowServers || '[]');
+				settingRow.smtpServers = JSON.parse(settingRow.smtpServers || '[]');
+				settingRow.mailcowGlobalSmtpTemplate = JSON.parse(settingRow.mailcowGlobalSmtpTemplate || '{}');
 			} catch (error) {
 				// 数据库未初始化时返回默认设置
-				setting = {
+				settingRow = {
 					register: 0,
 					receive: 0,
 					add_email: 0,
@@ -85,7 +104,12 @@ const settingService = {
 							resend_enabled: 1,
 							smtp_user_config: 1,
 							mailcowEnabled: 0,
-							mailcowServers: '[]',
+							mailcowServers: [],
+							mailcowPasswordMode: 'random',
+							mailcowProvisionPassword: '',
+							mailcowCreateStrict: 0,
+							mailcowGlobalSmtpTemplate: {},
+							smtpServers: [],
 							mailcowRetryCount: 3,
 							mailcowTimeout: 30000
 						};
@@ -107,7 +131,7 @@ const settingService = {
 		}
 
 		domainList = domainList.map(item => '@' + item);
-		setting.domainList = domainList;
+		settingRow.domainList = domainList;
 
 
 		let linuxdoSwitch = c.env.linuxdo_switch;
@@ -120,14 +144,14 @@ const settingService = {
 			linuxdoSwitch = false
 		}
 
-		setting.linuxdoClientId = c.env.linuxdo_client_id;
-		setting.linuxdoCallbackUrl = c.env.linuxdo_callback_url;
-		setting.linuxdoSwitch = linuxdoSwitch;
+		settingRow.linuxdoClientId = c.env.linuxdo_client_id;
+		settingRow.linuxdoCallbackUrl = c.env.linuxdo_callback_url;
+		settingRow.linuxdoSwitch = linuxdoSwitch;
 
-		setting.emailPrefixFilter = setting.emailPrefixFilter ? setting.emailPrefixFilter.split(",").filter(Boolean) : [];
+		settingRow.emailPrefixFilter = settingRow.emailPrefixFilter ? settingRow.emailPrefixFilter.split(",").filter(Boolean) : [];
 
-		c.set?.('setting', setting);
-		return setting;
+		c.set?.('setting', settingRow);
+		return settingRow;
 	},
 
 	async get(c, showSiteKey = false) {
@@ -150,6 +174,13 @@ const settingService = {
 
 		settingRow.s3AccessKey = settingRow.s3AccessKey ? `${settingRow.s3AccessKey.slice(0, 12)}******` : null;
 		settingRow.s3SecretKey = settingRow.s3SecretKey ? `${settingRow.s3SecretKey.slice(0, 12)}******` : null;
+		settingRow.mailcowProvisionPassword = settingRow.mailcowProvisionPassword ? '******' : '';
+		if (Array.isArray(settingRow.mailcowServers)) {
+			settingRow.mailcowServers = settingRow.mailcowServers.map(server => ({
+				...server,
+				apiKey: server?.apiKey ? `${server.apiKey.slice(0, 4)}****${server.apiKey.slice(-3)}` : ''
+			}));
+		}
 		settingRow.hasR2 = !!c.env.r2
 
 		let regVerifyOpen = false
@@ -205,10 +236,85 @@ const settingService = {
 			delete params.mailcow_servers;
 		}
 
+		if (params.smtp_servers !== undefined && params.smtpServers === undefined) {
+			params.smtpServers = params.smtp_servers;
+			delete params.smtp_servers;
+		}
+
+		if (params.mailcow_password_mode !== undefined && params.mailcowPasswordMode === undefined) {
+			params.mailcowPasswordMode = params.mailcow_password_mode;
+			delete params.mailcow_password_mode;
+		}
+
+		if (params.mailcow_provision_password !== undefined && params.mailcowProvisionPassword === undefined) {
+			params.mailcowProvisionPassword = params.mailcow_provision_password;
+			delete params.mailcow_provision_password;
+		}
+
+		if (params.mailcow_create_strict !== undefined && params.mailcowCreateStrict === undefined) {
+			params.mailcowCreateStrict = params.mailcow_create_strict;
+			delete params.mailcow_create_strict;
+		}
+
+		if (params.mailcow_global_smtp_template !== undefined && params.mailcowGlobalSmtpTemplate === undefined) {
+			params.mailcowGlobalSmtpTemplate = params.mailcow_global_smtp_template;
+			delete params.mailcow_global_smtp_template;
+		}
+
+		if (params.smtpServers !== undefined && Array.isArray(params.smtpServers)) {
+			const defaultCount = params.smtpServers.filter(item => item?.isDefault).length;
+			if (defaultCount > 1) {
+				throw new BizError('smtpServers default item must be unique');
+			}
+			params.smtpServers.forEach((item) => {
+				if (!item?.name || !item?.smtpHost) {
+					throw new BizError('smtpServer name and smtpHost are required');
+				}
+				if (!Number.isInteger(Number(item.smtpPort)) || Number(item.smtpPort) < 1 || Number(item.smtpPort) > 65535) {
+					throw new BizError('smtpServer smtpPort is invalid');
+				}
+				if (![0, 1, 2].includes(Number(item.smtpSecure))) {
+					throw new BizError('smtpServer smtpSecure is invalid');
+				}
+			});
+		}
+
+		if (params.mailcowServers !== undefined && Array.isArray(params.mailcowServers)) {
+			const defaultCount = params.mailcowServers.filter(item => item?.isDefault).length;
+			if (defaultCount > 1) {
+				throw new BizError('mailcowServers default item must be unique');
+			}
+		}
+
+		if (params.mailcowGlobalSmtpTemplate !== undefined) {
+			const template = typeof params.mailcowGlobalSmtpTemplate === 'string'
+				? JSON.parse(params.mailcowGlobalSmtpTemplate || '{}')
+				: params.mailcowGlobalSmtpTemplate;
+			if (template.smtpPort !== undefined && (!Number.isInteger(Number(template.smtpPort)) || Number(template.smtpPort) < 1 || Number(template.smtpPort) > 65535)) {
+				throw new BizError('mailcowGlobalSmtpTemplate smtpPort is invalid');
+			}
+			if (template.smtpSecure !== undefined && ![0, 1, 2].includes(Number(template.smtpSecure))) {
+				throw new BizError('mailcowGlobalSmtpTemplate smtpSecure is invalid');
+			}
+			params.mailcowGlobalSmtpTemplate = template;
+		}
+
 		if (params.mailcowServers !== undefined) {
 			params.mailcowServers = Array.isArray(params.mailcowServers)
 				? JSON.stringify(params.mailcowServers)
 				: params.mailcowServers;
+		}
+
+		if (params.smtpServers !== undefined) {
+			params.smtpServers = Array.isArray(params.smtpServers)
+				? JSON.stringify(params.smtpServers)
+				: params.smtpServers;
+		}
+
+		if (params.mailcowGlobalSmtpTemplate !== undefined) {
+			params.mailcowGlobalSmtpTemplate = typeof params.mailcowGlobalSmtpTemplate === 'object'
+				? JSON.stringify(params.mailcowGlobalSmtpTemplate)
+				: params.mailcowGlobalSmtpTemplate;
 		}
 
 		// 处理SMTP密码（如果不更新则保留原值）

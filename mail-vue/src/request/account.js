@@ -23,3 +23,11 @@ export function accountSetAllReceive(accountId) {
 export function accountSetAsTop(accountId) {
     return http.put('/account/setAsTop', {accountId})
 }
+
+export function accountRetryMailcow(accountId) {
+    return http.post(`/account/${accountId}/mailcow/retry`)
+}
+
+export function accountSwitchSmtpServer(accountId, smtpServerId) {
+    return http.post(`/account/${accountId}/smtp/server`, { smtpServerId })
+}

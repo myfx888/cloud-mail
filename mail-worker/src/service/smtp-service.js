@@ -10,6 +10,28 @@ import smtpAccount from '../entity/smtp-account';
 
 const smtpService = {
 
+	async getSmtpServerById(c, smtpServerId) {
+		const settingRow = await settingService.query(c);
+		const smtpServers = Array.isArray(settingRow.smtpServers) ? settingRow.smtpServers : [];
+		if (!smtpServerId) {
+			return this.getDefaultSmtpServer(c);
+		}
+		const target = smtpServers.find(item => String(item.id) === String(smtpServerId));
+		if (!target) {
+			throw new BizError('smtp server not found');
+		}
+		return target;
+	},
+
+	async getDefaultSmtpServer(c) {
+		const settingRow = await settingService.query(c);
+		const smtpServers = Array.isArray(settingRow.smtpServers) ? settingRow.smtpServers : [];
+		if (!smtpServers.length) {
+			return null;
+		}
+		return smtpServers.find(item => item?.isDefault) || smtpServers[0];
+	},
+
 	/**
 	 * 验证SMTP主机是否安全（防止SSRF攻击）
 	 * 阻止对私有IP地址的连接

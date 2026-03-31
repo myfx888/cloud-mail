@@ -494,14 +494,45 @@
       </el-dialog>
       <el-dialog v-model="mailcowConfigShow" title="Mailcow 配置" width="520" @closed="resetMailcowConfig">
         <form>
+          <el-select class="dialog-input" v-model="setting.mailcowPasswordMode" placeholder="密码模式">
+            <el-option label="固定密码" value="fixed"/>
+            <el-option label="随机密码" value="random"/>
+          </el-select>
+          <el-input
+              v-if="setting.mailcowPasswordMode === 'fixed'"
+              class="dialog-input"
+              v-model="mailcowProvisionPasswordInput"
+              type="password"
+              show-password
+              placeholder="统一密码（留空表示不更新）"
+          />
+          <div class="setting-item" style="margin: 8px 0 12px 0;">
+            <div><span>失败阻断</span></div>
+            <div>
+              <el-switch :active-value="1" :inactive-value="0" v-model="setting.mailcowCreateStrict"/>
+            </div>
+          </div>
           <el-input class="dialog-input" v-model.number="setting.mailcowRetryCount" type="number" placeholder="重试次数"/>
           <el-input class="dialog-input" v-model.number="setting.mailcowTimeout" type="number" placeholder="请求超时(毫秒)"/>
           <el-input
               type="textarea"
-              :rows="10"
+              :rows="4"
+              v-model="mailcowGlobalSmtpTemplateText"
+              placeholder='全局 SMTP 模板 JSON，例如: {"smtpHost":"smtp.example.com","smtpPort":587,"smtpSecure":0,"smtpAuthType":"plain"}'
+          />
+          <el-input
+              type="textarea"
+              :rows="6"
               v-model="mailcowServersText"
               placeholder='服务器列表 JSON，例如: [{"name":"default","apiUrl":"https://mail.example.com","apiKey":"xxx","smtpHost":"smtp.example.com","isDefault":true}]'
           />
+          <el-input
+              type="textarea"
+              :rows="6"
+              v-model="smtpServersText"
+              placeholder='SMTP 服务器列表 JSON，例如: [{"id":"smtp-1","name":"主 SMTP","smtpHost":"smtp.example.com","smtpPort":587,"smtpSecure":0,"smtpAuthType":"plain","isDefault":true}]'
+          />
+          <el-button style="margin-right: 8px" :loading="mailcowTesting" @click="testMailcowConnection">测试连接</el-button>
           <el-button type="primary" :loading="settingLoading" @click="saveMailcowConfig">{{ $t('save') }}</el-button>
         </form>
       </el-dialog>
@@ -797,7 +828,7 @@
 
 <script setup>
 import {computed, defineOptions, reactive, ref} from "vue";
-import {deleteBackground, setBackground, settingQuery, settingSet} from "@/request/setting.js";
+import {deleteBackground, mailcowTestConnection, setBackground, settingQuery, settingSet} from "@/request/setting.js";
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
@@ -919,6 +950,10 @@ const tgMsgToOption = [{label: t('show'), value: 'show'}, {label: t('hide'), val
 const tgMsgTextOption = [{label: t('show'), value: 'show'}, {label: t('hide'), value: 'hide'}]
 const tgMsgLabelWidth = computed(() => locale.value === 'en' ? '120px' : '100px');
 const mailcowServersText = ref('[]')
+const smtpServersText = ref('[]')
+const mailcowGlobalSmtpTemplateText = ref('{}')
+const mailcowProvisionPasswordInput = ref('')
+const mailcowTesting = ref(false)
 const mailcowServerCount = computed(() => {
   const list = setting.value.mailcowServers
   return Array.isArray(list) ? list.length : 0
@@ -940,6 +975,18 @@ function getSettings() {
     }
     if (settingData.mailcowTimeout === undefined) {
       settingData.mailcowTimeout = 30000
+    }
+    if (!Array.isArray(settingData.smtpServers)) {
+      settingData.smtpServers = []
+    }
+    if (settingData.mailcowPasswordMode === undefined) {
+      settingData.mailcowPasswordMode = 'random'
+    }
+    if (settingData.mailcowCreateStrict === undefined) {
+      settingData.mailcowCreateStrict = 0
+    }
+    if (!settingData.mailcowGlobalSmtpTemplate || typeof settingData.mailcowGlobalSmtpTemplate !== 'object') {
+      settingData.mailcowGlobalSmtpTemplate = {}
     }
 
     setting.value = settingData
@@ -966,7 +1013,14 @@ function openNoticePopup() {
 
 function resetMailcowConfig() {
   const servers = Array.isArray(setting.value.mailcowServers) ? setting.value.mailcowServers : []
+  const smtpServers = Array.isArray(setting.value.smtpServers) ? setting.value.smtpServers : []
+  const globalTemplate = setting.value.mailcowGlobalSmtpTemplate && typeof setting.value.mailcowGlobalSmtpTemplate === 'object'
+      ? setting.value.mailcowGlobalSmtpTemplate
+      : {}
   mailcowServersText.value = JSON.stringify(servers, null, 2)
+  smtpServersText.value = JSON.stringify(smtpServers, null, 2)
+  mailcowGlobalSmtpTemplateText.value = JSON.stringify(globalTemplate, null, 2)
+  mailcowProvisionPasswordInput.value = ''
 }
 
 function openMailcowConfig() {
@@ -977,15 +1031,29 @@ function openMailcowConfig() {
 
 function saveMailcowConfig() {
   let servers = []
+  let smtpServers = []
+  let globalTemplate = {}
   try {
     const parsed = JSON.parse(mailcowServersText.value || '[]')
     if (!Array.isArray(parsed)) {
       throw new Error('Mailcow servers must be an array')
     }
     servers = parsed
+
+    const smtpParsed = JSON.parse(smtpServersText.value || '[]')
+    if (!Array.isArray(smtpParsed)) {
+      throw new Error('SMTP servers must be an array')
+    }
+    smtpServers = smtpParsed
+
+    const templateParsed = JSON.parse(mailcowGlobalSmtpTemplateText.value || '{}')
+    if (templateParsed === null || Array.isArray(templateParsed) || typeof templateParsed !== 'object') {
+      throw new Error('Mailcow global SMTP template must be object')
+    }
+    globalTemplate = templateParsed
   } catch (e) {
     ElMessage({
-      message: 'Mailcow 服务器配置 JSON 格式错误',
+      message: 'Mailcow/SMTP 配置 JSON 格式错误',
       type: 'error',
       plain: true,
     })
@@ -994,11 +1062,56 @@ function saveMailcowConfig() {
 
   const form = {
     mailcowServers: servers,
+    smtpServers: smtpServers,
+    mailcowPasswordMode: setting.value.mailcowPasswordMode || 'random',
+    mailcowCreateStrict: Number(setting.value.mailcowCreateStrict || 0),
+    mailcowGlobalSmtpTemplate: globalTemplate,
     mailcowRetryCount: Number(setting.value.mailcowRetryCount || 3),
     mailcowTimeout: Number(setting.value.mailcowTimeout || 30000),
   }
 
+  if (setting.value.mailcowPasswordMode === 'fixed' && mailcowProvisionPasswordInput.value) {
+    form.mailcowProvisionPassword = mailcowProvisionPasswordInput.value
+  }
+
   editSetting(form)
+}
+
+async function testMailcowConnection() {
+  let servers = []
+  try {
+    const parsed = JSON.parse(mailcowServersText.value || '[]')
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error('Mailcow servers is empty')
+    }
+    servers = parsed
+  } catch (e) {
+    ElMessage({
+      message: '请先配置有效的 Mailcow 服务器列表',
+      type: 'error',
+      plain: true,
+    })
+    return
+  }
+
+  const target = servers.find(item => item?.isDefault) || servers[0]
+  mailcowTesting.value = true
+  try {
+    await mailcowTestConnection(target?.id || '')
+    ElMessage({
+      message: 'Mailcow 连接测试成功',
+      type: 'success',
+      plain: true,
+    })
+  } catch (e) {
+    ElMessage({
+      message: e?.message || 'Mailcow 连接测试失败',
+      type: 'error',
+      plain: true,
+    })
+  } finally {
+    mailcowTesting.value = false
+  }
 }
 
 function openAddVerifyCount() {

@@ -43,11 +43,43 @@ const dbInit = {
 			await this.v3_4DB(c);
 			await this.v3_5DB(c);
 			await this.v3_6DB(c);
+			await this.v3_7DB(c);
 			await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
 			console.error('Database initialization error:', e);
 			return c.text(`❌ Database initialization error: ${e.message}`);
+		}
+	},
+
+	async v3_7DB(c) {
+		const settingMigrations = [
+			`ALTER TABLE setting ADD COLUMN mailcow_password_mode TEXT NOT NULL DEFAULT 'random';`,
+			`ALTER TABLE setting ADD COLUMN mailcow_provision_password TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE setting ADD COLUMN mailcow_create_strict INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE setting ADD COLUMN mailcow_global_smtp_template TEXT NOT NULL DEFAULT '{}';`,
+			`ALTER TABLE setting ADD COLUMN smtp_servers TEXT NOT NULL DEFAULT '[]';`
+		];
+
+		for (const sql of settingMigrations) {
+			try {
+				await c.env.db.prepare(sql).run();
+			} catch (e) {
+				console.warn(`跳过字段：${e.message}`);
+			}
+		}
+
+		const accountMigrations = [
+			`ALTER TABLE account ADD COLUMN smtp_server_id TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE account ADD COLUMN mailcow_server_id TEXT NOT NULL DEFAULT '';`
+		];
+
+		for (const sql of accountMigrations) {
+			try {
+				await c.env.db.prepare(sql).run();
+			} catch (e) {
+				console.warn(`跳过字段：${e.message}`);
+			}
 		}
 	},
 

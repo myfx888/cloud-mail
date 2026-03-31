@@ -16,6 +16,57 @@ import mailcowService from './mailcow-service';
 
 const accountService = {
 
+	getDefaultSmtpServer(settings) {
+		const smtpServers = Array.isArray(settings?.smtpServers) ? settings.smtpServers : [];
+		if (!smtpServers.length) return null;
+		return smtpServers.find(item => item?.isDefault) || smtpServers[0];
+	},
+
+	async applyMailcowSmtpConfig(c, accountId, mailcowAccount) {
+		await this.updateSmtpConfig(c, accountId, {
+			smtpOverride: 1,
+			smtpHost: mailcowAccount.smtpHost,
+			smtpPort: mailcowAccount.smtpPort,
+			smtpUser: mailcowAccount.smtpUser,
+			smtpPassword: mailcowAccount.password,
+			smtpSecure: mailcowAccount.smtpSecure,
+			smtpAuthType: mailcowAccount.smtpAuthType || 'plain',
+			mailcowServerId: mailcowAccount.mailcowServerId || ''
+		});
+	},
+
+	async provisionMailcowForAccount(c, accountRow, settings) {
+		const targetServer = await mailcowService.getServerById(c, accountRow.mailcowServerId || '');
+		const exists = await mailcowService.accountExists(c, accountRow.email, targetServer);
+
+		if (exists) {
+			const smtpConfig = await mailcowService.getSmtpConfig(c, targetServer);
+			const resolvedPassword = await mailcowService.resolvePassword(c);
+			const existedAccount = {
+				email: accountRow.email,
+				password: resolvedPassword,
+				smtpHost: smtpConfig.smtpHost,
+				smtpPort: smtpConfig.smtpPort,
+				smtpSecure: smtpConfig.smtpSecure,
+				smtpAuthType: smtpConfig.smtpAuthType,
+				smtpUser: accountRow.email,
+				mailcowServerId: targetServer?.id || ''
+			};
+			await this.applyMailcowSmtpConfig(c, accountRow.accountId, existedAccount);
+			return {
+				mailcowStatus: 'exists_as_success',
+				mailcowAccount: existedAccount
+			};
+		}
+
+		const mailcowAccount = await mailcowService.createAccount(c, accountRow.email, '', targetServer);
+		await this.applyMailcowSmtpConfig(c, accountRow.accountId, mailcowAccount);
+		return {
+			mailcowStatus: 'success',
+			mailcowAccount
+		};
+	},
+
 	async add(c, params, userId) {
 
 		const { addEmailVerify , addEmail, manyEmail, addVerifyCount, minEmailPrefix, emailPrefixFilter } = await settingService.query(c);
@@ -93,31 +144,34 @@ const accountService = {
 
 		// 集成 mailcow 功能
 		const settings = await settingService.query(c);
+		const defaultSmtpServer = this.getDefaultSmtpServer(settings);
+		if (defaultSmtpServer?.id) {
+			await orm(c).update(account).set({ smtpServerId: String(defaultSmtpServer.id) }).where(eq(account.accountId, accountRow.accountId)).run();
+			accountRow.smtpServerId = String(defaultSmtpServer.id);
+		}
+
+		let targetMailcowServer = null;
+		try {
+			targetMailcowServer = await mailcowService.getDefaultServer(c);
+		} catch (_) {
+			targetMailcowServer = null;
+		}
+		if (targetMailcowServer?.id) {
+			await orm(c).update(account).set({ mailcowServerId: String(targetMailcowServer.id) }).where(eq(account.accountId, accountRow.accountId)).run();
+			accountRow.mailcowServerId = String(targetMailcowServer.id);
+		}
+
 		if (settings.mailcowEnabled) {
 			try {
-				// 生成随机密码
-				const password = await mailcowService.generatePassword();
-				
-				// 创建 mailcow 账户
-				const mailcowAccount = await mailcowService.createAccount(c, email, password);
-				
-				// 更新 SMTP 配置
-				await this.updateSmtpConfig(c, accountRow.accountId, {
-					smtpOverride: 1,
-					smtpHost: mailcowAccount.smtpHost,
-					smtpPort: mailcowAccount.smtpPort,
-					smtpUser: mailcowAccount.smtpUser,
-					smtpPassword: mailcowAccount.password,
-					smtpSecure: mailcowAccount.smtpSecure,
-					smtpAuthType: 'plain'
-				});
-				
-				// 添加 mailcow 账户信息到返回结果
-				accountRow.mailcowAccount = mailcowAccount;
-				accountRow.mailcowStatus = 'success';
+				const provisionResult = await this.provisionMailcowForAccount(c, accountRow, settings);
+				accountRow.mailcowAccount = provisionResult.mailcowAccount;
+				accountRow.mailcowStatus = provisionResult.mailcowStatus;
 			} catch (error) {
-				// 记录错误但不影响本地账户创建
 				console.error('mailcow account creation failed:', error);
+				if (Number(settings.mailcowCreateStrict || 0) === 1) {
+					await orm(c).delete(account).where(eq(account.accountId, accountRow.accountId)).run();
+					throw error;
+				}
 				accountRow.mailcowStatus = 'failed';
 				accountRow.mailcowError = error.message;
 			}
@@ -309,6 +363,13 @@ const accountService = {
 			smtpSecure: config.smtpSecure,
 			smtpAuthType: config.smtpAuthType || 'plain'
 		};
+
+		if (config.smtpServerId !== undefined) {
+			updateData.smtpServerId = config.smtpServerId;
+		}
+		if (config.mailcowServerId !== undefined) {
+			updateData.mailcowServerId = config.mailcowServerId;
+		}
 		
 		// 只有提供密码时才更新
 		if (config.smtpPassword) {
@@ -316,6 +377,60 @@ const accountService = {
 		}
 		
 		await orm(c).update(account).set(updateData).where(eq(account.accountId, accountId)).run();
+	},
+
+	async retryMailcow(c, accountId, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+
+		const settings = await settingService.query(c);
+		if (!settings.mailcowEnabled) {
+			throw new BizError('mailcow is disabled');
+		}
+
+		const provisionResult = await this.provisionMailcowForAccount(c, accountRow, settings);
+		return {
+			accountId,
+			mailcowStatus: provisionResult.mailcowStatus,
+			mailcowAccount: provisionResult.mailcowAccount
+		};
+	},
+
+	async switchSmtpServer(c, accountId, smtpServerId, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+
+		const settings = await settingService.query(c);
+		const smtpServers = Array.isArray(settings.smtpServers) ? settings.smtpServers : [];
+		const targetServer = smtpServers.find(item => String(item.id) === String(smtpServerId));
+		if (!targetServer) {
+			throw new BizError('smtp server not found');
+		}
+
+		await this.updateSmtpConfig(c, accountId, {
+			smtpOverride: 1,
+			smtpHost: targetServer.smtpHost,
+			smtpPort: Number(targetServer.smtpPort || 587),
+			smtpUser: targetServer.smtpUser || accountRow.email,
+			smtpSecure: Number(targetServer.smtpSecure ?? 0),
+			smtpAuthType: targetServer.smtpAuthType || 'plain',
+			smtpServerId: String(targetServer.id)
+		});
+
+		return {
+			accountId,
+			smtpServerId: String(targetServer.id)
+		};
 	},
 
 	// 签名管理相关方法

@@ -18,6 +18,19 @@ app.post('/account/add', async (c) => {
 	return c.json(result.ok(account));
 });
 
+app.post('/account/:accountId/mailcow/retry', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const retryResult = await accountService.retryMailcow(c, accountId, userContext.getUserId(c));
+	return c.json(result.ok(retryResult));
+});
+
+app.post('/account/:accountId/smtp/server', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const { smtpServerId } = await c.req.json();
+	const switchResult = await accountService.switchSmtpServer(c, accountId, smtpServerId, userContext.getUserId(c));
+	return c.json(result.ok(switchResult));
+});
+
 app.put('/account/setName', async (c) => {
 	await accountService.setName(c, await c.req.json(), userContext.getUserId(c));
 	return c.json(result.ok());
