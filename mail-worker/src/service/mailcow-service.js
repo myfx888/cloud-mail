@@ -206,7 +206,10 @@ const mailcowService = {
                 sogo_access: 1,
                 imap_access: 1,
                 smtp_access: 1,
-                pop3_access: 1
+                pop3_access: 1,
+                quarantine_access: 0,
+                caldav_access: 1,
+                carddav_access: 1
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
