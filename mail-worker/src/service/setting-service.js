@@ -1,13 +1,15 @@
 import KvConst from '../const/kv-const';
 import setting from '../entity/setting';
+import account from '../entity/account';
 import orm from '../entity/orm';
-import {verifyRecordType} from '../const/entity-const';
+import {isDel, verifyRecordType} from '../const/entity-const';
 import fileUtils from '../utils/file-utils';
 import r2Service from './r2-service';
 import constant from '../const/constant';
 import BizError from '../error/biz-error';
 import {t} from '../i18n/i18n'
 import verifyRecordService from './verify-record-service';
+import { and, count, eq } from 'drizzle-orm';
 
 const settingService = {
 
@@ -283,6 +285,29 @@ const settingService = {
 			const defaultCount = params.mailcowServers.filter(item => item?.isDefault).length;
 			if (defaultCount > 1) {
 				throw new BizError('mailcowServers default item must be unique');
+			}
+			if (params.mailcowServers.length > 0 && defaultCount === 0) {
+				throw new BizError('mailcowServers must contain one default server');
+			}
+
+			const currentSetting = await this.query(c);
+			const currentServers = Array.isArray(currentSetting?.mailcowServers) ? currentSetting.mailcowServers : [];
+			const currentIds = currentServers.map(item => String(item?.id || '')).filter(Boolean);
+			const nextIds = params.mailcowServers.map(item => String(item?.id || '')).filter(Boolean);
+			const removedIds = currentIds.filter(id => !nextIds.includes(id));
+
+			for (const removedId of removedIds) {
+				const { num } = await orm(c)
+					.select({ num: count() })
+					.from(account)
+					.where(and(
+						eq(account.mailcowServerId, removedId),
+						eq(account.isDel, isDel.NORMAL)
+					))
+					.get();
+				if (Number(num || 0) > 0) {
+					throw new BizError(`mailcow server ${removedId} is still bound by ${num} accounts`);
+				}
 			}
 		}
 

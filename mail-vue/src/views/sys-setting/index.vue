@@ -231,12 +231,20 @@
                 </div>
               </div>
               <div class="setting-item">
-                <div><span>Mailcow 配置</span></div>
+                <div><span>Mailcow 服务器</span></div>
                 <div class="forward">
-                  <span>{{ mailcowServerCount }} 个服务器</span>
+                  <el-tag v-if="mailcowServerCount > 0" type="success" size="small">{{ mailcowServerCount }} 个</el-tag>
+                  <el-tag v-else type="info" size="small">未配置</el-tag>
                   <el-button class="opt-button" size="small" type="primary" @click="openMailcowConfig">
                     <Icon icon="fluent:settings-48-regular" width="18" height="18"/>
                   </el-button>
+                </div>
+              </div>
+              <div class="setting-item">
+                <div><span>SMTP 服务器</span></div>
+                <div class="forward">
+                  <el-tag v-if="smtpServerCount > 0" type="success" size="small">{{ smtpServerCount }} 个</el-tag>
+                  <el-tag v-else type="info" size="small">未配置</el-tag>
                 </div>
               </div>
             </div>
@@ -492,49 +500,184 @@
           <el-button type="primary" :loading="settingLoading" @click="saveTurnstileKey">{{ $t('save') }}</el-button>
         </form>
       </el-dialog>
-      <el-dialog v-model="mailcowConfigShow" title="Mailcow 配置" width="520" @closed="resetMailcowConfig">
-        <form>
-          <el-select class="dialog-input" v-model="setting.mailcowPasswordMode" placeholder="密码模式">
-            <el-option label="固定密码" value="fixed"/>
-            <el-option label="随机密码" value="random"/>
-          </el-select>
-          <el-input
-              v-if="setting.mailcowPasswordMode === 'fixed'"
-              class="dialog-input"
-              v-model="mailcowProvisionPasswordInput"
-              type="password"
-              show-password
-              placeholder="统一密码（留空表示不更新）"
-          />
-          <div class="setting-item" style="margin: 8px 0 12px 0;">
-            <div><span>失败阻断</span></div>
+      <el-dialog v-model="mailcowConfigShow" title="Mailcow 配置中心" width="700" class="mailcow-config-dialog" @closed="resetMailcowConfig">
+        <el-tabs v-model="mailcowActiveTab">
+          <!-- Tab 1: Global Settings -->
+          <el-tab-pane label="全局设置" name="global">
+            <el-form label-position="top" class="mailcow-form">
+              <el-form-item label="密码模式">
+                <el-select v-model="mailcowEdit.passwordMode" style="width: 100%">
+                  <el-option label="随机密码" value="random"/>
+                  <el-option label="固定密码" value="fixed"/>
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="mailcowEdit.passwordMode === 'fixed'" label="统一密码（留空不更新）">
+                <el-input v-model="mailcowEdit.provisionPassword" type="password" show-password/>
+              </el-form-item>
+              <el-form-item label="失败阻断">
+                <el-switch :active-value="1" :inactive-value="0" v-model="mailcowEdit.createStrict"/>
+                <span class="form-hint">开启后 Mailcow 创建失败将阻止本地账户创建</span>
+              </el-form-item>
+              <el-form-item label="重试次数">
+                <el-input-number v-model="mailcowEdit.retryCount" :min="1" :max="10"/>
+              </el-form-item>
+              <el-form-item label="请求超时 (ms)">
+                <el-input-number v-model="mailcowEdit.timeout" :min="5000" :max="120000" :step="5000"/>
+              </el-form-item>
+              
+              <!-- Global SMTP Template (structured, not JSON textarea) -->
+              <el-divider content-position="left">全局 SMTP 模板</el-divider>
+              <div class="smtp-template-grid">
+                <el-form-item label="SMTP 主机">
+                  <el-input v-model="mailcowEdit.globalSmtpTemplate.smtpHost" placeholder="smtp.example.com"/>
+                </el-form-item>
+                <el-form-item label="端口">
+                  <el-input-number v-model="mailcowEdit.globalSmtpTemplate.smtpPort" :min="1" :max="65535"/>
+                </el-form-item>
+                <el-form-item label="加密方式">
+                  <el-select v-model="mailcowEdit.globalSmtpTemplate.smtpSecure">
+                    <el-option label="无加密" :value="0"/>
+                    <el-option label="STARTTLS" :value="1"/>
+                    <el-option label="SSL/TLS" :value="2"/>
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="认证类型">
+                  <el-select v-model="mailcowEdit.globalSmtpTemplate.smtpAuthType">
+                    <el-option label="PLAIN" value="plain"/>
+                    <el-option label="LOGIN" value="login"/>
+                  </el-select>
+                </el-form-item>
+              </div>
+            </el-form>
+          </el-tab-pane>
+          
+          <!-- Tab 2: Mailcow Servers -->
+          <el-tab-pane label="Mailcow 服务器" name="mailcow">
+            <div class="server-toolbar">
+              <el-button type="primary" size="small" @click="addMailcowServer">添加服务器</el-button>
+              <el-button size="small" @click="testAllMailcowConnections" :loading="mailcowTestingAll">测试全部连接</el-button>
+            </div>
+            <el-table :data="mailcowEdit.servers" stripe size="small" class="server-table">
+              <el-table-column prop="name" label="名称" min-width="100"/>
+              <el-table-column prop="apiUrl" label="API 地址" min-width="150" show-overflow-tooltip/>
+              <el-table-column label="默认" width="60" align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.isDefault" type="success" size="small">默认</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row._testResult?.success" type="success" size="small">正常</el-tag>
+                  <el-tag v-else-if="row._testResult?.success === false" type="danger" size="small">失败</el-tag>
+                  <el-tag v-else type="info" size="small">未测试</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="200" align="center">
+                <template #default="{ row, $index }">
+                  <el-button size="small" link type="primary" @click="editMailcowServer($index)">编辑</el-button>
+                  <el-button size="small" link type="primary" @click="testMailcowServerConnection($index)" 
+                             :loading="row._testing">测试</el-button>
+                  <el-button size="small" link type="danger" @click="deleteMailcowServer($index)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+          
+          <!-- Tab 3: SMTP Servers -->
+          <el-tab-pane label="SMTP 服务器" name="smtp">
+            <div class="server-toolbar">
+              <el-button type="primary" size="small" @click="addSmtpServer">添加服务器</el-button>
+            </div>
+            <el-table :data="mailcowEdit.smtpServers" stripe size="small" class="server-table">
+              <el-table-column prop="name" label="名称" min-width="100"/>
+              <el-table-column prop="smtpHost" label="SMTP 主机" min-width="140" show-overflow-tooltip/>
+              <el-table-column prop="smtpPort" label="端口" width="70" align="center"/>
+              <el-table-column label="加密" width="80" align="center">
+                <template #default="{ row }">
+                  {{ ['无', 'STARTTLS', 'SSL'][row.smtpSecure] || '无' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="默认" width="60" align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.isDefault" type="success" size="small">默认</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="140" align="center">
+                <template #default="{ row, $index }">
+                  <el-button size="small" link type="primary" @click="editSmtpServer($index)">编辑</el-button>
+                  <el-button size="small" link type="danger" @click="deleteSmtpServer($index)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
+        
+        <template #footer>
+          <div class="mailcow-dialog-footer">
+            <el-switch v-model="mailcowAdvancedMode" active-text="高级模式"/>
             <div>
-              <el-switch :active-value="1" :inactive-value="0" v-model="setting.mailcowCreateStrict"/>
+              <el-button @click="mailcowConfigShow = false">取消</el-button>
+              <el-button type="primary" :loading="settingLoading" @click="saveMailcowConfig">保存</el-button>
             </div>
           </div>
-          <el-input class="dialog-input" v-model.number="setting.mailcowRetryCount" type="number" placeholder="重试次数"/>
-          <el-input class="dialog-input" v-model.number="setting.mailcowTimeout" type="number" placeholder="请求超时(毫秒)"/>
-          <el-input
-              type="textarea"
-              :rows="4"
-              v-model="mailcowGlobalSmtpTemplateText"
-              placeholder='全局 SMTP 模板 JSON，例如: {"smtpHost":"smtp.example.com","smtpPort":587,"smtpSecure":0,"smtpAuthType":"plain"}'
-          />
-          <el-input
-              type="textarea"
-              :rows="6"
-              v-model="mailcowServersText"
-              placeholder='服务器列表 JSON，例如: [{"name":"default","apiUrl":"https://mail.example.com","apiKey":"xxx","smtpHost":"smtp.example.com","isDefault":true}]'
-          />
-          <el-input
-              type="textarea"
-              :rows="6"
-              v-model="smtpServersText"
-              placeholder='SMTP 服务器列表 JSON，例如: [{"id":"smtp-1","name":"主 SMTP","smtpHost":"smtp.example.com","smtpPort":587,"smtpSecure":0,"smtpAuthType":"plain","isDefault":true}]'
-          />
-          <el-button style="margin-right: 8px" :loading="mailcowTesting" @click="testMailcowConnection">测试连接</el-button>
-          <el-button type="primary" :loading="settingLoading" @click="saveMailcowConfig">{{ $t('save') }}</el-button>
-        </form>
+        </template>
+      </el-dialog>
+
+
+      <!-- Server Edit Sub-Dialog (for both Mailcow and SMTP servers) -->
+      <el-dialog v-model="mailcowServerFormShow" :title="mailcowServerFormTitle" width="480" append-to-body>
+        <el-form label-position="top" class="mailcow-form">
+          <el-form-item label="名称" required>
+            <el-input v-model="mailcowServerForm.name" placeholder="服务器名称"/>
+          </el-form-item>
+          <el-form-item v-if="mailcowServerFormType === 'mailcow'" label="API 地址" required>
+            <el-input v-model="mailcowServerForm.apiUrl" placeholder="https://mail.example.com"/>
+          </el-form-item>
+          <el-form-item v-if="mailcowServerFormType === 'mailcow'" label="API Key" required>
+            <el-input v-model="mailcowServerForm.apiKey" type="password" show-password 
+                      :placeholder="mailcowServerForm._editIndex >= 0 ? '留空不更新' : '输入 API Key'"/>
+          </el-form-item>
+          <el-form-item label="SMTP 主机">
+            <el-input v-model="mailcowServerForm.smtpHost" placeholder="smtp.example.com（留空使用全局模板）"/>
+          </el-form-item>
+          <el-form-item label="SMTP 端口">
+            <el-input-number v-model="mailcowServerForm.smtpPort" :min="1" :max="65535" placeholder="587"/>
+          </el-form-item>
+          <el-form-item label="加密方式">
+            <el-select v-model="mailcowServerForm.smtpSecure" style="width: 100%">
+              <el-option label="无加密" :value="0"/>
+              <el-option label="STARTTLS" :value="1"/>
+              <el-option label="SSL/TLS" :value="2"/>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="认证类型">
+            <el-select v-model="mailcowServerForm.smtpAuthType" style="width: 100%">
+              <el-option label="PLAIN" value="plain"/>
+              <el-option label="LOGIN" value="login"/>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="默认服务器">
+            <el-switch v-model="mailcowServerForm.isDefault"/>
+          </el-form-item>
+          
+          <!-- Dependency warning for edit mode -->
+          <el-alert v-if="mailcowServerForm._dependencies > 0" type="warning" :closable="false" show-icon>
+            此服务器已绑定 {{ mailcowServerForm._dependencies }} 个账户
+          </el-alert>
+        </el-form>
+        <template #footer>
+          <el-button @click="mailcowServerFormShow = false">取消</el-button>
+          <el-button type="primary" @click="saveMailcowServerForm">确定</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- Advanced Mode JSON Dialog -->
+      <el-dialog v-model="mailcowAdvancedShow" title="高级模式 - JSON 导入导出" width="600" append-to-body>
+        <el-input type="textarea" v-model="mailcowAdvancedJson" :rows="15" placeholder="粘贴 JSON 配置..."/>
+        <div class="advanced-actions">
+          <el-button size="small" @click="exportMailcowJson">导出当前配置</el-button>
+          <el-button size="small" type="primary" @click="importMailcowJson">导入并应用</el-button>
+        </div>
       </el-dialog>
       <el-dialog
           v-model="showSetBackground"
@@ -827,8 +970,8 @@
 </template>
 
 <script setup>
-import {computed, defineOptions, reactive, ref} from "vue";
-import {deleteBackground, mailcowTestConnection, setBackground, settingQuery, settingSet} from "@/request/setting.js";
+import {computed, defineOptions, reactive, ref, watch} from "vue";
+import {deleteBackground, getMailcowServerDependencies, mailcowTestConnection, mailcowTestConnectionWithConfig, setBackground, settingQuery, settingSet} from "@/request/setting.js";
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
@@ -949,11 +1092,32 @@ const tgMsgFromOption = [{label: t('show'), value: 'show'}, {label: t('hide'), v
 const tgMsgToOption = [{label: t('show'), value: 'show'}, {label: t('hide'), value: 'hide'}]
 const tgMsgTextOption = [{label: t('show'), value: 'show'}, {label: t('hide'), value: 'hide'}]
 const tgMsgLabelWidth = computed(() => locale.value === 'en' ? '120px' : '100px');
-const mailcowServersText = ref('[]')
-const smtpServersText = ref('[]')
-const mailcowGlobalSmtpTemplateText = ref('{}')
-const mailcowProvisionPasswordInput = ref('')
-const mailcowTesting = ref(false)
+const mailcowActiveTab = ref('global')
+const mailcowAdvancedMode = ref(false)
+const mailcowAdvancedShow = ref(false)
+const mailcowAdvancedJson = ref('')
+const mailcowServerFormShow = ref(false)
+const mailcowServerFormType = ref('mailcow') // 'mailcow' or 'smtp'
+const mailcowServerForm = ref({}) // current form data
+const mailcowTestingAll = ref(false)
+
+const smtpServerCount = computed(() => {
+  const list = setting.value.smtpServers
+  return Array.isArray(list) ? list.length : 0
+})
+
+// Reactive edit state - deep copy of settings for editing
+const mailcowEdit = ref({
+  passwordMode: 'random',
+  provisionPassword: '',
+  createStrict: 0,
+  retryCount: 3,
+  timeout: 30000,
+  globalSmtpTemplate: {},
+  servers: [],
+  smtpServers: []
+})
+
 const mailcowServerCount = computed(() => {
   const list = setting.value.mailcowServers
   return Array.isArray(list) ? list.length : 0
@@ -1012,15 +1176,19 @@ function openNoticePopup() {
 }
 
 function resetMailcowConfig() {
-  const servers = Array.isArray(setting.value.mailcowServers) ? setting.value.mailcowServers : []
-  const smtpServers = Array.isArray(setting.value.smtpServers) ? setting.value.smtpServers : []
-  const globalTemplate = setting.value.mailcowGlobalSmtpTemplate && typeof setting.value.mailcowGlobalSmtpTemplate === 'object'
-      ? setting.value.mailcowGlobalSmtpTemplate
-      : {}
-  mailcowServersText.value = JSON.stringify(servers, null, 2)
-  smtpServersText.value = JSON.stringify(smtpServers, null, 2)
-  mailcowGlobalSmtpTemplateText.value = JSON.stringify(globalTemplate, null, 2)
-  mailcowProvisionPasswordInput.value = ''
+  const s = setting.value
+  mailcowActiveTab.value = 'global'
+  mailcowAdvancedMode.value = false
+  mailcowEdit.value = {
+    passwordMode: s.mailcowPasswordMode || 'random',
+    provisionPassword: '',
+    createStrict: s.mailcowCreateStrict ?? 0,
+    retryCount: s.mailcowRetryCount ?? 3,
+    timeout: s.mailcowTimeout ?? 30000,
+    globalSmtpTemplate: { ...(s.mailcowGlobalSmtpTemplate || {}) },
+    servers: (Array.isArray(s.mailcowServers) ? s.mailcowServers : []).map(srv => ({ ...srv, _testResult: null, _testing: false })),
+    smtpServers: (Array.isArray(s.smtpServers) ? s.smtpServers : []).map(srv => ({ ...srv }))
+  }
 }
 
 function openMailcowConfig() {
@@ -1029,90 +1197,278 @@ function openMailcowConfig() {
   mailcowConfigShow.value = true
 }
 
-function saveMailcowConfig() {
-  let servers = []
-  let smtpServers = []
-  let globalTemplate = {}
+// Mailcow server CRUD
+function addMailcowServer() {
+  mailcowServerFormType.value = 'mailcow'
+  mailcowServerForm.value = {
+    id: 'mc-' + Date.now(),
+    name: '',
+    apiUrl: '',
+    apiKey: '',
+    smtpHost: '',
+    smtpPort: null,
+    smtpSecure: 0,
+    smtpAuthType: 'plain',
+    isDefault: mailcowEdit.value.servers.length === 0,
+    _editIndex: -1,
+    _dependencies: 0
+  }
+  mailcowServerFormShow.value = true
+}
+
+function editMailcowServer(index) {
+  const server = mailcowEdit.value.servers[index]
+  mailcowServerFormType.value = 'mailcow'
+  mailcowServerForm.value = {
+    ...server,
+    apiKey: '', // Don't show current key
+    _editIndex: index,
+    _dependencies: 0
+  }
+  // Fetch dependencies
+  if (server.id) {
+    getMailcowServerDependencies(server.id).then(res => {
+      mailcowServerForm.value._dependencies = res.count || 0
+    }).catch(() => {})
+  }
+  mailcowServerFormShow.value = true
+}
+
+async function deleteMailcowServer(index) {
+  const server = mailcowEdit.value.servers[index]
+  let deps = 0
   try {
-    const parsed = JSON.parse(mailcowServersText.value || '[]')
-    if (!Array.isArray(parsed)) {
-      throw new Error('Mailcow servers must be an array')
-    }
-    servers = parsed
-
-    const smtpParsed = JSON.parse(smtpServersText.value || '[]')
-    if (!Array.isArray(smtpParsed)) {
-      throw new Error('SMTP servers must be an array')
-    }
-    smtpServers = smtpParsed
-
-    const templateParsed = JSON.parse(mailcowGlobalSmtpTemplateText.value || '{}')
-    if (templateParsed === null || Array.isArray(templateParsed) || typeof templateParsed !== 'object') {
-      throw new Error('Mailcow global SMTP template must be object')
-    }
-    globalTemplate = templateParsed
-  } catch (e) {
+    const res = await getMailcowServerDependencies(server.id)
+    deps = res.count || 0
+  } catch (e) {}
+  
+  if (deps > 0) {
     ElMessage({
-      message: 'Mailcow/SMTP 配置 JSON 格式错误',
-      type: 'error',
-      plain: true,
+      message: `此服务器已绑定 ${deps} 个账户，请先迁移绑定后再删除`,
+      type: 'warning',
+      plain: true
     })
     return
   }
 
+  await ElMessageBox.confirm(`确认删除服务器 "${server.name}"?`, '确认删除')
+  
+  mailcowEdit.value.servers.splice(index, 1)
+}
+
+async function testMailcowServerConnection(index) {
+  const server = mailcowEdit.value.servers[index]
+  server._testing = true
+  try {
+    const hasRawApiKey = typeof server.apiKey === 'string' && server.apiKey.length > 0 && !server.apiKey.includes('****')
+    const res = hasRawApiKey
+      ? await mailcowTestConnectionWithConfig({
+          apiUrl: server.apiUrl,
+          apiKey: server.apiKey
+        })
+      : await mailcowTestConnection(server.id)
+    server._testResult = { success: true, duration: res.duration }
+    ElMessage({ message: `${server.name}: 连接成功 (${res.duration}ms)`, type: 'success', plain: true })
+  } catch (e) {
+    server._testResult = { success: false, error: e?.message }
+    ElMessage({ message: `${server.name}: ${e?.message || '连接失败'}`, type: 'error', plain: true })
+  } finally {
+    server._testing = false
+  }
+}
+
+async function testAllMailcowConnections() {
+  mailcowTestingAll.value = true
+  for (let i = 0; i < mailcowEdit.value.servers.length; i++) {
+    await testMailcowServerConnection(i)
+  }
+  mailcowTestingAll.value = false
+}
+
+// SMTP Server CRUD
+function addSmtpServer() {
+  mailcowServerFormType.value = 'smtp'
+  mailcowServerForm.value = {
+    name: '',
+    smtpHost: '',
+    smtpPort: 587,
+    smtpSecure: 0,
+    smtpAuthType: 'plain',
+    isDefault: mailcowEdit.value.smtpServers.length === 0,
+    _editIndex: -1
+  }
+  mailcowServerFormShow.value = true
+}
+
+function editSmtpServer(index) {
+  const server = mailcowEdit.value.smtpServers[index]
+  mailcowServerFormType.value = 'smtp'
+  mailcowServerForm.value = { ...server, _editIndex: index }
+  mailcowServerFormShow.value = true
+}
+
+function deleteSmtpServer(index) {
+  ElMessageBox.confirm(`确认删除 SMTP 服务器 "${mailcowEdit.value.smtpServers[index].name}"?`, '确认删除')
+    .then(() => mailcowEdit.value.smtpServers.splice(index, 1))
+}
+
+function saveMailcowServerForm() {
+  const form = mailcowServerForm.value
+  const type = mailcowServerFormType.value
+  
+  // Validation
+  if (!form.name) { ElMessage.error('名称不能为空'); return }
+  if (type === 'mailcow' && !form.apiUrl) { ElMessage.error('API 地址不能为空'); return }
+  if (type === 'mailcow' && form._editIndex < 0 && !form.apiKey) { ElMessage.error('API Key 不能为空'); return }
+  if (type === 'smtp' && !form.smtpHost) { ElMessage.error('SMTP 主机不能为空'); return }
+  
+  const list = type === 'mailcow' ? mailcowEdit.value.servers : mailcowEdit.value.smtpServers
+  
+  // Handle default - only one default allowed
+  if (form.isDefault) {
+    list.forEach(s => s.isDefault = false)
+  }
+  
+  const serverData = { ...form }
+  delete serverData._editIndex
+  delete serverData._dependencies
+  delete serverData._testResult
+  delete serverData._testing
+  
+  if (form._editIndex >= 0) {
+    if (type === 'mailcow' && !form.apiKey) {
+      delete serverData.apiKey
+    }
+    // Preserve test result
+    serverData._testResult = list[form._editIndex]._testResult
+    list[form._editIndex] = serverData
+  } else {
+    list.push(serverData)
+  }
+  
+  mailcowServerFormShow.value = false
+}
+
+// Save all mailcow config
+function saveMailcowConfig() {
+  const edit = mailcowEdit.value
+  
   const form = {
-    mailcowServers: servers,
-    smtpServers: smtpServers,
-    mailcowPasswordMode: setting.value.mailcowPasswordMode || 'random',
-    mailcowCreateStrict: Number(setting.value.mailcowCreateStrict || 0),
-    mailcowGlobalSmtpTemplate: globalTemplate,
-    mailcowRetryCount: Number(setting.value.mailcowRetryCount || 3),
-    mailcowTimeout: Number(setting.value.mailcowTimeout || 30000),
+    mailcowPasswordMode: edit.passwordMode,
+    mailcowCreateStrict: Number(edit.createStrict || 0),
+    mailcowRetryCount: Number(edit.retryCount || 3),
+    mailcowTimeout: Number(edit.timeout || 30000),
+    mailcowGlobalSmtpTemplate: edit.globalSmtpTemplate,
+    mailcowServers: edit.servers.map(s => {
+      const copy = { ...s }
+      delete copy._testResult
+      delete copy._testing
+      return copy
+    }),
+    smtpServers: edit.smtpServers.map(s => ({ ...s }))
   }
-
-  if (setting.value.mailcowPasswordMode === 'fixed' && mailcowProvisionPasswordInput.value) {
-    form.mailcowProvisionPassword = mailcowProvisionPasswordInput.value
+  
+  if (edit.passwordMode === 'fixed' && edit.provisionPassword) {
+    form.mailcowProvisionPassword = edit.provisionPassword
   }
-
+  
+  // Validate defaults
+  if (form.mailcowServers.length > 0 && !form.mailcowServers.some(s => s.isDefault)) {
+    ElMessage.error('Mailcow 服务器列表中必须有一个默认服务器')
+    return
+  }
+  if (form.smtpServers.length > 0 && !form.smtpServers.some(s => s.isDefault)) {
+    ElMessage.error('SMTP 服务器列表中必须有一个默认服务器')
+    return
+  }
+  
   editSetting(form)
 }
 
-async function testMailcowConnection() {
-  let servers = []
-  try {
-    const parsed = JSON.parse(mailcowServersText.value || '[]')
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error('Mailcow servers is empty')
-    }
-    servers = parsed
-  } catch (e) {
-    ElMessage({
-      message: '请先配置有效的 Mailcow 服务器列表',
-      type: 'error',
-      plain: true,
-    })
-    return
-  }
+// Advanced mode
+function exportMailcowJson() {
+  const edit = mailcowEdit.value
+  mailcowAdvancedJson.value = JSON.stringify({
+    mailcowPasswordMode: edit.passwordMode,
+    mailcowCreateStrict: edit.createStrict,
+    mailcowRetryCount: edit.retryCount,
+    mailcowTimeout: edit.timeout,
+    mailcowGlobalSmtpTemplate: edit.globalSmtpTemplate,
+    mailcowServers: edit.servers.map(s => {
+      const copy = { ...s }
+      delete copy._testResult
+      delete copy._testing
+      return copy
+    }),
+    smtpServers: edit.smtpServers
+  }, null, 2)
+}
 
-  const target = servers.find(item => item?.isDefault) || servers[0]
-  mailcowTesting.value = true
+function importMailcowJson() {
   try {
-    await mailcowTestConnection(target?.id || '')
-    ElMessage({
-      message: 'Mailcow 连接测试成功',
-      type: 'success',
-      plain: true,
-    })
+    const parsed = JSON.parse(mailcowAdvancedJson.value)
+    const errors = []
+    
+    if (parsed.mailcowServers && !Array.isArray(parsed.mailcowServers)) {
+      errors.push('mailcowServers 必须是数组')
+    } else if (Array.isArray(parsed.mailcowServers)) {
+      parsed.mailcowServers.forEach((s, i) => {
+        if (!s.name) errors.push(`mailcowServers[${i}]: 缺少 name`)
+        if (!s.apiUrl) errors.push(`mailcowServers[${i}]: 缺少 apiUrl`)
+      })
+    }
+    if (parsed.smtpServers && !Array.isArray(parsed.smtpServers)) {
+      errors.push('smtpServers 必须是数组')
+    } else if (Array.isArray(parsed.smtpServers)) {
+      parsed.smtpServers.forEach((s, i) => {
+        if (!s.name) errors.push(`smtpServers[${i}]: 缺少 name`)
+        if (!s.smtpHost) errors.push(`smtpServers[${i}]: 缺少 smtpHost`)
+      })
+    }
+    
+    if (errors.length > 0) {
+      ElMessage({ message: errors.join('\n'), type: 'error', plain: true, duration: 5000 })
+      return
+    }
+    
+    // Apply to edit form
+    mailcowEdit.value = {
+      passwordMode: parsed.mailcowPasswordMode || mailcowEdit.value.passwordMode,
+      provisionPassword: '',
+      createStrict: parsed.mailcowCreateStrict ?? mailcowEdit.value.createStrict,
+      retryCount: parsed.mailcowRetryCount ?? mailcowEdit.value.retryCount,
+      timeout: parsed.mailcowTimeout ?? mailcowEdit.value.timeout,
+      globalSmtpTemplate: parsed.mailcowGlobalSmtpTemplate || {},
+      servers: (parsed.mailcowServers || []).map(s => ({ ...s, _testResult: null, _testing: false })),
+      smtpServers: parsed.smtpServers || []
+    }
+    
+    ElMessage({ message: '导入成功', type: 'success', plain: true })
+    mailcowAdvancedShow.value = false
   } catch (e) {
-    ElMessage({
-      message: e?.message || 'Mailcow 连接测试失败',
-      type: 'error',
-      plain: true,
-    })
-  } finally {
-    mailcowTesting.value = false
+    ElMessage({ message: 'JSON 解析失败: ' + e.message, type: 'error', plain: true })
   }
 }
+
+// Watch for advanced mode toggle
+watch(mailcowAdvancedMode, (val) => {
+  if (val) {
+    exportMailcowJson()
+    mailcowAdvancedShow.value = true
+    mailcowAdvancedMode.value = false // reset toggle
+  }
+})
+
+// Computed for dialog title
+const mailcowServerFormTitle = computed(() => {
+  const type = mailcowServerFormType.value
+  const idx = mailcowServerForm.value._editIndex
+  if (type === 'mailcow') {
+    return idx >= 0 ? '编辑 Mailcow 服务器' : '添加 Mailcow 服务器'
+  } else {
+    return idx >= 0 ? '编辑 SMTP 服务器' : '添加 SMTP 服务器'
+  }
+})
 
 function openAddVerifyCount() {
   if (settingLoading.value) return
@@ -2055,6 +2411,54 @@ form .el-button {
 
 :deep(.el-select__wrapper) {
   min-height: 28px;
+}
+
+// Mailcow Config Center styles
+.mailcow-form {
+  .el-form-item {
+    margin-bottom: 12px;
+  }
+  .form-hint {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    margin-left: 10px;
+  }
+}
+
+.smtp-template-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 15px;
+}
+
+.server-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.server-table {
+  width: 100%;
+}
+
+.mailcow-dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.advanced-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+:deep(.mailcow-config-dialog.el-dialog) {
+  width: 700px !important;
+  @media (max-width: 740px) {
+    width: calc(100% - 40px) !important;
+  }
 }
 
 </style>

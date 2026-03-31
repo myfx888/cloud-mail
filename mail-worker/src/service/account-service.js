@@ -288,6 +288,18 @@ const accountService = {
 		return num;
 	},
 
+	async countByMailcowServerId(c, mailcowServerId) {
+		const { num } = await orm(c)
+			.select({ num: count() })
+			.from(account)
+			.where(and(
+				eq(account.mailcowServerId, String(mailcowServerId || '')),
+				eq(account.isDel, isDel.NORMAL)
+			))
+			.get();
+		return Number(num || 0);
+	},
+
 	async restoreByEmail(c, email) {
 		await orm(c).update(account).set({isDel: isDel.NORMAL}).where(eq(account.email, email)).run();
 	},
