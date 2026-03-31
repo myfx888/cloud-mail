@@ -152,13 +152,18 @@ const mailcowService = {
 
     async createAccount(c, email, password = '', serverConfig = null) {
         try {
-            const server = serverConfig || await this.getServerById(c, serverConfig?.id);
+            // Ensure we have a full server configuration
+            let server = serverConfig;
+            if (!server || !server.apiUrl || !server.apiKey) {
+                server = await this.getServerById(c, server?.id);
+            }
+            
             const domain = email.split('@')[1];
             
             // 1. Check if domain exists
             const domainOk = await this.domainExists(c, domain, server);
             if (!domainOk) {
-                throw new BizError(`${t('mailcowAccountCreateFailed')}: domain ${domain} does not exist in mailcow`);
+                throw new BizError(`${t('mailcowAccountCreateFailed')}: domain ${domain} does not exist in mailcow (tried server ${server.apiUrl})`);
             }
 
             const accountPassword = await this.resolvePassword(c, password);
@@ -170,6 +175,7 @@ const mailcowService = {
                 active: true
             };
             
+            console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
             const result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
             console.log('Mailcow Create Account Result:', JSON.stringify(result));
             
@@ -185,9 +191,20 @@ const mailcowService = {
                 : (result?.type === 'success' || result?.status === 'success' || result?.status === true);
 
             if (!isSuccess) {
-                const errorDetail = Array.isArray(result) 
-                    ? result.map(r => r.msg || r.message || JSON.stringify(r)).join(', ')
-                    : (result?.msg || result?.message || JSON.stringify(result));
+                // Extract error details from result
+                let errorDetail = '';
+                if (Array.isArray(result)) {
+                    errorDetail = result
+                        .filter(r => r.type === 'danger' || r.type === 'error' || r.status === 'error')
+                        .map(r => r.msg || r.message || JSON.stringify(r))
+                        .join(', ');
+                    if (!errorDetail && result.length > 0) {
+                        errorDetail = JSON.stringify(result);
+                    }
+                } else {
+                    errorDetail = result?.msg || result?.message || JSON.stringify(result);
+                }
+                
                 throw new BizError(`${t('mailcowAccountCreateFailed')}${errorDetail ? ': ' + errorDetail : ''}`);
             }
 
