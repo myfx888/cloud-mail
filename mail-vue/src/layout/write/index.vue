@@ -196,7 +196,7 @@ const selectRecipientList = ref([])
 const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
 const showSmtpSelector = computed(() => {
   if (form.sendType === 'reply') {
-    return smtpAccounts.value.length > 1
+    return smtpAccounts.value.length > 0
   }
   return form.sendMethod === 'smtp' && smtpAccounts.value.length > 0
 })
