@@ -102,12 +102,24 @@ const mailcowService = {
 
         for (let attempt = 1; attempt <= attempts; attempt++) {
             try {
-                const result = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
-                if (Array.isArray(result) && result.some(mailbox => this.mailboxMatchesEmail(mailbox, email))) {
+                // Try targeted query first for better performance
+                const result = await this.callApi(c, `get/mailbox/${encodeURIComponent(email)}`, 'GET', null, serverConfig);
+                
+                // If the targeted API returns the mailbox object directly
+                if (result && typeof result === 'object' && this.mailboxMatchesEmail(result, email)) {
+                    return true;
+                }
+                
+                // Fallback: If targeted API returns nothing but get/mailbox/all might have it
+                const allMailboxes = await this.callApi(c, 'get/mailbox/all', 'GET', null, serverConfig);
+                if (Array.isArray(allMailboxes) && allMailboxes.some(mailbox => this.mailboxMatchesEmail(mailbox, email))) {
                     return true;
                 }
             } catch (e) {
-                // Ignore intermediate query failures and retry.
+                console.warn(`accountExists attempt ${attempt} failed: ${e.message}`);
+                if (e instanceof BizError && (e.status === 401 || e.status === 403)) {
+                    throw e; // Don't swallow auth errors
+                }
             }
 
             if (attempt < attempts && delayMs > 0) {
@@ -146,6 +158,12 @@ const mailcowService = {
     async callApi(c, endpoint, method = 'GET', data = null, serverConfig = null) {
         try {
             const server = serverConfig || await this.getDefaultServer(c);
+            
+            // Explicit check for masked API key
+            if (server.apiKey && server.apiKey.includes('****')) {
+                throw new BizError('Mailcow API Key is masked (contains ****). Please re-enter and save your correct API key in Settings.', 401);
+            }
+
             const url = `${server.apiUrl}/api/v1/${endpoint}`;
             
             const headers = {
@@ -166,11 +184,22 @@ const mailcowService = {
             }
             
             console.log(`Mailcow API Call: ${method} ${url}`);
+            const keyLength = server.apiKey ? server.apiKey.length : 0;
+            const isKeyMasked = server.apiKey && server.apiKey.includes('****');
+            console.log(`Mailcow API Key info: length=${keyLength}, looks_masked=${isKeyMasked}`);
+            
+            if (data) {
+                const logData = { ...data };
+                if (logData.password) logData.password = '[REDACTED]';
+                if (logData.password2) logData.password2 = '[REDACTED]';
+                console.log(`Mailcow API Request Body: ${JSON.stringify(logData)}`);
+            }
             const response = await fetch(url, options);
             console.log(`Mailcow API Response: ${response.status}, ${response.statusText}`);
             
             if (!response.ok) {
                 const errorText = await response.text().catch(() => '');
+                console.error(`Mailcow API Error Detail: Status=${response.status}, Body=${errorText}`);
                 let errorMessage = response.statusText;
                 try {
                     if (errorText) {

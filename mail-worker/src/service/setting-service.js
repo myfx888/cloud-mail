@@ -66,6 +66,12 @@ const settingService = {
 				if (settingRow.mailcowCreateStrict === undefined && settingRow.mailcow_create_strict !== undefined) {
 					settingRow.mailcowCreateStrict = settingRow.mailcow_create_strict;
 				}
+				if (settingRow.mailcowRetryCount === undefined && settingRow.mailcow_retry_count !== undefined) {
+					settingRow.mailcowRetryCount = settingRow.mailcow_retry_count;
+				}
+				if (settingRow.mailcowTimeout === undefined && settingRow.mailcow_timeout !== undefined) {
+					settingRow.mailcowTimeout = settingRow.mailcow_timeout;
+				}
 			}
 		}
 
@@ -178,11 +184,13 @@ const settingService = {
 
 	async get(c, showSiteKey = false) {
 
-		const [settingRow, recordList] = await Promise.all([
-			await this.query(c),
+		const [settingRowRaw, recordList] = await Promise.all([
+			this.query(c),
 			verifyRecordService.selectListByIP(c)
 		]);
 
+		// Deep clone to avoid modifying the cached object
+		const settingRow = JSON.parse(JSON.stringify(settingRowRaw));
 
 		if (!showSiteKey) {
 			settingRow.siteKey = settingRow.siteKey ? `${settingRow.siteKey.slice(0, 6)}******` : null;
@@ -302,6 +310,18 @@ const settingService = {
 		}
 
 		if (params.mailcowServers !== undefined && Array.isArray(params.mailcowServers)) {
+			const currentSetting = await this.query(c);
+			const currentServers = Array.isArray(currentSetting?.mailcowServers) ? currentSetting.mailcowServers : [];
+
+			// Prevent overwriting real API keys with masked ones from the UI
+			params.mailcowServers = params.mailcowServers.map(newServer => {
+				const oldServer = currentServers.find(s => s.id === newServer.id);
+				if (newServer.apiKey && newServer.apiKey.includes('****') && oldServer?.apiKey) {
+					newServer.apiKey = oldServer.apiKey;
+				}
+				return newServer;
+			});
+
 			const defaultCount = params.mailcowServers.filter(item => item?.isDefault).length;
 			if (defaultCount > 1) {
 				throw new BizError('mailcowServers default item must be unique');
@@ -310,10 +330,8 @@ const settingService = {
 				throw new BizError('mailcowServers must contain one default server');
 			}
 
-			const currentSetting = await this.query(c);
-			const currentServers = Array.isArray(currentSetting?.mailcowServers) ? currentSetting.mailcowServers : [];
-			const currentIds = currentServers.map(item => String(item?.id || '')).filter(Boolean);
 			const nextIds = params.mailcowServers.map(item => String(item?.id || '')).filter(Boolean);
+			const currentIds = currentServers.map(item => String(item?.id || '')).filter(Boolean);
 			const removedIds = currentIds.filter(id => !nextIds.includes(id));
 
 			for (const removedId of removedIds) {
