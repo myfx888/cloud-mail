@@ -108,7 +108,9 @@ const mailcowService = {
                 options.body = JSON.stringify(data);
             }
             
+            console.log(`Mailcow API Call: ${method} ${url}`);
             const response = await fetch(url, options);
+            console.log(`Mailcow API Response: ${response.status} ${response.statusText}`);
             
             if (!response.ok) {
                 const errorText = await response.text().catch(() => '');
@@ -161,9 +163,24 @@ const mailcowService = {
             };
             
             const result = await this.callApi(c, 'add/mailbox', 'POST', data, server);
+            console.log('Mailcow Create Account Result:', JSON.stringify(result));
             
-            if (!result || (!result.status && !Array.isArray(result))) {
-                throw new BizError(t('mailcowAccountCreateFailed'));
+            if (!result) {
+                throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response`);
+            }
+
+            // Mailcow API usually returns an array of result objects like:
+            // [{"type":"success","msg":"mailbox_added","log":["..."]}]
+            // Or a single object if there's an error.
+            const isSuccess = Array.isArray(result) 
+                ? result.some(r => r.type === 'success' || r.status === 'success' || r.status === true)
+                : (result?.type === 'success' || result?.status === 'success' || result?.status === true);
+
+            if (!isSuccess) {
+                const errorDetail = Array.isArray(result) 
+                    ? result.map(r => r.msg || r.message || JSON.stringify(r)).join(', ')
+                    : (result?.msg || result?.message || JSON.stringify(result));
+                throw new BizError(`${t('mailcowAccountCreateFailed')}${errorDetail ? ': ' + errorDetail : ''}`);
             }
 
             const smtpConfig = await this.getSmtpConfig(c, server);
