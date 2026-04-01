@@ -197,7 +197,7 @@ app.delete('/smtp/accounts/:smtpAccountId', async (c) => {
 	}
 
 	// 删除SMTP账户
-	await smtpAccountService.delete(c, smtpAccountId, parseInt(accountId, 10));
+	await smtpAccountService.delete(c, smtpAccountId, parseInt(accountId, 10), isAdmin);
 
 	return c.json(result.ok());
 });

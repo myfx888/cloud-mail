@@ -98,7 +98,7 @@ const smtpAccountService = {
 	/**
 	 * 删除SMTP账户
 	 */
-	async delete(c, smtpAccountId, accountId) {
+	async delete(c, smtpAccountId, accountId, isAdmin = false) {
 		// 检查账户是否存在且属于该用户
 		const existingAccount = await orm(c).select().from(smtpAccount).where(
 			and(
@@ -111,8 +111,8 @@ const smtpAccountService = {
 			throw new BizError(t('smtpAccountNotFound'));
 		}
 
-		// 如果是默认账户，不允许删除
-		if (existingAccount.isDefault) {
+		// 如果是默认账户，非管理员不允许删除
+		if (existingAccount.isDefault && !isAdmin) {
 			throw new BizError(t('defaultSmtpAccountCannotDelete'));
 		}
 
