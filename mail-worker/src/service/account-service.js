@@ -13,6 +13,7 @@ import roleService from './role-service';
 import { t } from '../i18n/i18n';
 import verifyRecordService from './verify-record-service';
 import mailcowService from './mailcow-service';
+import smtpAccountService from './smtp-account-service';
 
 const accountService = {
 
@@ -23,16 +24,31 @@ const accountService = {
 	},
 
 	async applyMailcowSmtpConfig(c, accountId, mailcowAccount) {
-		await this.updateSmtpConfig(c, accountId, {
-			smtpOverride: 1,
-			smtpHost: mailcowAccount.smtpHost,
-			smtpPort: mailcowAccount.smtpPort,
-			smtpUser: mailcowAccount.smtpUser,
-			smtpPassword: mailcowAccount.password,
-			smtpSecure: mailcowAccount.smtpSecure,
-			smtpAuthType: mailcowAccount.smtpAuthType || 'plain',
-			mailcowServerId: mailcowAccount.mailcowServerId || ''
-		});
+		// Create or update record in smtp_account table instead of account table
+		const smtpData = {
+			name: 'Mailcow SMTP',
+			host: mailcowAccount.smtpHost,
+			port: mailcowAccount.smtpPort,
+			user: mailcowAccount.smtpUser,
+			password: mailcowAccount.password,
+			secure: mailcowAccount.smtpSecure,
+			authType: mailcowAccount.smtpAuthType || 'plain',
+			isDefault: true
+		};
+
+		// Check if a Mailcow SMTP account already exists for this account
+		const existingSmtp = await smtpAccountService.getDefault(c, accountId);
+		if (existingSmtp) {
+			await smtpAccountService.update(c, existingSmtp.smtpAccountId, accountId, smtpData);
+		} else {
+			await smtpAccountService.create(c, accountId, smtpData);
+		}
+
+		// Update mailcowServerId in account table (keep this for server binding)
+		await orm(c).update(account).set({ 
+			mailcowServerId: mailcowAccount.mailcowServerId || '',
+			smtpOverride: 1 // Keep this to signal that account has its own SMTP
+		}).where(eq(account.accountId, accountId)).run();
 	},
 
 	async provisionMailcowForAccount(c, accountRow, settings) {

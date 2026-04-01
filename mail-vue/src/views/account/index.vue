@@ -23,21 +23,9 @@
                 <el-table-column prop="createTime" :label="$t('createTime')" width="180"/>
                 <el-table-column :label="$t('action')" width="220" fixed="right">
                   <template #default="scope">
-                    <el-dropdown trigger="click" v-perm="'smtp:set'">
-                      <el-button size="small" type="primary">
-                        {{ $t('smtpSetting') }}
-                      </el-button>
-                      <template #dropdown>
-                        <el-dropdown-menu>
-                          <el-dropdown-item @click="openSmtpConfig(scope.row)">
-                            {{ $t('smtpSetting') }}
-                          </el-dropdown-item>
-                          <el-dropdown-item @click="openSmtpAccountManager(scope.row)">
-                            {{ $t('smtpAccountManager') }}
-                          </el-dropdown-item>
-                        </el-dropdown-menu>
-                      </template>
-                    </el-dropdown>
+                    <el-button size="small" type="primary" @click="openSmtpAccountManager(scope.row)" v-perm="'smtp:set'">
+                      {{ $t('smtpSetting') }}
+                    </el-button>
                     <el-button
                       size="small"
                       type="warning"
@@ -74,157 +62,8 @@
       </div>
     </el-dialog>
     
-    <!-- SMTP Config Dialog -->
-    <el-dialog v-model="smtpConfigShow" :title="$t('smtpSetting')" width="400">
-      <div class="smtp-config-form">
-        <div v-if="!smtpConfigPermission" class="permission-tip">
-          <el-alert
-            title="无权限修改SMTP配置"
-            type="warning"
-            :closable="false"
-            show-icon
-          />
-        </div>
-        <div class="setting-item">
-          <div><span>{{ $t('smtpOverride') }}</span></div>
-          <div>
-            <el-switch @change="smtpConfigChange" :active-value="1" :inactive-value="0" v-model="smtpForm.smtpOverride" :disabled="!smtpConfigPermission"/>
-          </div>
-        </div>
-        
-        <template v-if="smtpForm.smtpOverride">
-          <div class="setting-item">
-            <div><span>{{ $t('smtpHost') }}</span></div>
-            <div>
-              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpHost" placeholder="smtp.example.com" :disabled="!smtpConfigPermission"/>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div><span>{{ $t('smtpPort') }}</span></div>
-            <div>
-              <el-input-number size="small" @change="smtpConfigChange" v-model="smtpForm.smtpPort" :min="1" :max="65535" :disabled="!smtpConfigPermission"/>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div><span>{{ $t('smtpUser') }}</span></div>
-            <div>
-              <el-input size="small" style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpUser" placeholder="user@example.com" :disabled="!smtpConfigPermission"/>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div><span>{{ $t('smtpPassword') }}</span></div>
-            <div>
-              <el-input size="small" type="password" show-password style="width: 250px" @change="smtpConfigChange" v-model="smtpForm.smtpPassword" :disabled="!smtpConfigPermission"/>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div><span>{{ $t('smtpSecure') }}</span></div>
-            <div>
-              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpSecure" :disabled="!smtpConfigPermission">
-                <el-option :value="0" label="STARTTLS"/>
-                <el-option :value="1" label="SSL/TLS"/>
-              </el-select>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div><span>{{ $t('smtpAuthType') }}</span></div>
-            <div>
-              <el-select size="small" @change="smtpConfigChange" style="width: 120px" v-model="smtpForm.smtpAuthType" :disabled="!smtpConfigPermission">
-                <el-option value="plain" label="Plain"/>
-                <el-option value="login" label="Login"/>
-                <el-option value="cram-md5" label="CRAM-MD5"/>
-              </el-select>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div><span>{{ $t('smtpVerify') }}</span></div>
-            <div>
-              <el-button size="small" type="primary" :loading="smtpVerifying" @click="verifySmtpConfig" :disabled="!smtpConfigPermission">
-                {{ $t('test') }}
-              </el-button>
-            </div>
-          </div>
-        </template>
-        
-        <!-- 邮件签名设置 -->
-        <div class="setting-item">
-          <div><span>邮件签名</span></div>
-          <div>
-            <el-button type="primary" size="small" @click="openSignatureManager">
-              管理签名
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </el-dialog>
-    
-    <!-- 签名管理对话框 -->
-    <el-dialog v-model="signatureManagerShow" title="签名管理" width="600">
-      <div class="signature-manager">
-        <div class="signature-header">
-          <el-button type="primary" size="small" @click="addSignature">
-            添加签名
-          </el-button>
-        </div>
-        <el-divider/>
-        <div class="signature-list" v-if="signatures.length > 0">
-          <div class="signature-item" v-for="signature in signatures" :key="signature.id">
-            <div class="signature-info">
-              <div class="signature-name">
-                {{ signature.name }}
-                <el-tag v-if="signature.isDefault" size="small" type="success">默认</el-tag>
-              </div>
-              <div class="signature-content" v-html="signature.content"></div>
-            </div>
-            <div class="signature-actions">
-              <el-button size="small" @click="editSignature(signature)">
-                编辑
-              </el-button>
-              <el-button size="small" @click="setDefaultSignature(signature)" v-if="!signature.isDefault">
-                设为默认
-              </el-button>
-              <el-button size="small" type="danger" @click="deleteSignature(signature)">
-                删除
-              </el-button>
-            </div>
-          </div>
-        </div>
-        <div class="signature-empty" v-else>
-          <el-empty description="暂无签名" />
-        </div>
-      </div>
-    </el-dialog>
-    
-    <!-- 签名编辑对话框 -->
-    <el-dialog v-model="signatureEditShow" :title="editingSignature ? '编辑签名' : '添加签名'" width="500">
-      <div class="signature-edit-form">
-        <el-form :model="signatureForm" label-width="80px">
-          <el-form-item label="签名名称">
-            <el-input v-model="signatureForm.name" placeholder="请输入签名名称" />
-          </el-form-item>
-          <el-form-item label="签名内容">
-            <el-input
-              type="textarea"
-              rows="6"
-              v-model="signatureForm.content"
-              placeholder="输入签名内容，支持HTML格式"
-            />
-          </el-form-item>
-          <el-form-item>
-            <el-checkbox v-model="signatureForm.isDefault">设为默认签名</el-checkbox>
-          </el-form-item>
-        </el-form>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="signatureEditShow = false">取消</el-button>
-          <el-button type="primary" @click="saveSignature">保存</el-button>
-        </span>
-      </template>
-    </el-dialog>
-    
     <!-- SMTP账户管理对话框 -->
-    <el-dialog v-model="smtpAccountManagerShow" :title="$t('smtpAccountManager')" width="600">
+    <el-dialog v-model="smtpAccountManagerShow" :title="$t('smtpSetting')" width="600">
       <div class="smtp-account-manager">
         <div class="smtp-account-header">
           <el-button type="primary" size="small" @click="addSmtpAccount">

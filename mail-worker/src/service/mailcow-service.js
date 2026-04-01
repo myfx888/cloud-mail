@@ -68,9 +68,9 @@ const mailcowService = {
         const globalTemplate = settings.mailcowGlobalSmtpTemplate || {};
 
         return {
-            smtpHost: server?.smtpHost || globalTemplate.smtpHost || 'smtp.mailcow.email',
-            smtpPort: Number(server?.smtpPort || globalTemplate.smtpPort || 587),
-            smtpSecure: Number(server?.smtpSecure ?? globalTemplate.smtpSecure ?? 0),
+            smtpHost: server?.smtpHost || globalTemplate.smtpHost || (server?.apiUrl ? new URL(server.apiUrl).hostname : 'smtp.mailcow.email'),
+            smtpPort: Number(server?.smtpPort || globalTemplate.smtpPort || 465),
+            smtpSecure: Number(server?.smtpSecure ?? globalTemplate.smtpSecure ?? 1),
             smtpAuthType: server?.smtpAuthType || globalTemplate.smtpAuthType || 'plain'
         };
     },

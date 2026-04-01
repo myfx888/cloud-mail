@@ -201,31 +201,35 @@ const smtpService = {
 		// 检查是否启用SMTP
 		const globalEnabled = settingRow.smtpEnabled === 1;
 		
-		// 如果指定了SMTP账户ID，使用该账户的配置
+		// 1. 优先逻辑：如果指定了SMTP账户ID，或者该账号有默认的SMTP账户（统一到 smtp_account 表）
+		let targetSmtpAccount = null;
 		if (smtpAccountId) {
-			const smtpAccountRow = await orm(c).select().from(smtpAccount).where(
+			targetSmtpAccount = await orm(c).select().from(smtpAccount).where(
 				and(
 					eq(smtpAccount.smtpAccountId, smtpAccountId),
 					eq(smtpAccount.accountId, accountId),
 					eq(smtpAccount.status, 1)
 				)
 			).get();
-			
-			if (smtpAccountRow) {
-				return {
-					enabled: true,
-					host: smtpAccountRow.host,
-					port: smtpAccountRow.port,
-					user: smtpAccountRow.user,
-					password: smtpAccountRow.password,
-					secure: smtpAccountRow.secure,
-					authType: smtpAccountRow.authType || 'plain',
-					fromName: settingRow.smtpFromName
-				};
-			}
+		} else {
+			// 自动查找该账号关联的默认 SMTP 账户
+			targetSmtpAccount = await smtpAccountService.getDefault(c, accountId);
 		}
 		
-		// 如果账号覆盖，使用账号配置
+		if (targetSmtpAccount) {
+			return {
+				enabled: true,
+				host: targetSmtpAccount.host,
+				port: targetSmtpAccount.port,
+				user: targetSmtpAccount.user,
+				password: targetSmtpAccount.password,
+				secure: targetSmtpAccount.secure,
+				authType: targetSmtpAccount.authType || 'plain',
+				fromName: settingRow.smtpFromName
+			};
+		}
+		
+		// 2. 次优先逻辑：旧版的账号字段覆盖 (为了向后兼容)
 		const accountOverride = accountRow?.smtpOverride === 1;
 		if (accountOverride && accountRow.smtpHost) {
 			return {
@@ -240,19 +244,19 @@ const smtpService = {
 			};
 		}
 		
-		// 使用全局配置
+		// 3. 最后逻辑：使用全局配置
 		if (!globalEnabled || !settingRow.smtpHost) {
 			return { enabled: false };
 		}
 		
 		return {
 			enabled: true,
-			host: settingRow.smtpHost,
-			port: settingRow.smtpPort,
-			user: settingRow.smtpUser,
-			password: settingRow.smtpPassword,
-			secure: settingRow.smtpSecure,
-			authType: settingRow.smtpAuthType || 'plain',
+			host: settingRow.host || settingRow.smtpHost, // 兼容字段名
+			port: settingRow.port || settingRow.smtpPort,
+			user: settingRow.user || settingRow.smtpUser,
+			password: settingRow.password || settingRow.smtpPassword,
+			secure: settingRow.secure !== undefined ? settingRow.secure : settingRow.smtpSecure,
+			authType: settingRow.authType || settingRow.smtpAuthType || 'plain',
 			fromName: settingRow.smtpFromName
 		};
 	},
