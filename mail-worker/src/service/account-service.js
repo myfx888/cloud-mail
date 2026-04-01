@@ -5,7 +5,7 @@ import userService from './user-service';
 import emailService from './email-service';
 import orm from '../entity/orm';
 import account from '../entity/account';
-import { and, asc, eq, gt, inArray, count, sql, ne, or, lt, desc } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, count, sql, ne, or, lt, desc, like } from 'drizzle-orm';
 import {accountConst, isDel, settingConst} from '../const/entity-const';
 import settingService from './setting-service';
 import turnstileService from './turnstile-service';
@@ -14,6 +14,8 @@ import { t } from '../i18n/i18n';
 import verifyRecordService from './verify-record-service';
 import mailcowService from './mailcow-service';
 import smtpAccountService from './smtp-account-service';
+import user from '../entity/user';
+import smtpAccount from '../entity/smtp-account';
 
 const accountService = {
 
@@ -759,6 +761,67 @@ const accountService = {
             throw new BizError(`Failed to migrate accounts: ${error.message}`);
         }
     },
+
+	async adminListAccounts(c, params) {
+		let { email, smtpStatus, num, size } = params;
+
+		num = Number(num) || 1;
+		size = Number(size) || 15;
+		if (size > 30) size = 30;
+		const offset = (num - 1) * size;
+
+		const smtpCountSub = sql`(SELECT COUNT(*) FROM smtp_account WHERE smtp_account.account_id = ${account.accountId})`.as('smtpAccountCount');
+
+		const conditions = [
+			eq(account.isDel, isDel.NORMAL),
+			eq(user.isDel, isDel.NORMAL)
+		];
+
+		if (email) {
+			conditions.push(
+				or(
+					like(account.email, `%${email}%`),
+					like(user.email, `%${email}%`)
+				)
+			);
+		}
+
+		const whereClause = and(...conditions);
+
+		let list = await orm(c)
+			.select({
+				accountId: account.accountId,
+				email: account.email,
+				userId: account.userId,
+				userEmail: user.email,
+				status: account.status,
+				createTime: account.createTime,
+				smtpOverride: account.smtpOverride,
+				mailcowServerId: account.mailcowServerId,
+				smtpAccountCount: smtpCountSub
+			})
+			.from(account)
+			.innerJoin(user, eq(account.userId, user.userId))
+			.where(whereClause)
+			.orderBy(desc(account.accountId))
+			.limit(size)
+			.offset(offset);
+
+		if (smtpStatus === 'configured') {
+			list = list.filter(row => row.smtpAccountCount > 0);
+		} else if (smtpStatus === 'unconfigured') {
+			list = list.filter(row => row.smtpAccountCount === 0);
+		}
+
+		const totalResult = await orm(c)
+			.select({ total: count() })
+			.from(account)
+			.innerJoin(user, eq(account.userId, user.userId))
+			.where(whereClause)
+			.get();
+
+		return { list, total: totalResult?.total || 0 };
+	},
 
 };
 

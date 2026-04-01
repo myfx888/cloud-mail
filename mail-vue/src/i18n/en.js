@@ -387,6 +387,20 @@ const en = {
     smtpProvisionFailed: 'Failed to provision SMTP',
     default: 'Default',
     save: 'Save',
-    cancel: 'Cancel'
+    cancel: 'Cancel',
+    allUserAccounts: 'All User Accounts',
+    belongUser: 'Owner',
+    smtpStatus: 'SMTP Status',
+    smtpConfigured: 'Configured',
+    smtpUnconfigured: 'Not Configured',
+    smtpMailcow: 'Configured (Mailcow)',
+    smtpManual: 'Configured (Manual)',
+    searchEmail: 'Search email',
+    filterAll: 'All',
+    oneClickProvision: 'Provision',
+    provisionSuccess: 'Provisioned successfully',
+    provisionFailed: 'Provision failed',
+    deleteAccountConfirmMsg: 'Delete account {email}?',
+    deleteSuccess: 'Deleted successfully'
 }
 export default en

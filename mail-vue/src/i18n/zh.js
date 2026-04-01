@@ -388,6 +388,20 @@ const zh = {
     smtpProvisionFailed: '一键开通SMTP失败',
     default: '默认',
     save: '保存',
-    cancel: '取消'
+    cancel: '取消',
+    allUserAccounts: '所有用户邮箱',
+    belongUser: '所属用户',
+    smtpStatus: 'SMTP 状态',
+    smtpConfigured: '已配置',
+    smtpUnconfigured: '未配置',
+    smtpMailcow: '已配置 (Mailcow)',
+    smtpManual: '已配置 (手动)',
+    searchEmail: '搜索邮箱',
+    filterAll: '全部',
+    oneClickProvision: '一键开通',
+    provisionSuccess: '一键开通成功',
+    provisionFailed: '一键开通失败',
+    deleteAccountConfirmMsg: '确定删除邮箱 {email} 吗？',
+    deleteSuccess: '删除成功'
 }
 export default zh

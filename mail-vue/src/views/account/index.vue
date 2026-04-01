@@ -50,6 +50,87 @@
               </div>
             </div>
           </div>
+          <!-- All User Accounts Card (admin only) -->
+          <div class="settings-card" v-if="isAdmin">
+            <div class="card-title">{{ $t('allUserAccounts') }}</div>
+            <div class="card-content">
+              <div class="global-filter-row">
+                <el-input
+                  v-model="globalParams.email"
+                  :placeholder="$t('searchEmail')"
+                  clearable
+                  style="width: 220px"
+                  @keyup.enter="searchGlobalAccounts"
+                />
+                <el-select v-model="globalParams.smtpStatus" style="width: 140px" @change="searchGlobalAccounts">
+                  <el-option value="" :label="$t('filterAll')" />
+                  <el-option value="configured" :label="$t('smtpConfigured')" />
+                  <el-option value="unconfigured" :label="$t('smtpUnconfigured')" />
+                </el-select>
+                <el-button type="primary" @click="searchGlobalAccounts">
+                  <Icon icon="iconoir:search" width="16" height="16" />
+                </el-button>
+              </div>
+              <el-table :data="globalAccountList" style="width: 100%" v-loading="globalLoading">
+                <el-table-column prop="email" :label="$t('emailAccount')" min-width="200">
+                  <template #default="scope">
+                    <span style="word-break: break-all">{{ scope.row.email }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="userEmail" :label="$t('belongUser')" min-width="180">
+                  <template #default="scope">
+                    <span style="color: var(--el-text-color-secondary)">{{ scope.row.userEmail }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="$t('smtpStatus')" width="160">
+                  <template #default="scope">
+                    <el-tag v-if="scope.row.smtpAccountCount > 0 && scope.row.mailcowServerId" type="success" size="small">
+                      {{ $t('smtpMailcow') }}
+                    </el-tag>
+                    <el-tag v-else-if="scope.row.smtpAccountCount > 0" type="primary" size="small">
+                      {{ $t('smtpManual') }}
+                    </el-tag>
+                    <el-tag v-else type="info" size="small">
+                      {{ $t('smtpUnconfigured') }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="$t('action')" width="160" fixed="right">
+                  <template #default="scope">
+                    <el-dropdown trigger="click">
+                      <el-button type="primary" size="small">{{ $t('action') }}</el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item @click="openGlobalSmtpManager(scope.row)">
+                            {{ $t('smtpSetting') }}
+                          </el-dropdown-item>
+                          <el-dropdown-item
+                            v-if="mailcowEnabled && globalMailcowServers.length > 0"
+                            @click="provisionGlobalAccount(scope.row)"
+                          >
+                            {{ $t('oneClickProvision') }}
+                          </el-dropdown-item>
+                          <el-dropdown-item @click="deleteGlobalAccount(scope.row)">
+                            {{ $t('delete') }}
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div class="global-pagination" v-if="globalTotal > 0">
+                <el-pagination
+                  background
+                  layout="prev, pager, next, total"
+                  :total="globalTotal"
+                  :page-size="globalParams.size"
+                  :current-page="globalParams.num"
+                  @current-change="globalPageChange"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </el-scrollbar>
@@ -66,8 +147,8 @@
   </div>
 </template>
 <script setup>
-import {reactive, ref, onMounted, nextTick} from 'vue'
-import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow} from "@/request/account.js"
+import {reactive, ref, computed, onMounted, nextTick} from 'vue'
+import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow, accountProvisionSmtpByMailcowServer} from "@/request/account.js"
 import {useAccountStore} from "@/store/account.js"
 import {useUserStore} from "@/store/user.js"
 
@@ -75,6 +156,9 @@ import {Icon} from "@iconify/vue"
 import LoadingComponent from "@/components/loading/index.vue"
 import smtpAccountManager from "@/components/smtp-account-manager/index.vue"
 import {settingQuery} from "@/request/setting.js"
+import {adminAccountList} from "@/request/admin.js"
+import {userDeleteAccount} from "@/request/user.js"
+import {smtpMailcowServers} from "@/request/smtp.js"
 import {useI18n} from 'vue-i18n'
 import {ElMessage, ElMessageBox} from 'element-plus'
 
@@ -197,6 +281,88 @@ function openSmtpAccountManager(account) {
     smtpAccountManagerRef.value.open()
   })
 }
+
+// ---- Global Accounts (admin only) ----
+const isAdmin = computed(() => userStore.user.type === 0)
+const globalAccountList = ref([])
+const globalLoading = ref(false)
+const globalTotal = ref(0)
+const globalMailcowServers = ref([])
+
+const globalParams = reactive({
+  email: '',
+  smtpStatus: '',
+  num: 1,
+  size: 15
+})
+
+onMounted(() => {
+  if (isAdmin.value) {
+    loadGlobalAccounts()
+    loadMailcowServers()
+  }
+})
+
+async function loadGlobalAccounts() {
+  globalLoading.value = true
+  try {
+    const data = await adminAccountList(globalParams)
+    globalAccountList.value = data.list
+    globalTotal.value = data.total
+  } finally {
+    globalLoading.value = false
+  }
+}
+
+async function loadMailcowServers() {
+  try {
+    const servers = await smtpMailcowServers()
+    globalMailcowServers.value = Array.isArray(servers) ? servers : []
+  } catch {
+    globalMailcowServers.value = []
+  }
+}
+
+function searchGlobalAccounts() {
+  globalParams.num = 1
+  loadGlobalAccounts()
+}
+
+function globalPageChange(num) {
+  globalParams.num = num
+  loadGlobalAccounts()
+}
+
+function openGlobalSmtpManager(account) {
+  smtpManagerAccountId.value = account.accountId
+  nextTick(() => {
+    smtpAccountManagerRef.value.open()
+  })
+}
+
+async function provisionGlobalAccount(account) {
+  const serverId = globalMailcowServers.value[0]?.id
+  if (!serverId) return
+  try {
+    await accountProvisionSmtpByMailcowServer(account.accountId, serverId)
+    ElMessage({ message: t('provisionSuccess'), type: 'success', plain: true })
+    await loadGlobalAccounts()
+  } catch (error) {
+    ElMessage({ message: error?.message || t('provisionFailed'), type: 'error', plain: true })
+  }
+}
+
+async function deleteGlobalAccount(account) {
+  ElMessageBox.confirm(t('deleteAccountConfirmMsg', { email: account.email }), {
+    confirmButtonText: t('confirm'),
+    cancelButtonText: t('cancel'),
+    type: 'warning'
+  }).then(async () => {
+    await userDeleteAccount(account.accountId)
+    ElMessage({ message: t('deleteSuccess'), type: 'success', plain: true })
+    await loadGlobalAccounts()
+  })
+}
 </script>
 <style scoped lang="scss">
 .account-container {
@@ -267,6 +433,20 @@ function openSmtpAccountManager(account) {
     display: flex;
     flex-direction: column;
     gap: 15px;
+  }
+  
+  .global-filter-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  
+  .global-pagination {
+    margin-top: 15px;
+    display: flex;
+    justify-content: flex-end;
   }
 }
 </style>
