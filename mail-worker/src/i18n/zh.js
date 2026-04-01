@@ -118,6 +118,7 @@ const zh = {
 		"SMTP设置": "SMTP设置",
 		"SMTP配置查看": "SMTP配置查看",
 		"SMTP配置修改": "SMTP配置修改",
+		"SMTP一键开通": "SMTP一键开通",
 		'发件重置': '发件重置'
 	}
 }

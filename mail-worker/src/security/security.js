@@ -58,7 +58,8 @@ const requirePerms = [
 	'/regKey/clearNotUse',
 	'/regKey/history',
 	'/smtp/account-config',
-	'/smtp/verify-account'
+	'/smtp/verify-account',
+	'/smtp/provision-mailcow'
 ];
 
 const premKey = {
@@ -89,6 +90,7 @@ const premKey = {
 	'reg-key:delete': ['/regKey/delete','/regKey/clearNotUse'],
 	'smtp:query': ['/smtp/account-config'],
 	'smtp:set': ['/smtp/account-config', '/smtp/verify-account'],
+	'smtp:provision': ['/smtp/provision-mailcow'],
 };
 
 app.use('*', async (c, next) => {

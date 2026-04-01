@@ -113,7 +113,8 @@ const en = {
 		"发件重置": "Reset Send Count",
 		"SMTP设置": "SMTP Settings",
 		"SMTP配置查看": "View SMTP Config",
-		"SMTP配置修改": "Edit SMTP Config"
+		"SMTP配置修改": "Edit SMTP Config",
+		"SMTP一键开通": "One-Click SMTP Provision"
 	}
 };
 

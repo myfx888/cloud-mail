@@ -20,6 +20,11 @@ export function smtpAccountDelete(smtpAccountId, accountId) {
   return http.delete(`/smtp/accounts/${smtpAccountId}`, { params: { accountId } })
 }
 
+// 获取Mailcow服务器列表（一键开通用）
+export function smtpMailcowServers() {
+  return http.get('/smtp/mailcow-servers')
+}
+
 // 验证SMTP账户配置
 export function smtpAccountVerify(accountId, data) {
   return http.post('/smtp/accounts/verify', {

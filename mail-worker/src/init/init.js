@@ -212,7 +212,8 @@ const dbInit = {
 			// 确保子节点存在
 			const children = [
 				{ name: 'SMTP配置查看', permKey: 'smtp:query', sort: 0 },
-				{ name: 'SMTP配置修改', permKey: 'smtp:set', sort: 1 }
+				{ name: 'SMTP配置修改', permKey: 'smtp:set', sort: 1 },
+				{ name: 'SMTP一键开通', permKey: 'smtp:provision', sort: 2 }
 			];
 
 			for (const child of children) {

@@ -2,10 +2,21 @@ import app from '../hono/hono';
 import smtpService from '../service/smtp-service';
 import smtpAccountService from '../service/smtp-account-service';
 import accountService from '../service/account-service';
+import settingService from '../service/setting-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 import BizError from '../error/biz-error';
 import { t } from '../i18n/i18n';
+
+// 获取Mailcow服务器列表（任何已登录用户均可访问，用于一键开通功能）
+app.get('/smtp/mailcow-servers', async (c) => {
+	const settings = await settingService.query(c);
+	const mailcowEnabled = Number(settings.mailcowEnabled || 0) === 1;
+	const mailcowServers = Array.isArray(settings.mailcowServers)
+		? settings.mailcowServers.map(s => ({ id: s.id, name: s.name, apiUrl: s.apiUrl, isDefault: s.isDefault }))
+		: [];
+	return c.json(result.ok({ mailcowEnabled, mailcowServers }));
+});
 
 // 验证全局SMTP配置
 app.post('/smtp/verify', async (c) => {
@@ -251,4 +262,24 @@ app.post('/smtp/accounts/verify', async (c) => {
 	});
 
 	return c.json(result.ok(verifyResult));
+});
+
+// 一键开通Mailcow SMTP（权限控制：smtp:provision）
+app.post('/smtp/provision-mailcow', async (c) => {
+	const { accountId, mailcowServerId } = await c.req.json();
+	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
+
+	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	const provisionResult = await accountService.provisionSmtpByMailcowServer(
+		c,
+		parseInt(accountId, 10),
+		mailcowServerId,
+		userId
+	);
+	return c.json(result.ok(provisionResult));
 });

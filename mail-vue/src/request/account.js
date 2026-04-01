@@ -29,7 +29,7 @@ export function accountRetryMailcow(accountId) {
 }
 
 export function accountProvisionSmtpByMailcowServer(accountId, mailcowServerId) {
-    return http.post(`/account/${accountId}/mailcow/${mailcowServerId}/provision-smtp`)
+    return http.post('/smtp/provision-mailcow', { accountId, mailcowServerId })
 }
 
 export function accountSwitchSmtpServer(accountId, smtpServerId) {

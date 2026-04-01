@@ -3,7 +3,7 @@
   <el-dialog v-model="managerShow" :title="$t('smtpSetting')" width="600">
     <div class="smtp-account-manager">
       <div class="smtp-account-header">
-        <div class="smtp-provision-row" v-if="mailcowEnabled && availableMailcowServers.length > 0">
+        <div class="smtp-provision-row" v-if="showProvision">
           <el-select v-model="provisionMailcowServerId" size="small" style="width: 260px" :placeholder="$t('selectMailcowServer')">
             <el-option
               v-for="server in availableMailcowServers"
@@ -105,13 +105,12 @@
 </template>
 
 <script setup>
-import {reactive, ref} from "vue"
+import {reactive, ref, computed} from "vue"
 import {useI18n} from "vue-i18n"
 import {ElMessage, ElMessageBox} from "element-plus"
-import {smtpAccountList, smtpAccountCreate, smtpAccountUpdate, smtpAccountDelete, smtpAccountVerify} from "@/request/smtp.js"
+import {smtpAccountList, smtpAccountCreate, smtpAccountUpdate, smtpAccountDelete, smtpAccountVerify, smtpMailcowServers} from "@/request/smtp.js"
 import {accountProvisionSmtpByMailcowServer} from "@/request/account.js"
-import {settingQuery} from "@/request/setting.js"
-import {useUserStore} from "@/store/user.js"
+import {hasPerm} from "@/perm/perm.js"
 
 const props = defineProps({
   accountId: {
@@ -122,8 +121,6 @@ const props = defineProps({
 
 const {t} = useI18n()
 
-const userStore = useUserStore()
-
 const managerShow = ref(false)
 const editShow = ref(false)
 const smtpAccounts = ref([])
@@ -133,6 +130,7 @@ const mailcowEnabled = ref(false)
 const availableMailcowServers = ref([])
 const provisionMailcowServerId = ref('')
 const provisioningLoading = ref(false)
+const showProvision = computed(() => mailcowEnabled.value && availableMailcowServers.value.length > 0 && hasPerm('smtp:provision'))
 const smtpAccountForm = reactive({
   name: '',
   host: '',
@@ -147,23 +145,23 @@ const smtpAccountForm = reactive({
 async function open() {
   managerShow.value = true
   try {
-    const promises = [smtpAccountList(props.accountId)]
-    if (userStore.user.type === 0) promises.push(settingQuery())
-    const [data, settingData] = await Promise.all(promises)
+    const data = await smtpAccountList(props.accountId)
     smtpAccounts.value = data
-    if (settingData) {
-      mailcowEnabled.value = Number(settingData.mailcowEnabled || 0) === 1
-      availableMailcowServers.value = Array.isArray(settingData.mailcowServers) ? settingData.mailcowServers : []
-      if (!provisionMailcowServerId.value && availableMailcowServers.value.length > 0) {
-        const defaultServer = availableMailcowServers.value.find(item => item?.isDefault)
-        provisionMailcowServerId.value = defaultServer?.id || availableMailcowServers.value[0]?.id || ''
-      }
-    } else {
-      mailcowEnabled.value = false
-    }
   } catch (error) {
     console.error('获取SMTP账户列表失败:', error)
     ElMessage({message: t('smtpLoadFailed'), type: 'error', plain: true})
+  }
+  // 加载Mailcow服务器列表（所有用户均可访问，显示由权限控制）
+  try {
+    const mcData = await smtpMailcowServers()
+    mailcowEnabled.value = !!mcData.mailcowEnabled
+    availableMailcowServers.value = Array.isArray(mcData.mailcowServers) ? mcData.mailcowServers : []
+    if (!provisionMailcowServerId.value && availableMailcowServers.value.length > 0) {
+      const defaultServer = availableMailcowServers.value.find(item => item?.isDefault)
+      provisionMailcowServerId.value = defaultServer?.id || availableMailcowServers.value[0]?.id || ''
+    }
+  } catch (error) {
+    console.error('获取Mailcow服务器列表失败:', error)
   }
 }
 
