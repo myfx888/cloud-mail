@@ -119,7 +119,15 @@ const smtpService = {
 			return { mode, port, secure: false, startTls: true };
 		}
 
-		return { mode: 0, port, secure: false, startTls: false };
+		// mode === 0: 根据端口自动判断加密方式
+		// 端口 465 通常使用隐式 TLS，其他端口（如 587）使用 STARTTLS
+		const isImplicitTlsPort = port === 465;
+		return {
+			mode: 0,
+			port,
+			secure: isImplicitTlsPort,
+			startTls: !isImplicitTlsPort
+		};
 	},
 	
 	/**
