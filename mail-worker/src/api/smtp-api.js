@@ -39,7 +39,7 @@ app.post('/smtp/verify-account', async (c) => {
 	const smtpPort = Number(params.smtpPort ?? 587);
 	const smtpSecure = Number(params.smtpSecure ?? 0);
 	
-	const accountRow = await accountService.selectById(c, params.accountId);
+	const accountRow = await accountService.selectByIdAny(c, params.accountId);
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -73,7 +73,7 @@ app.get('/smtp/account-config', async (c) => {
 		throw new BizError(t('accountNotExist'));
 	}
 	
-	const accountRow = await accountService.selectById(c, numericAccountId);
+	const accountRow = await accountService.selectByIdAny(c, numericAccountId);
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -98,7 +98,7 @@ app.post('/smtp/account-config', async (c) => {
 	const userId = userContext.getUserId(c);
 	const isAdmin = userContext.isAdmin(c);
 
-	const accountRow = await accountService.selectById(c, params.accountId);
+	const accountRow = await accountService.selectByIdAny(c, params.accountId);
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -132,7 +132,7 @@ app.post('/smtp/accounts', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
-	const accountRow = await accountService.selectById(c, params.accountId);
+	const accountRow = await accountService.selectByIdAny(c, params.accountId);
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -167,7 +167,7 @@ app.put('/smtp/accounts/:smtpAccountId', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
-	const accountRow = await accountService.selectById(c, params.accountId);
+	const accountRow = await accountService.selectByIdAny(c, params.accountId);
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -202,7 +202,7 @@ app.delete('/smtp/accounts/:smtpAccountId', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
-	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
+	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -227,7 +227,7 @@ app.get('/smtp/accounts', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
-	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
+	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -246,7 +246,7 @@ app.get('/smtp/accounts/:smtpAccountId', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
-	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
+	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
@@ -264,7 +264,7 @@ app.post('/smtp/accounts/verify', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
-	const accountRow = await accountService.selectById(c, params.accountId);
+	const accountRow = await accountService.selectByIdAny(c, params.accountId);
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}

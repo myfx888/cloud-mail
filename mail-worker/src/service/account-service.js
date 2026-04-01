@@ -316,6 +316,12 @@ const accountService = {
 			.get();
 	},
 
+	selectByIdAny(c, accountId) {
+		accountId = Number(accountId);
+		if (!accountId) return null;
+		return orm(c).select().from(account).where(eq(account.accountId, accountId)).get();
+	},
+
 	async insert(c, params) {
 		await orm(c).insert(account).values({ ...params }).returning();
 	},
