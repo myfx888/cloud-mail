@@ -18,7 +18,7 @@ const userContext = {
 
 	isAdmin(c) {
 		const user = c.get('user');
-		return user.type === 0;
+		return user.type === 0 || user.email === c.env.admin;
 	},
 };
 export default userContext;
