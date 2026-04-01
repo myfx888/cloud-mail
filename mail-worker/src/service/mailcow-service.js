@@ -159,6 +159,22 @@ const mailcowService = {
             const result = await this.callApi(c, `get/domain/${encodeURIComponent(domain)}`, 'GET', null, serverConfig);
             console.log(`Mailcow domainExists check for ${domain} result:`, JSON.stringify(result));
 
+            if (this.isEmptyApiResponse(result)) {
+                // If direct lookup returns nothing, try checking all domains as a fallback
+                try {
+                    const allDomains = await this.callApi(c, 'get/domain/all', 'GET', null, serverConfig);
+                    if (Array.isArray(allDomains)) {
+                        return allDomains.some(item => {
+                            const itemDomain = String(item?.domain_name || item?.domain || '').toLowerCase();
+                            return itemDomain === String(domain).toLowerCase();
+                        });
+                    }
+                } catch (e) {
+                    console.warn(`Mailcow all-domains fallback check failed: ${e.message}`);
+                }
+                return false;
+            }
+
             if (Array.isArray(result)) {
                 return result.some(item => {
                     const itemDomain = String(item?.domain_name || item?.domain || '').toLowerCase();
@@ -292,7 +308,7 @@ const mailcowService = {
             // 1. Check if domain exists
             const domainOk = await this.domainExists(c, domain, server);
             if (!domainOk) {
-                throw new BizError(`${t('mailcowAccountCreateFailed')}: Domain ${domain} does not exist on mailcow server`);
+                console.warn(`Mailcow domain precheck returned false for ${domain} on ${server.apiUrl}, continue to add/mailbox and rely on API result`);
             }
 
             const accountPassword = await this.resolvePassword(c, password);
