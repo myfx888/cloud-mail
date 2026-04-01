@@ -382,6 +382,10 @@ const zh = {
     smtpAccountName: '账户名称',
     smtpAccountNamePlaceholder: '请输入 SMTP 账户名称',
     smtpEncryption: '加密方式',
+    selectMailcowServer: '选择 Mailcow 服务器',
+    oneClickProvisionSmtp: '一键开通该服务器SMTP',
+    smtpProvisionSuccess: '已完成一键开通SMTP账号',
+    smtpProvisionFailed: '一键开通SMTP失败',
     default: '默认',
     save: '保存',
     cancel: '取消'

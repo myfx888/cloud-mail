@@ -381,6 +381,10 @@ const en = {
     smtpAccountName: 'Account Name',
     smtpAccountNamePlaceholder: 'Enter SMTP account name',
     smtpEncryption: 'Encryption',
+    selectMailcowServer: 'Select Mailcow Server',
+    oneClickProvisionSmtp: 'One-Click Provision SMTP',
+    smtpProvisionSuccess: 'SMTP account provisioned successfully',
+    smtpProvisionFailed: 'Failed to provision SMTP',
     default: 'Default',
     save: 'Save',
     cancel: 'Cancel'

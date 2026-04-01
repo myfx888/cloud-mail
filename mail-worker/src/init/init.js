@@ -46,9 +46,9 @@ const dbInit = {
 			await this.v3_7DB(c);
 			await this.v3_8DB(c);
 			await this.v3_9DB(c);
-			const v4Result = await this.v4_0DB(c);
+			await this.v4_0DB(c);
 			await settingService.refresh(c);
-			return c.text('success | v4_0:' + (v4Result || 'done'));
+			return c.text('success');
 		} catch (e) {
 			console.error('Database initialization error:', e);
 			return c.text(`❌ Database initialization error: ${e.message}`);

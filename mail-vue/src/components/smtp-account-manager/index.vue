@@ -3,6 +3,25 @@
   <el-dialog v-model="managerShow" :title="$t('smtpSetting')" width="600">
     <div class="smtp-account-manager">
       <div class="smtp-account-header">
+        <div class="smtp-provision-row" v-if="mailcowEnabled && availableMailcowServers.length > 0">
+          <el-select v-model="provisionMailcowServerId" size="small" style="width: 260px" :placeholder="$t('selectMailcowServer')">
+            <el-option
+              v-for="server in availableMailcowServers"
+              :key="server.id"
+              :label="server.name || server.apiUrl"
+              :value="server.id"
+            />
+          </el-select>
+          <el-button
+            type="warning"
+            size="small"
+            :loading="provisioningLoading"
+            :disabled="!provisionMailcowServerId"
+            @click="provisionSmtpFromSelectedMailcow"
+          >
+            {{ $t('oneClickProvisionSmtp') }}
+          </el-button>
+        </div>
         <el-button type="primary" size="small" @click="addSmtpAccount">
           {{ $t('addSmtpAccount') }}
         </el-button>
@@ -90,6 +109,9 @@ import {reactive, ref} from "vue"
 import {useI18n} from "vue-i18n"
 import {ElMessage, ElMessageBox} from "element-plus"
 import {smtpAccountList, smtpAccountCreate, smtpAccountUpdate, smtpAccountDelete, smtpAccountVerify} from "@/request/smtp.js"
+import {accountProvisionSmtpByMailcowServer} from "@/request/account.js"
+import {settingQuery} from "@/request/setting.js"
+import {useUserStore} from "@/store/user.js"
 
 const props = defineProps({
   accountId: {
@@ -100,11 +122,17 @@ const props = defineProps({
 
 const {t} = useI18n()
 
+const userStore = useUserStore()
+
 const managerShow = ref(false)
 const editShow = ref(false)
 const smtpAccounts = ref([])
 const editingSmtpAccount = ref(null)
 const verifying = ref(false)
+const mailcowEnabled = ref(false)
+const availableMailcowServers = ref([])
+const provisionMailcowServerId = ref('')
+const provisioningLoading = ref(false)
 const smtpAccountForm = reactive({
   name: '',
   host: '',
@@ -119,8 +147,20 @@ const smtpAccountForm = reactive({
 async function open() {
   managerShow.value = true
   try {
-    const data = await smtpAccountList(props.accountId)
+    const promises = [smtpAccountList(props.accountId)]
+    if (userStore.user.type === 0) promises.push(settingQuery())
+    const [data, settingData] = await Promise.all(promises)
     smtpAccounts.value = data
+    if (settingData) {
+      mailcowEnabled.value = Number(settingData.mailcowEnabled || 0) === 1
+      availableMailcowServers.value = Array.isArray(settingData.mailcowServers) ? settingData.mailcowServers : []
+      if (!provisionMailcowServerId.value && availableMailcowServers.value.length > 0) {
+        const defaultServer = availableMailcowServers.value.find(item => item?.isDefault)
+        provisionMailcowServerId.value = defaultServer?.id || availableMailcowServers.value[0]?.id || ''
+      }
+    } else {
+      mailcowEnabled.value = false
+    }
   } catch (error) {
     console.error('获取SMTP账户列表失败:', error)
     ElMessage({message: t('smtpLoadFailed'), type: 'error', plain: true})
@@ -227,6 +267,22 @@ async function verifySmtpAccountLocal() {
   }
 }
 
+async function provisionSmtpFromSelectedMailcow() {
+  if (!provisionMailcowServerId.value) return
+  provisioningLoading.value = true
+  try {
+    await accountProvisionSmtpByMailcowServer(props.accountId, provisionMailcowServerId.value)
+    ElMessage({message: t('smtpProvisionSuccess'), type: 'success', plain: true})
+    const data = await smtpAccountList(props.accountId)
+    smtpAccounts.value = data
+  } catch (error) {
+    console.error('一键开通SMTP失败:', error)
+    ElMessage({message: error?.message || t('smtpProvisionFailed'), type: 'error', plain: true})
+  } finally {
+    provisioningLoading.value = false
+  }
+}
+
 defineExpose({open})
 </script>
 
@@ -238,6 +294,12 @@ defineExpose({open})
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+
+    .smtp-provision-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
   }
 
   .smtp-account-list {
