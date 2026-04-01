@@ -682,7 +682,10 @@ function getSignatureHtml(signature) {
 }
 
 function removeSignatureFromContent(content) {
-  return content.replace(/<div[^>]*class="email-signature"[^>]*>[\s\S]*?<\/div>/gi, '')
+  const tmp = document.createElement('div')
+  tmp.innerHTML = content
+  tmp.querySelectorAll('.email-signature').forEach(el => el.remove())
+  return tmp.innerHTML
 }
 
 function insertSignatureIntoContent(content, signature) {
@@ -690,22 +693,32 @@ function insertSignatureIntoContent(content, signature) {
   const sigHtml = getSignatureHtml(signature)
   const cleaned = removeSignatureFromContent(content)
 
-  // Reply: insert before blockquote
-  const blockquoteMatch = cleaned.match(/(<div>[^<]*<br>\s*[\s\S]*?wrote:[\s\S]*?<\/div>\s*<blockquote[\s\S]*)/i)
-  if (blockquoteMatch) {
-    const idx = cleaned.indexOf(blockquoteMatch[1])
-    return cleaned.slice(0, idx) + sigHtml + cleaned.slice(idx)
+  const tmp = document.createElement('div')
+  tmp.innerHTML = cleaned
+
+  // Reply: insert before blockquote area
+  const blockquote = tmp.querySelector('blockquote')
+  if (blockquote) {
+    let target = blockquote
+    const prev = blockquote.previousElementSibling
+    if (prev && prev.textContent.includes('wrote:')) {
+      target = prev
+    }
+    target.insertAdjacentHTML('beforebegin', sigHtml)
+    return tmp.innerHTML
   }
 
   // Forward: insert before forward header
-  const forwardMatch = cleaned.match(/(<div>-{5,}\s*Forwarded message\s*-{5,}<\/div>[\s\S]*)/i)
-  if (forwardMatch) {
-    const idx = cleaned.indexOf(forwardMatch[1])
-    return cleaned.slice(0, idx) + sigHtml + cleaned.slice(idx)
+  for (const child of [...tmp.children]) {
+    if (child.textContent.includes('Forwarded message') && child.textContent.includes('---')) {
+      child.insertAdjacentHTML('beforebegin', sigHtml)
+      return tmp.innerHTML
+    }
   }
 
   // New mail: append at end
-  return cleaned + sigHtml
+  tmp.insertAdjacentHTML('beforeend', sigHtml)
+  return tmp.innerHTML
 }
 
 function handleSignatureChange(signatureId) {
