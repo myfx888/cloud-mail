@@ -201,6 +201,9 @@ const mailcowService = {
             const server = serverConfig || await this.getDefaultServer(c);
             const apiKey = String(server.apiKey || '').trim();
             
+            // Log API Key presence and length for debugging
+            console.log(`Mailcow API Key info: length=${apiKey.length}, looks_masked=${apiKey.includes('****')}`);
+            
             // Normalize apiUrl: remove trailing slash and redundant /api/v1
             let baseApiUrl = String(server.apiUrl || '').trim().replace(/\/+$/, '');
             if (baseApiUrl.toLowerCase().endsWith('/api/v1')) {
@@ -220,6 +223,7 @@ const mailcowService = {
             // 最小化请求头，完全匹配 PHP 测试脚本，并增加 User-Agent 避免防火墙拦截
             const headers = {
                 'X-API-Key': apiKey,
+                'Accept': 'application/json',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             };
 
@@ -253,9 +257,16 @@ const mailcowService = {
             response.headers.forEach((v, k) => { responseHeaders[k] = v; });
             console.log(`Mailcow API Response Headers: ${JSON.stringify(responseHeaders)}`);
             
-            // Detect WAF/Security blocking
-            if (responseHeaders['server'] === 'cloudflare' || responseHeaders['cf-ray'] || responseHeaders['x-frame-options'] === 'SAMEORIGIN') {
-                console.warn('Potential Security/WAF blocking detected in Mailcow API response');
+            // Detect WAF/Security blocking (e.g. Cloudflare, Wallarm, etc.)
+            const isCloudflare = responseHeaders['server']?.toLowerCase() === 'cloudflare';
+            const hasCfRay = !!responseHeaders['cf-ray'];
+            const hasSameOrigin = responseHeaders['x-frame-options']?.toUpperCase() === 'SAMEORIGIN';
+            
+            if (isCloudflare || hasCfRay || hasSameOrigin) {
+                console.warn(`Potential Security/WAF blocking detected! Cloudflare=${isCloudflare}, CF-Ray=${hasCfRay}, SameOrigin=${hasSameOrigin}`);
+                if (hasSameOrigin && !responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
+                    console.error('CRITICAL: Response has X-Frame-Options: SAMEORIGIN and is not JSON. This usually means a firewall challenge (hCaptcha/Turnstile) or login page was returned instead of API response.');
+                }
             }
 
             const responseText = await response.text().catch((e) => `[Read Body Error: ${e.message}]`);
