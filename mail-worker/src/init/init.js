@@ -46,6 +46,7 @@ const dbInit = {
 			await this.v3_7DB(c);
 			await this.v3_8DB(c);
 			await this.v3_9DB(c);
+			await this.v4_0DB(c);
 			await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -179,6 +180,89 @@ const dbInit = {
 			}
 		} catch (e) {
 			console.warn(`v3_9DB 迁移失败：${e.message}`);
+		}
+	},
+
+	async v4_0DB(c) {
+		try {
+			// 确保SMTP设置权限组存在
+			let rootRow = await c.env.db.prepare(
+				`SELECT perm_id AS permId FROM perm WHERE pid = 0 AND name = 'SMTP设置' LIMIT 1`
+			).first();
+
+			if (!rootRow) {
+				await c.env.db.prepare(
+					`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES ('SMTP设置', NULL, 0, 1, 6.1)`
+				).run();
+				rootRow = await c.env.db.prepare(
+					`SELECT perm_id AS permId FROM perm WHERE pid = 0 AND name = 'SMTP设置' LIMIT 1`
+				).first();
+			}
+
+			if (!rootRow?.permId) {
+				console.warn('v4_0DB: 无法创建或找到SMTP设置根权限节点');
+				return;
+			}
+
+			const rootId = Number(rootRow.permId);
+
+			// 确保子节点存在
+			const children = [
+				{ name: 'SMTP配置查看', permKey: 'smtp:query', sort: 0 },
+				{ name: 'SMTP配置修改', permKey: 'smtp:set', sort: 1 }
+			];
+
+			for (const child of children) {
+				try {
+					const existing = await c.env.db.prepare(
+						`SELECT perm_id FROM perm WHERE perm_key = ? LIMIT 1`
+					).bind(child.permKey).first();
+
+					if (!existing) {
+						await c.env.db.prepare(
+							`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES (?, ?, ?, 2, ?)`
+						).bind(child.name, child.permKey, rootId, child.sort).run();
+					} else {
+						await c.env.db.prepare(
+							`UPDATE perm SET name = ?, pid = ?, type = 2, sort = ? WHERE perm_key = ?`
+						).bind(child.name, rootId, child.sort, child.permKey).run();
+					}
+				} catch (childErr) {
+					console.warn(`v4_0DB: 子节点 ${child.permKey} 处理失败: ${childErr.message}`);
+				}
+			}
+
+			// 确保默认角色拥有SMTP权限
+			try {
+				const defaultRole = await c.env.db.prepare(
+					`SELECT role_id AS roleId FROM role WHERE is_default = 1 LIMIT 1`
+				).first();
+
+				if (defaultRole?.roleId) {
+					const allPermIds = [rootId];
+					for (const child of children) {
+						const row = await c.env.db.prepare(
+							`SELECT perm_id AS permId FROM perm WHERE perm_key = ? LIMIT 1`
+						).bind(child.permKey).first();
+						if (row?.permId) allPermIds.push(Number(row.permId));
+					}
+
+					for (const permId of allPermIds) {
+						const exists = await c.env.db.prepare(
+							`SELECT 1 FROM role_perm WHERE role_id = ? AND perm_id = ? LIMIT 1`
+						).bind(defaultRole.roleId, permId).first();
+						if (!exists) {
+							await c.env.db.prepare(
+								`INSERT INTO role_perm (role_id, perm_id) VALUES (?, ?)`
+							).bind(defaultRole.roleId, permId).run();
+						}
+					}
+				}
+			} catch (roleErr) {
+				console.warn(`v4_0DB: 默认角色权限更新失败: ${roleErr.message}`);
+			}
+		} catch (e) {
+			console.warn(`v4_0DB 迁移失败：${e.message}`);
 		}
 	},
 

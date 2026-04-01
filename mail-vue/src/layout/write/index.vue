@@ -10,8 +10,13 @@
             <span class="sender-name">{{ form.name }}</span>
             <span class="send-email"><{{ form.sendEmail }}></span>
           </div>
-          <div @click="close" style="cursor: pointer;">
-            <Icon icon="material-symbols-light:close-rounded" width="22" height="22"/>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="lang-switch" @click="changeLang(settingStore.lang === 'en' ? 'zh' : 'en')">
+              {{ settingStore.lang === 'en' ? '中' : 'EN' }}
+            </div>
+            <div @click="close" style="cursor: pointer;">
+              <Icon icon="material-symbols-light:close-rounded" width="22" height="22"/>
+            </div>
           </div>
         </div>
       <div class="container">
@@ -132,7 +137,7 @@ import {fileToBase64, formatBytes} from "@/utils/file-utils.js";
 import {getIconByName} from "@/utils/icon-utils.js";
 import sendPercent from "@/components/send-percent/index.vue"
 import {toOssDomain} from "@/utils/convert.js";
-import {formatDetailDateEn} from "@/utils/day.js";
+import {formatDetailDateEn, setExtend} from "@/utils/day.js";
 import {useSettingStore} from "@/store/setting.js";
 import {userDraftStore} from "@/store/draft.js";
 import {useWriterStore} from "@/store/writer.js";
@@ -737,6 +742,11 @@ function handleSmtpAccountChange(smtpAccountId) {
   form.smtpAccountId = smtpAccountId;
 }
 
+function changeLang(lang) {
+  setExtend(lang === 'en' ? 'en' : 'zh-cn')
+  settingStore.lang = lang
+}
+
 function openDraft(draft) {
   Object.assign(form, {...draft})
   defValue.value = ''
@@ -902,6 +912,22 @@ function close() {
         div {
           display: flex;
           align-items: center;
+        }
+      }
+
+      .lang-switch {
+        width: 30px;
+        height: 30px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        user-select: none;
+        &:hover {
+          background: var(--base-fill);
         }
       }
 

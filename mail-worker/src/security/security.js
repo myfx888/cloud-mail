@@ -88,7 +88,7 @@ const premKey = {
 	'reg-key:add': ['/regKey/add'],
 	'reg-key:query': ['/regKey/list','/regKey/history'],
 	'reg-key:delete': ['/regKey/delete','/regKey/clearNotUse'],
-	'smtp:query': ['/smtp/account-config'],
+	'smtp:query': ['/smtp/account-config', '/smtp/accounts'],
 	'smtp:set': ['/smtp/account-config', '/smtp/verify-account', '/smtp/accounts'],
 };
 
