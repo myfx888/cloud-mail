@@ -66,17 +66,17 @@
                     width="22" height="22"/>
             </div>
           </div>
-          <div>
-              <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;" v-if="form.sendType !== 'reply' && resendEnabled">
+          <div class="send-actions">
+              <el-radio-group v-model="form.sendMethod" size="small" v-if="form.sendType !== 'reply' && resendEnabled">
                 <el-radio-button value="resend">Resend</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
               </el-radio-group>
               <el-select
+                  class="smtp-account-select"
                   v-model="selectedSmtpAccountId"
                   @change="handleSmtpAccountChange"
                   size="small"
                   placeholder="选择SMTP账户"
-                  style="margin-right: 10px;"
                   v-if="showSmtpSelector"
               >
                 <el-option v-for="account in smtpAccounts" :key="account.smtpAccountId" :label="account.name" :value="account.smtpAccountId"/>
@@ -882,6 +882,16 @@ function close() {
       .button-item {
         display: grid;
         grid-template-columns: auto auto 1fr auto;
+
+        .send-actions {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .smtp-account-select {
+          min-width: 170px;
+        }
 
         .att-add {
           cursor: pointer;

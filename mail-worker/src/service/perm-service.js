@@ -1,10 +1,9 @@
 import orm from '../entity/orm';
 import perm from '../entity/perm';
-import { eq, ne, and, asc } from 'drizzle-orm';
+import { eq, ne, and, asc, isNotNull } from 'drizzle-orm';
 import rolePerm from '../entity/role-perm';
 import user from '../entity/user';
 import role from '../entity/role';
-import { permConst } from '../const/entity-const';
 import { t } from '../i18n/i18n'
 
 const permService = {
@@ -28,7 +27,7 @@ const permService = {
 			.leftJoin(role, eq(role.roleId,user.type))
 			.rightJoin(rolePerm, eq(rolePerm.roleId,role.roleId))
 			.leftJoin(perm, eq(rolePerm.permId,perm.permId))
-			.where(and(eq(user.userId,userId),eq(perm.type,permConst.type.BUTTON)))
+			.where(and(eq(user.userId,userId), isNotNull(perm.permKey), ne(perm.permKey, '')))
 			.all();
 		return userPerms.map(perm => perm.permKey);
 	}

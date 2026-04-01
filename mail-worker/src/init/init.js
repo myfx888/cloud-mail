@@ -95,7 +95,48 @@ const dbInit = {
 
 	async v3_9DB(c) {
 		try {
-			await c.env.db.prepare(`UPDATE perm SET type = 0 WHERE perm_key = 'account:query';`).run();
+			await c.env.db.prepare(`
+				INSERT INTO perm (name, perm_key, pid, type, sort)
+				SELECT '邮件账户', NULL, 0, 1, 1.1
+				WHERE NOT EXISTS (
+					SELECT 1 FROM perm WHERE pid = 0 AND (name = '邮件账户' OR name = '邮箱侧栏')
+				);
+			`).run();
+
+			const accountRoot = await c.env.db.prepare(`
+				SELECT perm_id AS permId
+				FROM perm
+				WHERE pid = 0 AND (name = '邮件账户' OR name = '邮箱侧栏')
+				ORDER BY CASE WHEN name = '邮件账户' THEN 0 ELSE 1 END, perm_id ASC
+				LIMIT 1
+			`).first();
+
+			if (accountRoot?.permId) {
+				const rootId = Number(accountRoot.permId);
+
+				await c.env.db.prepare(`UPDATE perm SET name = '邮件账户' WHERE perm_id = ?`).bind(rootId).run();
+
+				await c.env.db.prepare(`
+					INSERT INTO perm (name, perm_key, pid, type, sort)
+					SELECT '账户查看', 'account:query', ?, 0, 0
+					WHERE NOT EXISTS (SELECT 1 FROM perm WHERE perm_key = 'account:query');
+				`).bind(rootId).run();
+				await c.env.db.prepare(`UPDATE perm SET name = '账户查看', pid = ?, type = 0, sort = 0 WHERE perm_key = 'account:query'`).bind(rootId).run();
+
+				await c.env.db.prepare(`
+					INSERT INTO perm (name, perm_key, pid, type, sort)
+					SELECT '账户添加', 'account:add', ?, 2, 1
+					WHERE NOT EXISTS (SELECT 1 FROM perm WHERE perm_key = 'account:add');
+				`).bind(rootId).run();
+				await c.env.db.prepare(`UPDATE perm SET name = '账户添加', pid = ?, type = 2, sort = 1 WHERE perm_key = 'account:add'`).bind(rootId).run();
+
+				await c.env.db.prepare(`
+					INSERT INTO perm (name, perm_key, pid, type, sort)
+					SELECT '账户删除', 'account:delete', ?, 2, 2
+					WHERE NOT EXISTS (SELECT 1 FROM perm WHERE perm_key = 'account:delete');
+				`).bind(rootId).run();
+				await c.env.db.prepare(`UPDATE perm SET name = '账户删除', pid = ?, type = 2, sort = 2 WHERE perm_key = 'account:delete'`).bind(rootId).run();
+			}
 		} catch (e) {
 			console.warn(`跳过字段：${e.message}`);
 		}

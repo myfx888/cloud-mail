@@ -1,10 +1,10 @@
 import role from '../entity/role';
 import orm from '../entity/orm';
-import { eq, asc, inArray, and } from 'drizzle-orm';
+import { eq, asc, inArray, and, isNotNull, ne } from 'drizzle-orm';
 import BizError from '../error/biz-error';
 import rolePerm from '../entity/role-perm';
 import perm from '../entity/perm';
-import { permConst, roleConst } from '../const/entity-const';
+import { roleConst } from '../const/entity-const';
 import userService from './user-service';
 import user from '../entity/user';
 import verifyUtils from '../utils/verify-utils';
@@ -51,7 +51,7 @@ const roleService = {
 		const roleList = await orm(c).select().from(role).orderBy(asc(role.sort)).all();
 		const permList = await orm(c).select({ permId: perm.permId, roleId: rolePerm.roleId }).from(rolePerm)
 			.leftJoin(perm, eq(perm.permId, rolePerm.permId))
-			.where(eq(perm.type, permConst.type.BUTTON)).all();
+			.where(and(isNotNull(perm.permKey), ne(perm.permKey, ''))).all();
 
 		roleList.forEach(role => {
 			role.banEmail = role.banEmail.split(",").filter(item => item !== "");

@@ -32,7 +32,7 @@ crons = ["0 16 * * *"]	#定时任务每天晚上12点执行
 
 [vars]
 #orm_log = false
-domain = ["rttx.net","08386.com"]				#邮件域名可可配置多个 示例: ["example1.com","example2.com"]
+domain = ["rttx.net","08386.com","djshipregistry.com","hornmaritime.org","marinemozambique.com","marinesamoa.com"]				#邮件域名可可配置多个 示例: ["example1.com","example2.com"]
 admin = "admin@rttx.net"				#管理员的邮箱	示例: admin@example.com
 jwt_secret = "lkflsjlfjsg"		#jwt令牌的密钥,随便填一串字符串
 
