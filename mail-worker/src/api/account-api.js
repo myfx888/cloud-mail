@@ -24,6 +24,18 @@ app.post('/account/:accountId/mailcow/retry', async (c) => {
 	return c.json(result.ok(retryResult));
 });
 
+app.post('/account/:accountId/mailcow/:mailcowServerId/provision-smtp', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const mailcowServerId = c.req.param('mailcowServerId');
+	const provisionResult = await accountService.provisionSmtpByMailcowServer(
+		c,
+		accountId,
+		mailcowServerId,
+		userContext.getUserId(c)
+	);
+	return c.json(result.ok(provisionResult));
+});
+
 app.post('/account/:accountId/smtp/server', async (c) => {
 	const accountId = parseInt(c.req.param('accountId'));
 	const { smtpServerId } = await c.req.json();

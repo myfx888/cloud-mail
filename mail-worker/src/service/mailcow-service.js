@@ -66,11 +66,22 @@ const mailcowService = {
         const settings = await settingService.query(c);
         const server = serverConfig || await this.getDefaultServer(c);
         const globalTemplate = settings.mailcowGlobalSmtpTemplate || {};
+        const smtpServers = Array.isArray(settings.smtpServers) ? settings.smtpServers : [];
+
+        const associatedSmtpServer = smtpServers.find(item => String(item.id) === String(server?.smtpServerId || ''));
+        if (associatedSmtpServer) {
+            return {
+                smtpHost: associatedSmtpServer.smtpHost,
+                smtpPort: Number(associatedSmtpServer.smtpPort || 587),
+                smtpSecure: Number(associatedSmtpServer.smtpSecure ?? 0),
+                smtpAuthType: associatedSmtpServer.smtpAuthType || 'plain'
+            };
+        }
 
         return {
             smtpHost: server?.smtpHost || globalTemplate.smtpHost || (server?.apiUrl ? new URL(server.apiUrl).hostname : 'smtp.mailcow.email'),
-            smtpPort: Number(server?.smtpPort || globalTemplate.smtpPort || 465),
-            smtpSecure: Number(server?.smtpSecure ?? globalTemplate.smtpSecure ?? 1),
+            smtpPort: Number(server?.smtpPort || globalTemplate.smtpPort || 587),
+            smtpSecure: Number(server?.smtpSecure ?? globalTemplate.smtpSecure ?? 0),
             smtpAuthType: server?.smtpAuthType || globalTemplate.smtpAuthType || 'plain'
         };
     },

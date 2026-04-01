@@ -637,6 +637,16 @@
             <el-input v-model="mailcowServerForm.apiKey" type="password" show-password 
                       :placeholder="mailcowServerForm._editIndex >= 0 ? '留空不更新' : '输入 API Key'"/>
           </el-form-item>
+          <el-form-item v-if="mailcowServerFormType === 'mailcow'" label="关联 SMTP 服务器">
+            <el-select v-model="mailcowServerForm.smtpServerId" style="width: 100%" clearable placeholder="选择已配置的 SMTP 服务器">
+              <el-option
+                v-for="smtp in mailcowEdit.smtpServers"
+                :key="smtp.id"
+                :label="smtp.name || smtp.smtpHost"
+                :value="smtp.id"
+              />
+            </el-select>
+          </el-form-item>
           <el-form-item label="SMTP 主机">
             <el-input v-model="mailcowServerForm.smtpHost" placeholder="smtp.example.com（留空使用全局模板）"/>
           </el-form-item>
@@ -1205,6 +1215,7 @@ function addMailcowServer() {
     name: '',
     apiUrl: '',
     apiKey: '',
+    smtpServerId: '',
     smtpHost: '',
     smtpPort: null,
     smtpSecure: 0,

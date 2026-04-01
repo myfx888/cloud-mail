@@ -28,6 +28,10 @@ export function accountRetryMailcow(accountId) {
     return http.post(`/account/${accountId}/mailcow/retry`)
 }
 
+export function accountProvisionSmtpByMailcowServer(accountId, mailcowServerId) {
+    return http.post(`/account/${accountId}/mailcow/${mailcowServerId}/provision-smtp`)
+}
+
 export function accountSwitchSmtpServer(accountId, smtpServerId) {
     return http.post(`/account/${accountId}/smtp/server`, { smtpServerId })
 }

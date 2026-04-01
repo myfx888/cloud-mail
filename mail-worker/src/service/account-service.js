@@ -246,9 +246,17 @@ const accountService = {
 	async delete(c, params, userId) {
 
 		let { accountId } = params;
+		accountId = Number(accountId);
+
+		if (!accountId) {
+			throw new BizError(t('invalidParams'));
+		}
 
 		const user = await userService.selectById(c, userId);
 		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
 
 		if (accountRow.email === user.email) {
 			throw new BizError(t('delMyAccount'));
@@ -265,6 +273,8 @@ const accountService = {
 	},
 
 	selectById(c, accountId) {
+		accountId = Number(accountId);
+		if (!accountId) return null;
 		return orm(c).select().from(account).where(
 			and(eq(account.accountId, accountId),
 				eq(account.isDel, isDel.NORMAL)))
@@ -426,6 +436,45 @@ const accountService = {
 			accountId,
 			mailcowStatus: provisionResult.mailcowStatus,
 			mailcowAccount: provisionResult.mailcowAccount
+		};
+	},
+
+	async provisionSmtpByMailcowServer(c, accountId, mailcowServerId, userId) {
+		const accountRow = await this.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		if (accountRow.userId !== userId) {
+			throw new BizError(t('noUserAccount'));
+		}
+
+		const targetServer = await mailcowService.getServerById(c, mailcowServerId);
+		const exists = await mailcowService.accountExists(c, accountRow.email, targetServer);
+
+		let mailcowAccount;
+		if (exists) {
+			const smtpConfig = await mailcowService.getSmtpConfig(c, targetServer);
+			const resolvedPassword = await mailcowService.resolvePassword(c);
+			mailcowAccount = {
+				email: accountRow.email,
+				password: resolvedPassword,
+				smtpHost: smtpConfig.smtpHost,
+				smtpPort: smtpConfig.smtpPort,
+				smtpSecure: smtpConfig.smtpSecure,
+				smtpAuthType: smtpConfig.smtpAuthType,
+				smtpUser: accountRow.email,
+				mailcowServerId: targetServer?.id || ''
+			};
+		} else {
+			mailcowAccount = await mailcowService.createAccount(c, accountRow.email, '', targetServer);
+		}
+
+		await this.applyMailcowSmtpConfig(c, accountRow.accountId, mailcowAccount);
+
+		return {
+			accountId,
+			mailcowServerId: mailcowAccount.mailcowServerId,
+			mailcowAccount
 		};
 	},
 

@@ -77,6 +77,7 @@ const zh = {
 	mailcowAccountNotFound: 'mailcow账户不存在',
 	mailcowAccountDeleteFailed: '删除mailcow账户失败',
 	accountNotExist: '账号不存在',
+	invalidParams: '请求参数无效',
 	perms: {
 		"邮件": "邮件",
 		"邮件发送": "邮件发送",

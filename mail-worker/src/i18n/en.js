@@ -70,7 +70,9 @@ const en = {
 	smtpConfigIncomplete: 'SMTP configuration incomplete, please fill in server, username and password',
 	smtpConnectionSuccess: 'SMTP connection successful',
 	smtpConnectionFailed: 'SMTP connection failed',
+	mailcowAccountDeleteFailed: '删除mailcow账户失败',
 	accountNotExist: 'Account does not exist',
+	invalidParams: 'Invalid request parameters',
 	perms: {
 		"邮件": "Emails",
 		"邮件发送": "Send Email",

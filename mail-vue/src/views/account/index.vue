@@ -66,6 +66,25 @@
     <el-dialog v-model="smtpAccountManagerShow" :title="$t('smtpSetting')" width="600">
       <div class="smtp-account-manager">
         <div class="smtp-account-header">
+          <div class="smtp-provision-row" v-if="mailcowEnabled && availableMailcowServers.length > 0">
+            <el-select v-model="provisionMailcowServerId" size="small" style="width: 260px" placeholder="选择 Mailcow 服务器">
+              <el-option
+                v-for="server in availableMailcowServers"
+                :key="server.id"
+                :label="server.name || server.apiUrl"
+                :value="server.id"
+              />
+            </el-select>
+            <el-button
+              type="warning"
+              size="small"
+              :loading="provisioningMailcowLoading"
+              :disabled="!provisionMailcowServerId"
+              @click="provisionSmtpFromSelectedMailcow"
+            >
+              一键开通该服务器SMTP
+            </el-button>
+          </div>
           <el-button type="primary" size="small" @click="addSmtpAccount">
             {{ $t('addSmtpAccount') }}
           </el-button>
@@ -156,7 +175,7 @@
 </template>
 <script setup>
 import {reactive, ref, onMounted} from 'vue'
-import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow} from "@/request/account.js"
+import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow, accountProvisionSmtpByMailcowServer} from "@/request/account.js"
 import {useUserStore} from "@/store/user.js"
 import {Icon} from "@iconify/vue"
 import LoadingComponent from "@/components/loading/index.vue"
@@ -176,6 +195,9 @@ const currentAccount = ref(null)
 const smtpConfigPermission = ref(true)
 const mailcowEnabled = ref(false)
 const retryingAccountId = ref(0)
+const provisioningMailcowLoading = ref(false)
+const provisionMailcowServerId = ref('')
+const availableMailcowServers = ref([])
 
 // 签名管理相关状态
 const signatureManagerShow = ref(false)
@@ -240,6 +262,9 @@ async function loadAccounts() {
     // 检查用户是否有SMTP配置权限
     smtpConfigPermission.value = settingData.smtpUserConfig === 1
     mailcowEnabled.value = Number(settingData.mailcowEnabled || 0) === 1
+    availableMailcowServers.value = Array.isArray(settingData.mailcowServers) ? settingData.mailcowServers : []
+    const defaultMailcowServer = availableMailcowServers.value.find(item => item?.isDefault)
+    provisionMailcowServerId.value = defaultMailcowServer?.id || availableMailcowServers.value[0]?.id || ''
   } finally {
     loading.value = false
   }
@@ -283,7 +308,7 @@ async function addAccount() {
   
   addLoading.value = true
   try {
-    await accountAdd({ email: addForm.email })
+    await accountAdd(addForm.email)
     ElMessage({
       message: t('addSuccessMsg'),
       type: 'success',
@@ -303,7 +328,7 @@ async function deleteAccount(account) {
     cancelButtonText: t('cancel'),
     type: 'warning'
   }).then(async () => {
-    await accountDelete({ accountId: account.accountId })
+    await accountDelete(account.accountId)
     ElMessage({
       message: t('deleteSuccessMsg'),
       type: 'success',
@@ -510,6 +535,10 @@ async function setDefaultSignature(signature) {
 async function openSmtpAccountManager(account) {
   currentAccount.value = account
   smtpAccountManagerShow.value = true
+  if (!provisionMailcowServerId.value && availableMailcowServers.value.length > 0) {
+    const defaultMailcowServer = availableMailcowServers.value.find(item => item?.isDefault)
+    provisionMailcowServerId.value = defaultMailcowServer?.id || availableMailcowServers.value[0]?.id || ''
+  }
   
   try {
     const data = await smtpAccountList(account.accountId)
@@ -521,6 +550,30 @@ async function openSmtpAccountManager(account) {
       type: 'error',
       plain: true
     })
+  }
+}
+
+async function provisionSmtpFromSelectedMailcow() {
+  if (!currentAccount.value || !provisionMailcowServerId.value) return
+
+  provisioningMailcowLoading.value = true
+  try {
+    await accountProvisionSmtpByMailcowServer(currentAccount.value.accountId, provisionMailcowServerId.value)
+    ElMessage({
+      message: '已完成一键开通SMTP账号',
+      type: 'success',
+      plain: true
+    })
+    const data = await smtpAccountList(currentAccount.value.accountId)
+    smtpAccounts.value = data
+  } catch (error) {
+    ElMessage({
+      message: error?.message || '一键开通SMTP失败',
+      type: 'error',
+      plain: true
+    })
+  } finally {
+    provisioningMailcowLoading.value = false
   }
 }
 
@@ -836,6 +889,16 @@ async function verifySmtpAccountConfigLocal() {
   .smtp-account-manager {
     .smtp-account-header {
       margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+
+      .smtp-provision-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
     }
     
     .smtp-account-list {
