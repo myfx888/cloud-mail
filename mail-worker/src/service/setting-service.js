@@ -313,11 +313,14 @@ const settingService = {
 			const currentSetting = await this.query(c);
 			const currentServers = Array.isArray(currentSetting?.mailcowServers) ? currentSetting.mailcowServers : [];
 
-			// Prevent overwriting real API keys with masked ones from the UI
+			// Prevent overwriting real API keys with masked or missing values from the UI
 			params.mailcowServers = params.mailcowServers.map(newServer => {
 				const oldServer = currentServers.find(s => s.id === newServer.id);
-				if (newServer.apiKey && newServer.apiKey.includes('****') && oldServer?.apiKey) {
-					newServer.apiKey = oldServer.apiKey;
+				if (oldServer?.apiKey) {
+					// Restore old key when new key is missing/empty or contains masked placeholder
+					if (!newServer.apiKey || newServer.apiKey.includes('****')) {
+						newServer.apiKey = oldServer.apiKey;
+					}
 				}
 				return newServer;
 			});
