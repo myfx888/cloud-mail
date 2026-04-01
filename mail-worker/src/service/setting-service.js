@@ -66,6 +66,15 @@ const settingService = {
 		if (parsed.mailcowCreateStrict === undefined) parsed.mailcowCreateStrict = parsed.mailcow_create_strict;
 		if (parsed.mailcowRetryCount === undefined) parsed.mailcowRetryCount = parsed.mailcow_retry_count;
 		if (parsed.mailcowTimeout === undefined) parsed.mailcowTimeout = parsed.mailcow_timeout;
+		if (parsed.loginDomains === undefined) parsed.loginDomains = parsed.login_domains;
+
+		if (Array.isArray(parsed.loginDomains)) {
+			parsed.loginDomains = parsed.loginDomains.filter(Boolean);
+		} else if (typeof parsed.loginDomains === 'string') {
+			parsed.loginDomains = parsed.loginDomains.split(',').map(item => item.trim()).filter(Boolean);
+		} else {
+			parsed.loginDomains = [];
+		}
 
 		return parsed;
 	},
@@ -237,6 +246,13 @@ const settingService = {
 
 		if (Array.isArray(params.emailPrefixFilter)) {
 			params.emailPrefixFilter = params.emailPrefixFilter + '';
+		}
+
+		if (Array.isArray(params.loginDomains)) {
+			params.loginDomains = params.loginDomains
+				.map(item => String(item || '').replace(/^@/, '').trim())
+				.filter(Boolean)
+				.join(',');
 		}
 
 		params.resendTokens = JSON.stringify(resendTokens);
@@ -435,6 +451,15 @@ const settingService = {
 	async websiteConfig(c) {
 
 		const settingRow = await this.get(c, true);
+		const allDomainList = Array.isArray(settingRow.domainList) ? settingRow.domainList : [];
+		const loginDomains = Array.isArray(settingRow.loginDomains) ? settingRow.loginDomains : [];
+
+		let domainList = allDomainList;
+		if (loginDomains.length > 0) {
+			const allowed = new Set(loginDomains.map(item => String(item).replace(/^@/, '').toLowerCase()));
+			const filtered = allDomainList.filter(item => allowed.has(String(item).replace(/^@/, '').toLowerCase()));
+			domainList = filtered.length > 0 ? filtered : allDomainList;
+		}
 
 		return {
 			register: settingRow.register,
@@ -449,7 +474,7 @@ const settingService = {
 			siteKey: settingRow.siteKey,
 			background: settingRow.background,
 			loginOpacity: settingRow.loginOpacity,
-			domainList: settingRow.domainList,
+			domainList,
 			regKey: settingRow.regKey,
 			regVerifyOpen: settingRow.regVerifyOpen,
 			addVerifyOpen: settingRow.addVerifyOpen,

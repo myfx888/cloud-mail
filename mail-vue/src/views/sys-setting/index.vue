@@ -25,6 +25,29 @@
                 </div>
               </div>
               <div class="setting-item">
+                <div><span>登录页后缀显示</span></div>
+                <div class="forward" style="flex-direction: column; align-items: flex-end; gap: 6px;">
+                  <el-select
+                    v-model="setting.loginDomains"
+                    multiple
+                    collapse-tags
+                    collapse-tags-tooltip
+                    :max-collapse-tags="2"
+                    placeholder="默认全部显示"
+                    style="width: 220px"
+                    @change="saveLoginDomains"
+                  >
+                    <el-option
+                      v-for="item in setting.domainList"
+                      :key="item"
+                      :label="item"
+                      :value="item"
+                    />
+                  </el-select>
+                  <span style="font-size: 12px; color: var(--el-text-color-secondary)">不选则显示全部后缀</span>
+                </div>
+              </div>
+              <div class="setting-item">
                 <div><span>{{ $t('regKey') }}</span></div>
                 <div>
                   <el-select
@@ -1153,6 +1176,9 @@ function getSettings() {
     if (!Array.isArray(settingData.smtpServers)) {
       settingData.smtpServers = []
     }
+    if (!Array.isArray(settingData.loginDomains)) {
+      settingData.loginDomains = []
+    }
     if (settingData.mailcowPasswordMode === undefined) {
       settingData.mailcowPasswordMode = 'random'
     }
@@ -1752,6 +1778,10 @@ function saveEmailPrefix() {
   form.minEmailPrefix = minEmailPrefix.value
   form.emailPrefixFilter = emailPrefixFilter.value
   editSetting(form, true)
+}
+
+function saveLoginDomains() {
+  editSetting({ loginDomains: setting.value.loginDomains }, true)
 }
 
 const opacityChange = debounce(doOpacityChange, 1000, {
