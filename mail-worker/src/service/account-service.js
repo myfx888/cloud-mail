@@ -482,12 +482,12 @@ const accountService = {
 		};
 	},
 
-	async provisionSmtpByMailcowServer(c, accountId, mailcowServerId, userId) {
+	async provisionSmtpByMailcowServer(c, accountId, mailcowServerId, userId, isAdmin = false) {
 		const accountRow = await this.selectById(c, accountId);
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
+		if (!isAdmin && accountRow.userId !== userId) {
 			throw new BizError(t('noUserAccount'));
 		}
 

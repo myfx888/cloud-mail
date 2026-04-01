@@ -279,7 +279,8 @@ app.post('/smtp/provision-mailcow', async (c) => {
 		c,
 		parseInt(accountId, 10),
 		mailcowServerId,
-		userId
+		userId,
+		isAdmin
 	);
 	return c.json(result.ok(provisionResult));
 });
