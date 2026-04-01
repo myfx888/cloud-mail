@@ -255,20 +255,26 @@ onMounted(() => {
 async function loadAccounts() {
   loading.value = true
   try {
-    const [data, settingData] = await Promise.all([
-      fetchAccountList(),
-      settingQuery()
-    ])
+    const isAdmin = userStore.user.type === 0
+    const promises = [fetchAccountList()]
+    if (isAdmin) promises.push(settingQuery())
+    const [data, settingData] = await Promise.all(promises)
     accountList.value = data.map(item => ({
       ...item,
       createTime: new Date(item.createTime).toLocaleString()
     }))
-    // 检查用户是否有SMTP配置权限
-    smtpConfigPermission.value = settingData.smtpUserConfig === 1
-    mailcowEnabled.value = Number(settingData.mailcowEnabled || 0) === 1
-    availableMailcowServers.value = Array.isArray(settingData.mailcowServers) ? settingData.mailcowServers : []
-    const defaultMailcowServer = availableMailcowServers.value.find(item => item?.isDefault)
-    provisionMailcowServerId.value = defaultMailcowServer?.id || availableMailcowServers.value[0]?.id || ''
+    if (settingData) {
+      // 管理员可获取完整设置
+      smtpConfigPermission.value = settingData.smtpUserConfig === 1
+      mailcowEnabled.value = Number(settingData.mailcowEnabled || 0) === 1
+      availableMailcowServers.value = Array.isArray(settingData.mailcowServers) ? settingData.mailcowServers : []
+      const defaultMailcowServer = availableMailcowServers.value.find(item => item?.isDefault)
+      provisionMailcowServerId.value = defaultMailcowServer?.id || availableMailcowServers.value[0]?.id || ''
+    } else {
+      // 非管理员使用默认值
+      smtpConfigPermission.value = false
+      mailcowEnabled.value = false
+    }
   } finally {
     loading.value = false
   }
