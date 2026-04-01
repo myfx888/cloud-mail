@@ -113,7 +113,7 @@
 </template>
 <script setup>
 import tinyEditor from '@/components/tiny-editor/index.vue'
-import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed} from "vue";
+import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed, watch} from "vue";
 import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
@@ -203,6 +203,12 @@ const showSmtpSelector = computed(() => {
     return smtpAccounts.value.length > 0
   }
   return form.sendMethod === 'smtp' && smtpAccounts.value.length > 0
+})
+
+watch(resendEnabled, (enabled) => {
+  if (!enabled) {
+    form.sendMethod = 'smtp'
+  }
 })
 
 function normalizeReplySubject(subject) {

@@ -199,9 +199,9 @@
                              v-model="setting.noRecipient"/>
                 </div>
               </div>
-              <div class="setting-item">
+              <div class="setting-item" v-if="Number(setting.resendEnabled) === 1">
                 <div><span>{{ $t('resendToken') }}</span></div>
-                <div v-if="Number(setting.resendEnabled) === 1">
+                <div>
                   <el-button class="opt-button" style="margin-top: 0" @click="openResendList" size="small"
                              type="primary">
                     <Icon icon="ic:round-list" width="18" height="18"/>
@@ -1904,6 +1904,10 @@ function beforeChange() {
 }
 
 function change(e) {
+  if (Number(setting.value.resendEnabled) !== 1) {
+    showResendList.value = false
+    resendTokenFormShow.value = false
+  }
   const settingForm = {...setting.value}
   delete settingForm.siteKey
   delete settingForm.secretKey
