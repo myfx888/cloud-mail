@@ -25,6 +25,11 @@ export function smtpMailcowServers() {
   return http.get('/smtp/mailcow-servers')
 }
 
+// 删除Mailcow服务器上的邮箱账户
+export function smtpDeleteMailcowAccount(accountId) {
+  return http.post('/smtp/delete-mailcow-account', { accountId })
+}
+
 // 验证SMTP账户配置
 export function smtpAccountVerify(accountId, data) {
   return http.post('/smtp/accounts/verify', {

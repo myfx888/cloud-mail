@@ -402,6 +402,9 @@ const zh = {
     provisionSuccess: '一键开通成功',
     provisionFailed: '一键开通失败',
     deleteAccountConfirmMsg: '确定删除邮箱 {email} 吗？',
-    deleteSuccess: '删除成功'
+    deleteSuccess: '删除成功',
+    deleteMailcowAccountConfirm: '是否同时删除 Mailcow 服务器上的邮箱账户？',
+    deleteMailcowAccountSuccess: 'Mailcow 服务器账户已删除',
+    deleteMailcowAccountFailed: '删除 Mailcow 服务器账户失败'
 }
 export default zh

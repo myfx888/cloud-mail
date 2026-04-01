@@ -401,6 +401,9 @@ const en = {
     provisionSuccess: 'Provisioned successfully',
     provisionFailed: 'Provision failed',
     deleteAccountConfirmMsg: 'Delete account {email}?',
-    deleteSuccess: 'Deleted successfully'
+    deleteSuccess: 'Deleted successfully',
+    deleteMailcowAccountConfirm: 'Also delete the mailbox account from the Mailcow server?',
+    deleteMailcowAccountSuccess: 'Mailcow server account deleted',
+    deleteMailcowAccountFailed: 'Failed to delete Mailcow server account'
 }
 export default en

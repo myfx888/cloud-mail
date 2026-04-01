@@ -108,7 +108,7 @@
 import {reactive, ref, computed} from "vue"
 import {useI18n} from "vue-i18n"
 import {ElMessage, ElMessageBox} from "element-plus"
-import {smtpAccountList, smtpAccountCreate, smtpAccountUpdate, smtpAccountDelete, smtpAccountVerify, smtpMailcowServers} from "@/request/smtp.js"
+import {smtpAccountList, smtpAccountCreate, smtpAccountUpdate, smtpAccountDelete, smtpAccountVerify, smtpMailcowServers, smtpDeleteMailcowAccount} from "@/request/smtp.js"
 import {accountProvisionSmtpByMailcowServer} from "@/request/account.js"
 import {hasPerm} from "@/perm/perm.js"
 
@@ -229,6 +229,23 @@ async function deleteSmtpAccount(account) {
     } catch (error) {
       console.error('删除SMTP账户失败:', error)
       ElMessage({message: t('smtpDeleteFailed'), type: 'error', plain: true})
+      return
+    }
+    // 删除SMTP配置后，询问是否同时删除Mailcow服务器账户
+    if (mailcowEnabled.value) {
+      ElMessageBox.confirm(t('deleteMailcowAccountConfirm'), {
+        confirmButtonText: t('confirm'),
+        cancelButtonText: t('cancel'),
+        type: 'warning'
+      }).then(async () => {
+        try {
+          await smtpDeleteMailcowAccount(props.accountId)
+          ElMessage({message: t('deleteMailcowAccountSuccess'), type: 'success', plain: true})
+        } catch (error) {
+          console.error('删除Mailcow账户失败:', error)
+          ElMessage({message: error?.message || t('deleteMailcowAccountFailed'), type: 'error', plain: true})
+        }
+      }).catch(() => {})
     }
   })
 }

@@ -3,6 +3,7 @@ import smtpService from '../service/smtp-service';
 import smtpAccountService from '../service/smtp-account-service';
 import accountService from '../service/account-service';
 import settingService from '../service/setting-service';
+import mailcowService from '../service/mailcow-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 import BizError from '../error/biz-error';
@@ -283,4 +284,25 @@ app.post('/smtp/provision-mailcow', async (c) => {
 		isAdmin
 	);
 	return c.json(result.ok(provisionResult));
+});
+
+// 删除Mailcow服务器上的邮箱账户
+app.post('/smtp/delete-mailcow-account', async (c) => {
+	const { accountId } = await c.req.json();
+	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
+
+	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	if (!accountRow.mailcowServerId) {
+		throw new BizError(t('mailcowAccountNotFound'));
+	}
+
+	const server = await mailcowService.getServerById(c, accountRow.mailcowServerId);
+	await mailcowService.deleteAccount(c, accountRow.email, server);
+
+	return c.json(result.ok());
 });
