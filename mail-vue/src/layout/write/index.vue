@@ -643,13 +643,9 @@ async function open() {
   
   // 获取当前账户的签名列表和SMTP账户列表
   if (form.accountId > 0) {
+    // 签名和SMTP独立加载，互不影响
     try {
-      const [signatureList, smtpAccountListResult] = await Promise.all([
-        getSignatures(form.accountId),
-        smtpAccountList(form.accountId)
-      ]);
-      
-      // 处理签名
+      const signatureList = await getSignatures(form.accountId);
       signatures.value = signatureList;
       const defaultSignature = signatureList.find(sig => sig.isDefault);
       if (defaultSignature) {
@@ -661,8 +657,12 @@ async function open() {
       } else {
         selectedSignatureId.value = '';
       }
-      
-      // 处理SMTP账户
+    } catch (error) {
+      console.error('获取签名失败:', error);
+    }
+    
+    try {
+      const smtpAccountListResult = await smtpAccountList(form.accountId);
       smtpAccounts.value = smtpAccountListResult;
       const defaultSmtpAccount = smtpAccountListResult.find(acc => acc.isDefault === 1);
       if (defaultSmtpAccount) {
@@ -673,8 +673,7 @@ async function open() {
         form.smtpAccountId = smtpAccountListResult[0].smtpAccountId;
       }
     } catch (error) {
-      console.error('获取签名或SMTP账户失败:', error);
-      // 即使获取失败，也继续打开编辑界面
+      console.error('获取SMTP账户失败:', error);
     }
   }
   
