@@ -15,15 +15,62 @@ const settingService = {
 
 	async refresh(c) {
 		const settingRow = await orm(c).select().from(setting).get();
-		settingRow.resendTokens = JSON.parse(settingRow.resendTokens);
-		c.set('setting', settingRow);
+		const parsedRow = this._parseSettingRow(settingRow);
+		c.set('setting', parsedRow);
 		if (c.env.kv && c.env.kv.put) {
-			await c.env.kv.put(KvConst.SETTING, JSON.stringify(settingRow));
+			await c.env.kv.put(KvConst.SETTING, JSON.stringify(parsedRow));
 		}
 	},
 
-	async query(c) {
+	_parseSettingRow(row) {
+		if (!row) return row;
+		const parsed = { ...row };
+		
+		// 解析 resendTokens
+		if (typeof parsed.resendTokens === 'string') {
+			try { parsed.resendTokens = JSON.parse(parsed.resendTokens || '{}'); } catch (e) { parsed.resendTokens = {}; }
+		}
 
+		// 解析 mailcowServers
+		const mailcowServersRaw = parsed.mailcowServers ?? parsed.mailcow_servers ?? '[]';
+		parsed.mailcowServers = (Array.isArray(mailcowServersRaw)
+			? mailcowServersRaw
+			: JSON.parse(mailcowServersRaw || '[]')).map((server, index) => {
+				if (!server.id) {
+					server.id = `mc_${index}_${server.apiUrl?.replace(/[^a-z0-9]/gi, '_')}`;
+				}
+				return server;
+			});
+
+		// 解析 smtpServers
+		const smtpServersRaw = parsed.smtpServers ?? parsed.smtp_servers ?? '[]';
+		parsed.smtpServers = (Array.isArray(smtpServersRaw)
+			? smtpServersRaw
+			: JSON.parse(smtpServersRaw || '[]')).map((server, index) => {
+				if (!server.id) {
+					server.id = `smtp_${index}_${server.smtpHost?.replace(/[^a-z0-9]/gi, '_')}`;
+				}
+				return server;
+			});
+
+		// 解析 mailcowGlobalSmtpTemplate
+		const mailcowGlobalSmtpTemplateRaw = parsed.mailcowGlobalSmtpTemplate ?? parsed.mailcow_global_smtp_template ?? '{}';
+		parsed.mailcowGlobalSmtpTemplate = typeof mailcowGlobalSmtpTemplateRaw === 'object'
+			? mailcowGlobalSmtpTemplateRaw
+			: JSON.parse(mailcowGlobalSmtpTemplateRaw || '{}');
+
+		// 兼容下划线命名
+		if (parsed.mailcowEnabled === undefined) parsed.mailcowEnabled = parsed.mailcow_enabled;
+		if (parsed.mailcowPasswordMode === undefined) parsed.mailcowPasswordMode = parsed.mailcow_password_mode;
+		if (parsed.mailcowProvisionPassword === undefined) parsed.mailcowProvisionPassword = parsed.mailcow_provision_password;
+		if (parsed.mailcowCreateStrict === undefined) parsed.mailcowCreateStrict = parsed.mailcow_create_strict;
+		if (parsed.mailcowRetryCount === undefined) parsed.mailcowRetryCount = parsed.mailcow_retry_count;
+		if (parsed.mailcowTimeout === undefined) parsed.mailcowTimeout = parsed.mailcow_timeout;
+
+		return parsed;
+	},
+
+	async query(c) {
 		if (c.get?.('setting')) {
 			return c.get('setting')
 		}
@@ -32,67 +79,15 @@ const settingService = {
 		if (c.env.kv && c.env.kv.get) {
 			settingRow = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
 			if (settingRow) {
-				const mailcowServersRaw = settingRow.mailcowServers ?? settingRow.mailcow_servers ?? '[]';
-				settingRow.mailcowServers = (Array.isArray(mailcowServersRaw)
-					? mailcowServersRaw
-					: JSON.parse(mailcowServersRaw)).map((server, index) => {
-						if (!server.id) {
-							server.id = `mc_${index}_${server.apiUrl?.replace(/[^a-z0-9]/gi, '_')}`;
-						}
-						return server;
-					});
-				const smtpServersRaw = settingRow.smtpServers ?? settingRow.smtp_servers ?? '[]';
-				settingRow.smtpServers = (Array.isArray(smtpServersRaw)
-					? smtpServersRaw
-					: JSON.parse(smtpServersRaw)).map((server, index) => {
-						if (!server.id) {
-							server.id = `smtp_${index}_${server.smtpHost?.replace(/[^a-z0-9]/gi, '_')}`;
-						}
-						return server;
-					});
-				const mailcowGlobalSmtpTemplateRaw = settingRow.mailcowGlobalSmtpTemplate ?? settingRow.mailcow_global_smtp_template ?? '{}';
-				settingRow.mailcowGlobalSmtpTemplate = typeof mailcowGlobalSmtpTemplateRaw === 'object'
-					? mailcowGlobalSmtpTemplateRaw
-					: JSON.parse(mailcowGlobalSmtpTemplateRaw || '{}');
-				if (settingRow.mailcowEnabled === undefined && settingRow.mailcow_enabled !== undefined) {
-					settingRow.mailcowEnabled = settingRow.mailcow_enabled;
-				}
-				if (settingRow.mailcowPasswordMode === undefined && settingRow.mailcow_password_mode !== undefined) {
-					settingRow.mailcowPasswordMode = settingRow.mailcow_password_mode;
-				}
-				if (settingRow.mailcowProvisionPassword === undefined && settingRow.mailcow_provision_password !== undefined) {
-					settingRow.mailcowProvisionPassword = settingRow.mailcow_provision_password;
-				}
-				if (settingRow.mailcowCreateStrict === undefined && settingRow.mailcow_create_strict !== undefined) {
-					settingRow.mailcowCreateStrict = settingRow.mailcow_create_strict;
-				}
-				if (settingRow.mailcowRetryCount === undefined && settingRow.mailcow_retry_count !== undefined) {
-					settingRow.mailcowRetryCount = settingRow.mailcow_retry_count;
-				}
-				if (settingRow.mailcowTimeout === undefined && settingRow.mailcow_timeout !== undefined) {
-					settingRow.mailcowTimeout = settingRow.mailcow_timeout;
-				}
+				settingRow = this._parseSettingRow(settingRow);
 			}
 		}
 
 		if (!settingRow) {
 			try {
 				// 从数据库读取设置
-				settingRow = await orm(c).select().from(setting).get();
-				settingRow.resendTokens = JSON.parse(settingRow.resendTokens);
-				settingRow.mailcowServers = JSON.parse(settingRow.mailcowServers || '[]').map((server, index) => {
-					if (!server.id) {
-						server.id = `mc_${index}_${server.apiUrl?.replace(/[^a-z0-9]/gi, '_')}`;
-					}
-					return server;
-				});
-				settingRow.smtpServers = JSON.parse(settingRow.smtpServers || '[]').map((server, index) => {
-					if (!server.id) {
-						server.id = `smtp_${index}_${server.smtpHost?.replace(/[^a-z0-9]/gi, '_')}`;
-					}
-					return server;
-				});
-				settingRow.mailcowGlobalSmtpTemplate = JSON.parse(settingRow.mailcowGlobalSmtpTemplate || '{}');
+				const row = await orm(c).select().from(setting).get();
+				settingRow = this._parseSettingRow(row);
 			} catch (error) {
 				// 数据库未初始化时返回默认设置
 				settingRow = {
