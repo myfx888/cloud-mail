@@ -316,6 +316,7 @@ async function addAccount() {
     })
     addAccountShow.value = false
     addForm.email = ''
+    accountStore.triggerRefresh()
     await loadAccounts()
   } finally {
     addLoading.value = false
@@ -334,6 +335,7 @@ async function deleteAccount(account) {
       type: 'success',
       plain: true
     })
+    accountStore.triggerRefresh()
     await loadAccounts()
   })
 }

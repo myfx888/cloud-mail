@@ -185,6 +185,10 @@ if (hasPerm('account:query')) {
   getAccountList()
 }
 
+watch(() => accountStore.accountListUpdated, () => {
+  refresh()
+})
+
 watch(() => accountStore.changeUserAccountName, () => {
   accounts[0].name = accountStore.changeUserAccountName
 })

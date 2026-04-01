@@ -193,6 +193,9 @@ const accountService = {
 			}
 		}
 
+		// 自动认领历史邮件 (认领之前发往该地址但因账号不存在被标记为 NOONE 的邮件)
+		await emailService.claimHistoricalMails(c, email, userId, accountRow.accountId);
+
 		if (addEmailVerify === settingConst.addEmailVerify.COUNT && !addVerifyOpen) {
 			const row = await verifyRecordService.increaseAddCount(c);
 			addVerifyOpen = row.count >= addVerifyCount
@@ -270,6 +273,37 @@ const accountService = {
 			and(eq(account.userId, userId),
 				eq(account.accountId, accountId)))
 			.run();
+
+		// Reset email ownership to NOONE when account is deleted
+		// This makes emails invisible to the user but they can be claimed back if recreated
+		try {
+			// Update emails
+			await orm(c).update(email)
+				.set({
+					userId: 0,
+					accountId: 0,
+					status: emailConst.status.NOONE
+				})
+				.where(and(
+					eq(email.userId, userId),
+					eq(email.accountId, accountId)
+				))
+				.run();
+
+			// Update attachments
+			await orm(c).update(att)
+				.set({
+					userId: 0,
+					accountId: 0
+				})
+				.where(and(
+					eq(att.userId, userId),
+					eq(att.accountId, accountId)
+				))
+				.run();
+		} catch (error) {
+			console.error(`Failed to reset ownership for emails of account ${accountId}:`, error);
+		}
 	},
 
 	selectById(c, accountId) {
