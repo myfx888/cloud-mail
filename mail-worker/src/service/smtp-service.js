@@ -129,6 +129,49 @@ const smtpService = {
 			startTls: !isImplicitTlsPort
 		};
 	},
+
+	buildFallbackSecurityOptions(securityOptions) {
+		if (securityOptions.secure) {
+			return {
+				mode: 2,
+				port: securityOptions.port,
+				secure: false,
+				startTls: true
+			};
+		}
+
+		if (securityOptions.startTls) {
+			return {
+				mode: 1,
+				port: securityOptions.port,
+				secure: true,
+				startTls: false
+			};
+		}
+
+		return null;
+	},
+
+	isTlsHandshakeError(error) {
+		const msg = String(error?.message || '').toLowerCase();
+		return msg.includes('tls handshake failed') || msg.includes('failed to start tls');
+	},
+
+	async connectMailer(smtpConfig, securityOptions) {
+		return WorkerMailer.connect({
+			credentials: {
+				username: smtpConfig.user,
+				password: smtpConfig.password
+			},
+			authType: smtpConfig.authType || 'plain',
+			host: smtpConfig.host,
+			port: securityOptions.port,
+			secure: securityOptions.secure,
+			startTls: securityOptions.startTls,
+			socketTimeoutMs: 30000,
+			responseTimeoutMs: 15000
+		});
+	},
 	
 	/**
 	 * 获取有效的SMTP配置
@@ -207,7 +250,7 @@ const smtpService = {
 
 		let mailer = null;
 		try {
-			const securityOptions = this.resolveSecurityOptions(smtpConfig.secure, smtpConfig.port);
+			let securityOptions = this.resolveSecurityOptions(smtpConfig.secure, smtpConfig.port);
 
 			console.log('SMTP发送配置:', {
 				host: smtpConfig.host,
@@ -218,19 +261,29 @@ const smtpService = {
 				securityMode: securityOptions.mode
 			});
 
-			mailer = await WorkerMailer.connect({
-				credentials: {
-					username: smtpConfig.user,
-					password: smtpConfig.password
-				},
-				authType: smtpConfig.authType || 'plain',
-				host: smtpConfig.host,
-				port: securityOptions.port,
-				secure: securityOptions.secure,
-				startTls: securityOptions.startTls,
-				socketTimeoutMs: 30000,
-				responseTimeoutMs: 15000
-			});
+			try {
+				mailer = await this.connectMailer(smtpConfig, securityOptions);
+			} catch (connectError) {
+				if (!this.isTlsHandshakeError(connectError)) {
+					throw connectError;
+				}
+
+				const fallbackOptions = this.buildFallbackSecurityOptions(securityOptions);
+				if (!fallbackOptions) {
+					throw connectError;
+				}
+
+				console.warn('SMTP TLS握手失败，使用回退安全模式重试连接:', {
+					host: smtpConfig.host,
+					port: fallbackOptions.port,
+					secure: fallbackOptions.secure,
+					startTls: fallbackOptions.startTls,
+					securityMode: fallbackOptions.mode
+				});
+
+				securityOptions = fallbackOptions;
+				mailer = await this.connectMailer(smtpConfig, securityOptions);
+			}
 
 			const recipients = emailData.recipient.map(r => ({
 				name: r.name || '',
@@ -304,7 +357,7 @@ const smtpService = {
 
 		let mailer = null;
 		try {
-			const securityOptions = this.resolveSecurityOptions(smtpConfig.secure, smtpConfig.port);
+			let securityOptions = this.resolveSecurityOptions(smtpConfig.secure, smtpConfig.port);
 			
 			console.log('SMTP验证配置:', {
 				host: smtpConfig.host,
@@ -315,19 +368,53 @@ const smtpService = {
 				securityMode: securityOptions.mode
 			});
 			
-			mailer = await WorkerMailer.connect({
-				credentials: {
-					username: smtpConfig.user,
-					password: smtpConfig.password
-				},
-				authType: smtpConfig.authType || 'plain',
-				host: smtpConfig.host,
-				port: securityOptions.port,
-				secure: securityOptions.secure,
-				startTls: securityOptions.startTls,
-				socketTimeoutMs: 10000,
-				responseTimeoutMs: 5000
-			});
+			try {
+				mailer = await WorkerMailer.connect({
+					credentials: {
+						username: smtpConfig.user,
+						password: smtpConfig.password
+					},
+					authType: smtpConfig.authType || 'plain',
+					host: smtpConfig.host,
+					port: securityOptions.port,
+					secure: securityOptions.secure,
+					startTls: securityOptions.startTls,
+					socketTimeoutMs: 10000,
+					responseTimeoutMs: 5000
+				});
+			} catch (connectError) {
+				if (!this.isTlsHandshakeError(connectError)) {
+					throw connectError;
+				}
+
+				const fallbackOptions = this.buildFallbackSecurityOptions(securityOptions);
+				if (!fallbackOptions) {
+					throw connectError;
+				}
+
+				console.warn('SMTP验证TLS握手失败，使用回退安全模式重试连接:', {
+					host: smtpConfig.host,
+					port: fallbackOptions.port,
+					secure: fallbackOptions.secure,
+					startTls: fallbackOptions.startTls,
+					securityMode: fallbackOptions.mode
+				});
+
+				securityOptions = fallbackOptions;
+				mailer = await WorkerMailer.connect({
+					credentials: {
+						username: smtpConfig.user,
+						password: smtpConfig.password
+					},
+					authType: smtpConfig.authType || 'plain',
+					host: smtpConfig.host,
+					port: securityOptions.port,
+					secure: securityOptions.secure,
+					startTls: securityOptions.startTls,
+					socketTimeoutMs: 10000,
+					responseTimeoutMs: 5000
+				});
+			}
 			
 			// 连接成功，返回true
 			return { success: true, message: 'SMTP连接成功' };
