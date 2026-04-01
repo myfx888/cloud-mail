@@ -59,8 +59,7 @@ const requirePerms = [
 	'/regKey/history',
 	'/smtp/account-config',
 	'/smtp/verify-account',
-	'/smtp/provision-mailcow',
-	'/admin/accounts'
+	'/smtp/provision-mailcow'
 ];
 
 const premKey = {
@@ -74,7 +73,7 @@ const premKey = {
 	'role:set': ['/role/set','/role/setDefault'],
 	'role:query': ['/role/list', '/role/tree'],
 	'role:delete': ['/role/delete'],
-	'user:query': ['/user/list','/user/allAccount','/admin/accounts'],
+	'user:query': ['/user/list','/user/allAccount'],
 	'user:add': ['/user/add'],
 	'user:reset-send': ['/user/resetSendCount'],
 	'user:set-pwd': ['/user/setPwd'],
