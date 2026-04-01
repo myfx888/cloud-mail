@@ -46,9 +46,9 @@ const dbInit = {
 			await this.v3_7DB(c);
 			await this.v3_8DB(c);
 			await this.v3_9DB(c);
-			await this.v4_0DB(c);
+			const v4Result = await this.v4_0DB(c);
 			await settingService.refresh(c);
-			return c.text('success');
+			return c.text('success | v4_0:' + (v4Result || 'done'));
 		} catch (e) {
 			console.error('Database initialization error:', e);
 			return c.text(`❌ Database initialization error: ${e.message}`);
@@ -184,24 +184,27 @@ const dbInit = {
 	},
 
 	async v4_0DB(c) {
+		const log = [];
 		try {
 			// 确保SMTP设置权限组存在
 			let rootRow = await c.env.db.prepare(
 				`SELECT perm_id AS permId FROM perm WHERE pid = 0 AND name = 'SMTP设置' LIMIT 1`
 			).first();
+			log.push('root:' + JSON.stringify(rootRow));
 
 			if (!rootRow) {
 				await c.env.db.prepare(
-					`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES ('SMTP设置', NULL, 0, 1, 6.1)`
+					`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES ('SMTP设置', NULL, 0, 1, 7)`
 				).run();
 				rootRow = await c.env.db.prepare(
 					`SELECT perm_id AS permId FROM perm WHERE pid = 0 AND name = 'SMTP设置' LIMIT 1`
 				).first();
+				log.push('inserted-root:' + JSON.stringify(rootRow));
 			}
 
 			if (!rootRow?.permId) {
-				console.warn('v4_0DB: 无法创建或找到SMTP设置根权限节点');
-				return;
+				log.push('ERR:no-root');
+				return log.join(';');
 			}
 
 			const rootId = Number(rootRow.permId);
@@ -222,13 +225,15 @@ const dbInit = {
 						await c.env.db.prepare(
 							`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES (?, ?, ?, 2, ?)`
 						).bind(child.name, child.permKey, rootId, child.sort).run();
+						log.push('inserted:' + child.permKey);
 					} else {
 						await c.env.db.prepare(
 							`UPDATE perm SET name = ?, pid = ?, type = 2, sort = ? WHERE perm_key = ?`
 						).bind(child.name, rootId, child.sort, child.permKey).run();
+						log.push('updated:' + child.permKey);
 					}
 				} catch (childErr) {
-					console.warn(`v4_0DB: 子节点 ${child.permKey} 处理失败: ${childErr.message}`);
+					log.push('ERR:' + child.permKey + ':' + childErr.message);
 				}
 			}
 
@@ -255,15 +260,17 @@ const dbInit = {
 							await c.env.db.prepare(
 								`INSERT INTO role_perm (role_id, perm_id) VALUES (?, ?)`
 							).bind(defaultRole.roleId, permId).run();
+							log.push('role-perm:' + permId);
 						}
 					}
 				}
 			} catch (roleErr) {
-				console.warn(`v4_0DB: 默认角色权限更新失败: ${roleErr.message}`);
+				log.push('ERR:role:' + roleErr.message);
 			}
 		} catch (e) {
-			console.warn(`v4_0DB 迁移失败：${e.message}`);
+			log.push('ERR:' + e.message);
 		}
+		return log.join(';') || 'no-op';
 	},
 
 	async v2_9DB(c) {
