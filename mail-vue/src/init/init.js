@@ -25,6 +25,14 @@ export async function init() {
 
     let setting = null;
 
+    const normalizeSetting = (rawSetting) => {
+        const settingData = rawSetting || {};
+        if (settingData.resendEnabled === undefined) {
+            settingData.resendEnabled = 1;
+        }
+        return settingData;
+    }
+
     if (token) {
         const userPromise = loginUserInfo().catch(e => {
             console.error(e);
@@ -32,7 +40,7 @@ export async function init() {
         });
 
         const [s, user] = await Promise.all([websiteConfig(), userPromise]);
-        setting = s;
+        setting = normalizeSetting(s);
         settingStore.settings = setting;
         settingStore.domainList = setting.domainList;
         document.title = setting.title;
@@ -49,7 +57,7 @@ export async function init() {
         }
 
     } else {
-        setting = await websiteConfig();
+        setting = normalizeSetting(await websiteConfig());
         settingStore.settings = setting;
         settingStore.domainList = setting.domainList;
         document.title = setting.title;

@@ -67,7 +67,7 @@
             </div>
           </div>
           <div>
-              <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;" v-if="form.sendType !== 'reply'">
+              <el-radio-group v-model="form.sendMethod" size="small" style="margin-right: 10px;" v-if="form.sendType !== 'reply' && resendEnabled">
                 <el-radio-button value="resend">Resend</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
               </el-radio-group>
@@ -126,7 +126,7 @@ import {fileToBase64, formatBytes} from "@/utils/file-utils.js";
 import {getIconByName} from "@/utils/icon-utils.js";
 import sendPercent from "@/components/send-percent/index.vue"
 import {toOssDomain} from "@/utils/convert.js";
-import {formatDetailDate} from "@/utils/day.js";
+import {formatDetailDateEn} from "@/utils/day.js";
 import {useSettingStore} from "@/store/setting.js";
 import {userDraftStore} from "@/store/draft.js";
 import {useWriterStore} from "@/store/writer.js";
@@ -194,12 +194,66 @@ const form = reactive({
 const selectRecipientList = ref([])
 
 const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
+const resendEnabled = computed(() => Number(settingStore.settings?.resendEnabled ?? 1) === 1)
 const showSmtpSelector = computed(() => {
   if (form.sendType === 'reply') {
     return smtpAccounts.value.length > 0
   }
+  if (!resendEnabled.value) {
+    return smtpAccounts.value.length > 0
+  }
   return form.sendMethod === 'smtp' && smtpAccounts.value.length > 0
 })
+
+function normalizeReplySubject(subject) {
+  const rawSubject = (subject || '').trim()
+  if (!rawSubject) {
+    return 'Re: '
+  }
+  if (/^(re\s*[:：]|回复\s*[:：])/i.test(rawSubject)) {
+    return rawSubject.replace(/^(re|回复)\s*[:：]\s*/i, 'Re: ')
+  }
+  return `Re: ${rawSubject}`
+}
+
+function normalizeForwardSubject(subject) {
+  const rawSubject = (subject || '').trim()
+  if (!rawSubject) {
+    return 'Fwd: '
+  }
+  if (/^(fwd\s*[:：]|fw\s*[:：]|转发\s*[:：])/i.test(rawSubject)) {
+    return rawSubject.replace(/^(fwd|fw|转发)\s*[:：]\s*/i, 'Fwd: ')
+  }
+  return `Fwd: ${rawSubject}`
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+}
+
+function getRecipientText(email) {
+  if (Array.isArray(email?.recipient)) {
+    return email.recipient.map(item => item?.address || '').filter(Boolean).join(', ')
+  }
+
+  if (typeof email?.recipient === 'string') {
+    try {
+      const recipientArr = JSON.parse(email.recipient)
+      if (Array.isArray(recipientArr)) {
+        return recipientArr.map(item => item?.address || '').filter(Boolean).join(', ')
+      }
+    } catch (e) {
+      return email.recipient
+    }
+  }
+
+  return ''
+}
 
 function openContacts() {
   showContacts.value = true
@@ -455,6 +509,9 @@ function resetForm() {
   form.sendType = ''
   form.emailId = 0
   form.draftId = null
+  form.sendMethod = resendEnabled.value ? 'resend' : 'smtp'
+  form.smtpAccountId = null
+  selectedSmtpAccountId.value = ''
   backReply.content = ''
   backReply.subject = ''
   backReply.receiveEmail = []
@@ -476,13 +533,27 @@ function openForward(email) {
 
   email.subject = email.subject || ''
 
-  form.subject = email.subject
+  form.subject = normalizeForwardSubject(email.subject)
   form.sendType = 'forward'
+  form.sendMethod = resendEnabled.value ? 'resend' : 'smtp'
+
+  const fromName = escapeHtml(email.name || '')
+  const fromEmail = escapeHtml(email.sendEmail || '')
+  const subject = escapeHtml(email.subject || '')
+  const toLine = escapeHtml(getRecipientText(email))
+  const replyDate = formatDetailDateEn(email.createTime)
 
   defValue.value = ''
 
   setTimeout(async () => {
     defValue.value = `
+      <div><br></div>
+      <div>---------- Forwarded message ---------</div>
+      <div><b>From:</b> ${fromName} &lt;${fromEmail}&gt;</div>
+      <div><b>Date:</b> ${replyDate}</div>
+      <div><b>Subject:</b> ${subject}</div>
+      <div><b>To:</b> ${toLine}</div>
+      <br>
       ${formatImage(email.content) || `<pre style="font-family: inherit;word-break: break-word;white-space: pre-wrap;margin: 0">${email.text}</pre>`}
     `
     await open()
@@ -504,11 +575,7 @@ function openReply(email) {
   email.subject = email.subject || ''
 
   form.receiveEmail.push(email.sendEmail)
-  form.subject = (
-      email.subject.startsWith('Re:') ||
-      email.subject.startsWith('Re：') ||
-      email.subject.startsWith('回复：') ||
-      email.subject.startsWith('回复:')) ? email.subject : 'Re: ' + email.subject
+  form.subject = normalizeReplySubject(email.subject)
   form.sendType = 'reply'
   form.sendMethod = 'smtp'
   form.emailId = email.emailId
@@ -520,7 +587,7 @@ function openReply(email) {
     <div></div>
     <div>
     <br>
-        ${formatDetailDate(email.createTime)} ${email.name} &lt${email.sendEmail}&gt ${t('wrote')}:
+        ${formatDetailDateEn(email.createTime)} ${email.name} &lt${email.sendEmail}&gt wrote:
     </div>
     <blockquote class="mceNonEditable" style="margin: 0 0 0 0.8ex;border-left: 1px solid rgb(204,204,204);padding-left: 1ex;">
       <articl>

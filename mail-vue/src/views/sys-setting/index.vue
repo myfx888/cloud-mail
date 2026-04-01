@@ -201,7 +201,7 @@
               </div>
               <div class="setting-item">
                 <div><span>{{ $t('resendToken') }}</span></div>
-                <div>
+                <div v-if="Number(setting.resendEnabled) === 1">
                   <el-button class="opt-button" style="margin-top: 0" @click="openResendList" size="small"
                              type="primary">
                     <Icon icon="ic:round-list" width="18" height="18"/>
@@ -1611,6 +1611,7 @@ function openNoticePopupSetting() {
 }
 
 function openResendList() {
+  if (Number(setting.value.resendEnabled) !== 1) return
   showResendList.value = true
 }
 
@@ -1871,6 +1872,7 @@ function saveR2domain() {
 }
 
 function openResendForm() {
+  if (Number(setting.value.resendEnabled) !== 1) return
   resendTokenFormShow.value = true
 }
 

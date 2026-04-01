@@ -35,7 +35,7 @@
                     >
                       重试
                     </el-button>
-                    <el-button size="small" type="danger" @click="deleteAccount(scope.row)" v-if="scope.row.email !== userStore.user.email">
+                    <el-button size="small" type="danger" @click="deleteAccount(scope.row)" v-if="scope.row.email !== userStore.user.email" v-perm="'account:delete'">
                       {{ $t('delete') }}
                     </el-button>
                   </template>
@@ -176,7 +176,9 @@
 <script setup>
 import {reactive, ref, onMounted} from 'vue'
 import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow, accountProvisionSmtpByMailcowServer} from "@/request/account.js"
+import {useAccountStore} from "@/store/account.js"
 import {useUserStore} from "@/store/user.js"
+
 import {Icon} from "@iconify/vue"
 import LoadingComponent from "@/components/loading/index.vue"
 import {getSmtpAccountConfig, saveSmtpAccountConfig, verifySmtpAccountConfig, settingQuery, getSignatures, addSignature as addSignatureApi, updateSignature, deleteSignature as deleteSignatureApi, setDefaultSignature as setDefaultSignatureApi} from "@/request/setting.js"
@@ -185,7 +187,9 @@ import {ElMessage, ElMessageBox} from 'element-plus'
 import {smtpAccountList, smtpAccountCreate, smtpAccountUpdate, smtpAccountDelete, smtpAccountVerify} from "@/request/smtp.js"
 
 const { t } = useI18n()
+const accountStore = useAccountStore()
 const userStore = useUserStore()
+
 const loading = ref(true)
 const addAccountShow = ref(false)
 const smtpConfigShow = ref(false)

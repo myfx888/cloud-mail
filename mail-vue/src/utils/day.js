@@ -65,6 +65,15 @@ export function updateNow(date) {
     }
 }
 
+export function formatDetailDateEn(time) {
+    const d = dayjs.utc(time).tz(timeZone).locale('en');
+    const now = dayjs().tz(timeZone);
+    const isSameYear = now.year() === d.year();
+    return isSameYear
+        ? d.format('ddd, MMM D, h:mm A')
+        : d.format('ddd, MMM D, YYYY, h:mm A');
+}
+
 export function formatDetailDate(time) {
     const d = dayjs.utc(time).tz(timeZone);
     const now = dayjs();
