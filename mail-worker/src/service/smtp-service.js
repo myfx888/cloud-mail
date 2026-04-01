@@ -273,6 +273,18 @@ const smtpService = {
 			try {
 				mailer = await this.connectMailer(smtpConfig, securityOptions);
 			} catch (connectError) {
+				console.error('SMTP初始连接失败:', {
+					message: connectError.message,
+					code: connectError.code,
+					stack: connectError.stack,
+					config: {
+						host: smtpConfig.host,
+						port: securityOptions.port,
+						secure: securityOptions.secure,
+						startTls: securityOptions.startTls
+					}
+				});
+
 				if (!this.isTlsHandshakeError(connectError)) {
 					throw connectError;
 				}
@@ -331,9 +343,13 @@ const smtpService = {
 			});
 
 			if (this.isProxyConnectError(error)) {
+				const detail = error.message.includes('proxy request failed') 
+					? 'Cloudflare outbound proxy failed' 
+					: 'Network unreachable';
 				throw new BizError(
-					`${t('smtpSendFailed')}: cannot connect to SMTP server ${smtpConfig.host}:${smtpConfig.port}. ` +
-					'Please ensure the host is public and reachable, DNS resolves correctly, firewall allows Cloudflare egress, and port is 465 or 587.'
+					`${t('smtpSendFailed')}: cannot connect to SMTP server ${smtpConfig.host}:${smtpConfig.port} (${detail}). ` +
+					'Please ensure the host is public and reachable, DNS resolves correctly, and firewall allows Cloudflare egress. ' +
+					'If 587 fails, please try port 465 with SSL/TLS.'
 				);
 			}
 			throw new BizError(t('smtpSendFailed') + ': ' + error.message);
@@ -399,6 +415,18 @@ const smtpService = {
 					responseTimeoutMs: 5000
 				});
 			} catch (connectError) {
+				console.error('SMTP验证初始连接失败:', {
+					message: connectError.message,
+					code: connectError.code,
+					stack: connectError.stack,
+					config: {
+						host: smtpConfig.host,
+						port: securityOptions.port,
+						secure: securityOptions.secure,
+						startTls: securityOptions.startTls
+					}
+				});
+
 				if (!this.isTlsHandshakeError(connectError)) {
 					throw connectError;
 				}
@@ -448,9 +476,14 @@ const smtpService = {
 				stack: error.stack
 			});
 			if (this.isProxyConnectError(error)) {
+				const detail = error.message.includes('proxy request failed') 
+					? 'Cloudflare outbound proxy failed' 
+					: 'Network unreachable';
 				return {
 					success: false,
-					message: `cannot connect to SMTP server ${smtpConfig.host}:${smtpConfig.port}. Please ensure host/port are publicly reachable from Cloudflare Workers (use 465 or 587).`
+					message: `cannot connect to SMTP server ${smtpConfig.host}:${smtpConfig.port} (${detail}). ` +
+						'Please ensure host/port are publicly reachable from Cloudflare Workers. ' +
+						'If 587 fails, please try port 465 with SSL/TLS.'
 				};
 			}
 			return { success: false, message: error.message };
