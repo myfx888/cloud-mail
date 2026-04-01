@@ -1,7 +1,7 @@
 <template>
   <div :class="accountShow && hasPerm('account:query') ? 'main-box-show' : 'main-box-hide'">
     <div :class="accountShow && hasPerm('account:query') ? 'block-show' : 'block-hide'" @click="uiStore.accountShow = false"></div>
-    <div :class="accountShow && hasPerm('account:query') ? 'show' : 'hide'">
+    <div v-show="accountShow && hasPerm('account:query')" class="show">
       <account />
     </div>
     <router-view class="main-view" v-slot="{ Component,route }">
