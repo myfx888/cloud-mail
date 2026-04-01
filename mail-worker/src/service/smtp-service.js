@@ -91,6 +91,10 @@ const smtpService = {
 		if (isNaN(port) || port < 1 || port > 65535) {
 			throw new BizError(t('smtpPortInvalid'));
 		}
+
+		if (port === 25) {
+			throw new BizError('Cloudflare Workers does not support outbound SMTP on port 25. Please use port 465 or 587.');
+		}
 		
 		// 验证用户名
 		if (!smtpConfig.user) {
@@ -155,6 +159,11 @@ const smtpService = {
 	isTlsHandshakeError(error) {
 		const msg = String(error?.message || '').toLowerCase();
 		return msg.includes('tls handshake failed') || msg.includes('failed to start tls');
+	},
+
+	isProxyConnectError(error) {
+		const msg = String(error?.message || '').toLowerCase();
+		return msg.includes('proxy request failed') || msg.includes('cannot connect to the specified address');
 	},
 
 	async connectMailer(smtpConfig, securityOptions) {
@@ -320,6 +329,13 @@ const smtpService = {
 				secure: smtpConfig.secure,
 				stack: error.stack
 			});
+
+			if (this.isProxyConnectError(error)) {
+				throw new BizError(
+					`${t('smtpSendFailed')}: cannot connect to SMTP server ${smtpConfig.host}:${smtpConfig.port}. ` +
+					'Please ensure the host is public and reachable, DNS resolves correctly, firewall allows Cloudflare egress, and port is 465 or 587.'
+				);
+			}
 			throw new BizError(t('smtpSendFailed') + ': ' + error.message);
 		} finally {
 			if (mailer) {
@@ -431,6 +447,12 @@ const smtpService = {
 				secure: smtpConfig.secure,
 				stack: error.stack
 			});
+			if (this.isProxyConnectError(error)) {
+				return {
+					success: false,
+					message: `cannot connect to SMTP server ${smtpConfig.host}:${smtpConfig.port}. Please ensure host/port are publicly reachable from Cloudflare Workers (use 465 or 587).`
+				};
+			}
 			return { success: false, message: error.message };
 		} finally {
 			if (mailer) {
