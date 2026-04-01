@@ -158,6 +158,8 @@ const emailService = {
 			sendType, //发件类型
 			emailId, //邮件id，如果是回复邮件会带
 			receiveEmail, //收件人邮箱
+			cc, //抄送
+			bcc, //密送
 			text, //邮件纯文本
 			content, //邮件内容
 			subject, //邮件标题
@@ -276,6 +278,8 @@ const emailService = {
 					sendEmail: accountRow.email,
 					name: name,
 					recipient: receiveEmail.map(email => ({ address: email, name: '' })),
+					cc: Array.isArray(cc) ? cc.map(email => ({ address: email, name: '' })) : (cc ? [{ address: cc, name: '' }] : []),
+					bcc: Array.isArray(bcc) ? bcc.map(email => ({ address: email, name: '' })) : (bcc ? [{ address: bcc, name: '' }] : []),
 					subject: subject,
 					text: text,
 					content: html,

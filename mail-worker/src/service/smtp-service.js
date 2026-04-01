@@ -167,18 +167,24 @@ const smtpService = {
 	},
 
 	async connectMailer(smtpConfig, securityOptions) {
+		// 允许协商多种认证方式，提高兼容性
+		const authType = smtpConfig.authType ? 
+			(Array.isArray(smtpConfig.authType) ? smtpConfig.authType : [smtpConfig.authType]) : 
+			['plain', 'login', 'cram-md5'];
+
 		return WorkerMailer.connect({
 			credentials: {
 				username: smtpConfig.user,
 				password: smtpConfig.password
 			},
-			authType: smtpConfig.authType || 'plain',
+			authType: authType,
 			host: smtpConfig.host,
 			port: securityOptions.port,
 			secure: securityOptions.secure,
 			startTls: securityOptions.startTls,
 			socketTimeoutMs: 30000,
-			responseTimeoutMs: 15000
+			responseTimeoutMs: 15000,
+			logLevel: 0 // 开启 DEBUG 日志，方便排查连接问题
 		});
 	},
 	
@@ -311,12 +317,24 @@ const smtpService = {
 				email: r.address
 			}));
 
+			const ccRecipients = Array.isArray(emailData.cc) ? emailData.cc.map(r => ({
+				name: r.name || '',
+				email: r.address || r
+			})) : [];
+
+			const bccRecipients = Array.isArray(emailData.bcc) ? emailData.bcc.map(r => ({
+				name: r.name || '',
+				email: r.address || r
+			})) : [];
+
 			await mailer.send({
 				from: {
 					name: emailData.name || smtpConfig.fromName || '',
 					email: emailData.sendEmail
 				},
 				to: recipients,
+				cc: ccRecipients.length > 0 ? ccRecipients : undefined,
+				bcc: bccRecipients.length > 0 ? bccRecipients : undefined,
 				subject: emailData.subject,
 				text: emailData.text,
 				html: emailData.content,
@@ -401,16 +419,9 @@ const smtpService = {
 			});
 			
 			try {
-				mailer = await WorkerMailer.connect({
-					credentials: {
-						username: smtpConfig.user,
-						password: smtpConfig.password
-					},
-					authType: smtpConfig.authType || 'plain',
-					host: smtpConfig.host,
-					port: securityOptions.port,
-					secure: securityOptions.secure,
-					startTls: securityOptions.startTls,
+				// 使用统一的 connectMailer 方法，支持多认证方式和日志
+				mailer = await this.connectMailer(smtpConfig, {
+					...securityOptions,
 					socketTimeoutMs: 10000,
 					responseTimeoutMs: 5000
 				});
@@ -445,22 +456,13 @@ const smtpService = {
 				});
 
 				securityOptions = fallbackOptions;
-				mailer = await WorkerMailer.connect({
-					credentials: {
-						username: smtpConfig.user,
-						password: smtpConfig.password
-					},
-					authType: smtpConfig.authType || 'plain',
-					host: smtpConfig.host,
-					port: securityOptions.port,
-					secure: securityOptions.secure,
-					startTls: securityOptions.startTls,
+				mailer = await this.connectMailer(smtpConfig, {
+					...securityOptions,
 					socketTimeoutMs: 10000,
 					responseTimeoutMs: 5000
 				});
 			}
 			
-			// 连接成功，返回true
 			return { success: true, message: 'SMTP连接成功' };
 			
 		} catch (error) {
