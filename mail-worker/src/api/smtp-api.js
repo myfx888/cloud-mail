@@ -2,7 +2,6 @@ import app from '../hono/hono';
 import smtpService from '../service/smtp-service';
 import smtpAccountService from '../service/smtp-account-service';
 import accountService from '../service/account-service';
-import settingService from '../service/setting-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 import BizError from '../error/biz-error';
@@ -103,13 +102,6 @@ app.post('/smtp/account-config', async (c) => {
 		throw new BizError(t('accountNotExist'));
 	}
 
-	// 检查用户是否有SMTP配置权限
-	const settingRow = await settingService.query(c);
-	
-	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
-		throw new BizError(t('smtpConfigPermissionDenied'));
-	}
-
 	// 更新账号SMTP配置
 		await accountService.updateSmtpConfig(c, params.accountId, {
 			smtpOverride: params.smtpOverride,
@@ -135,13 +127,6 @@ app.post('/smtp/accounts', async (c) => {
 	const accountRow = await accountService.selectByIdAny(c, params.accountId);
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
-	}
-
-	// 检查用户是否有SMTP配置权限
-	const settingRow = await settingService.query(c);
-	
-	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
-		throw new BizError(t('smtpConfigPermissionDenied'));
 	}
 
 	// 创建SMTP账户
@@ -172,13 +157,6 @@ app.put('/smtp/accounts/:smtpAccountId', async (c) => {
 		throw new BizError(t('accountNotExist'));
 	}
 
-	// 检查用户是否有SMTP配置权限
-	const settingRow = await settingService.query(c);
-	
-	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
-		throw new BizError(t('smtpConfigPermissionDenied'));
-	}
-
 	// 更新SMTP账户
 	const smtpAccount = await smtpAccountService.update(c, smtpAccountId, params.accountId, {
 		name: params.name,
@@ -205,13 +183,6 @@ app.delete('/smtp/accounts/:smtpAccountId', async (c) => {
 	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
 	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
-	}
-
-	// 检查用户是否有SMTP配置权限
-	const settingRow = await settingService.query(c);
-	
-	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
-		throw new BizError(t('smtpConfigPermissionDenied'));
 	}
 
 	// 删除SMTP账户

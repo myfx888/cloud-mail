@@ -367,6 +367,23 @@ const zh = {
     signatureSaveSuccess: '签名保存成功',
     signatureDeleteSuccess: '签名删除成功',
     signatureSetDefaultSuccess: '已设为默认签名',
-    signatureNameRequired: '请输入签名名称'
+    signatureNameRequired: '请输入签名名称',
+    noSmtpAccounts: '暂无 SMTP 账户',
+    smtpLoadFailed: '获取 SMTP 账户列表失败',
+    smtpFormIncomplete: '请填写完整的 SMTP 账户信息',
+    smtpUpdateSuccess: 'SMTP 账户更新成功',
+    smtpAddSuccess: 'SMTP 账户添加成功',
+    smtpSaveFailed: '保存 SMTP 账户失败',
+    smtpDeleteConfirm: '确定要删除这个 SMTP 账户吗？',
+    smtpDeleteSuccess: 'SMTP 账户删除成功',
+    smtpDeleteFailed: '删除 SMTP 账户失败',
+    smtpSetDefaultSuccess: '已设为默认 SMTP 账户',
+    smtpSetDefaultFailed: '设置默认 SMTP 账户失败',
+    smtpAccountName: '账户名称',
+    smtpAccountNamePlaceholder: '请输入 SMTP 账户名称',
+    smtpEncryption: '加密方式',
+    default: '默认',
+    save: '保存',
+    cancel: '取消'
 }
 export default zh

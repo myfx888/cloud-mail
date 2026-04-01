@@ -233,13 +233,6 @@
                              v-model="setting.smtpEnabled"/>
                 </div>
               </div>
-              <div class="setting-item">
-                <div><span>用户SMTP配置权限</span></div>
-                <div>
-                  <el-switch @change="change" :before-change="beforeChange" :active-value="1" :inactive-value="0"
-                             v-model="setting.smtpUserConfig"/>
-                </div>
-              </div>
             </div>
           </div>
 

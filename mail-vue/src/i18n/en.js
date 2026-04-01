@@ -366,6 +366,23 @@ const en = {
     signatureSaveSuccess: 'Signature saved successfully',
     signatureDeleteSuccess: 'Signature deleted successfully',
     signatureSetDefaultSuccess: 'Set as default signature',
-    signatureNameRequired: 'Please enter signature name'
+    signatureNameRequired: 'Please enter signature name',
+    noSmtpAccounts: 'No SMTP accounts',
+    smtpLoadFailed: 'Failed to load SMTP accounts',
+    smtpFormIncomplete: 'Please fill in all SMTP account fields',
+    smtpUpdateSuccess: 'SMTP account updated',
+    smtpAddSuccess: 'SMTP account added',
+    smtpSaveFailed: 'Failed to save SMTP account',
+    smtpDeleteConfirm: 'Are you sure you want to delete this SMTP account?',
+    smtpDeleteSuccess: 'SMTP account deleted',
+    smtpDeleteFailed: 'Failed to delete SMTP account',
+    smtpSetDefaultSuccess: 'Set as default SMTP account',
+    smtpSetDefaultFailed: 'Failed to set default SMTP account',
+    smtpAccountName: 'Account Name',
+    smtpAccountNamePlaceholder: 'Enter SMTP account name',
+    smtpEncryption: 'Encryption',
+    default: 'Default',
+    save: 'Save',
+    cancel: 'Cancel'
 }
 export default en

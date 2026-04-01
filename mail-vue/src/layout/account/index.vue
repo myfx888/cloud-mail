@@ -30,6 +30,7 @@
                     <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')"
                                       @click="remove(item)">{{ $t('delete') }}
                     </el-dropdown-item>
+                    <el-dropdown-item v-if="hasPerm('smtp:set')" @click="openSmtpManager(item)">{{ $t('smtpSetting') }}</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -126,10 +127,12 @@
     </el-dialog>
   </div>
   <signatureManager ref="signatureManagerRef" :account-id="signatureAccountId" @updated="onSignatureUpdated" />
+  <smtpAccountManager ref="smtpAccountManagerRef" :account-id="smtpManagerAccountId" />
 </template>
 <script setup>
 import {Icon} from "@iconify/vue";
 import signatureManager from "@/components/signature-manager/index.vue";
+import smtpAccountManager from "@/components/smtp-account-manager/index.vue";
 import {nextTick, reactive, ref, watch} from "vue";
 import {
   accountList,
@@ -185,6 +188,8 @@ const queryParams = {
 const mySelect = ref()
 const signatureManagerRef = ref()
 const signatureAccountId = ref(0)
+const smtpAccountManagerRef = ref()
+const smtpManagerAccountId = ref(0)
 
 if (hasPerm('account:query')) {
   getAccountList()
@@ -296,7 +301,7 @@ function setAllReceive(account) {
 
 
 function showNullSetting(item) {
-  return !hasPerm('email:send') && !(item.accountId !== userStore.user.account.accountId && hasPerm('account:delete'))
+  return !hasPerm('email:send') && !hasPerm('smtp:set') && !(item.accountId !== userStore.user.account.accountId && hasPerm('account:delete'))
 }
 
 function itemBg(accountId) {
@@ -376,6 +381,13 @@ function openSignatureManager(item) {
 
 function onSignatureUpdated() {
   // signatures updated, no action needed in account list
+}
+
+function openSmtpManager(item) {
+  smtpManagerAccountId.value = item.accountId
+  nextTick(() => {
+    smtpAccountManagerRef.value.open()
+  })
 }
 
 async function copyAccount(account) {
