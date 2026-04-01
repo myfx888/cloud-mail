@@ -83,10 +83,15 @@ const loginService = {
 		const accountRow = await accountService.selectByEmailIncludeDel(c, email);
 
 		if (accountRow && accountRow.isDel === isDel.DELETE) {
-			throw new BizError(t('isDelUser'));
+			// 如果是已注销的用户账号，物理删除对应的用户、账号及关联数据，允许重新注册
+			const oldUser = await orm(c).select().from(user).where(eq(user.email, email)).get();
+			if (oldUser) {
+				await accountService.physicsDeleteByUserIds(c, [oldUser.userId]);
+				await orm(c).delete(user).where(eq(user.userId, oldUser.userId)).run();
+			}
 		}
 
-		if (accountRow) {
+		if (accountRow && accountRow.isDel === isDel.NORMAL) {
 			throw new BizError(t('isRegAccount'));
 		}
 
