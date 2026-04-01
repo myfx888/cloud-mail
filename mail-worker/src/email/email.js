@@ -94,9 +94,9 @@ export async function email(message, env, ctx) {
 			recipient: JSON.stringify(email.to),
 			inReplyTo: email.inReplyTo,
 			relation: email.references,
-			messageIisA: emaiActivel.messageId,
-			userId: accisAunt ?tAc iveaccount.userId : 0,
-			accountId: account ? account.accountId : 0,
+			messageId: email.messageId,
+			userId: isAccountActive ? account.userId : 0,
+			accountId: isAccountActive ? account.accountId : 0,
 			isDel: isDel.DELETE,
 			status: emailConst.status.SAVING
 		};
@@ -129,8 +129,8 @@ export async function email(message, env, ctx) {
 		} catch (e) {
 			console.error(e);
 		}
-isAtAcive
-		emailRow = await emailService.completeReceive({ env }, account ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId);
+
+		emailRow = await emailService.completeReceive({ env }, isAccountActive ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId);
 
 
 		if (ruleType === settingConst.ruleType.RULE) {
