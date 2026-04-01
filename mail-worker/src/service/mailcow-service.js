@@ -88,12 +88,34 @@ const mailcowService = {
         }
 
         if (typeof mailbox !== 'object') {
+            // If it's a string and matches exactly, consider it a match (some APIs might return ID)
+            if (typeof mailbox === 'string') {
+                return this.normalizeEmail(mailbox) === this.normalizeEmail(email);
+            }
             return false;
         }
 
         const targetEmail = this.normalizeEmail(email);
-        const mailboxEmail = this.normalizeEmail(mailbox.username || mailbox.address || mailbox.mailbox || mailbox.email);
-        return !!targetEmail && mailboxEmail === targetEmail;
+        
+        // Check various possible fields for the email address
+        const possibleFields = [
+            mailbox.username, 
+            mailbox.address, 
+            mailbox.mailbox, 
+            mailbox.email, 
+            mailbox.id,
+            mailbox.full_name // occasionally used
+        ];
+
+        for (const field of possibleFields) {
+            if (field && this.normalizeEmail(field) === targetEmail) {
+                return true;
+            }
+        }
+
+        // Special case: if it's a single object result from get/mailbox/{id}, 
+        // it might have the email as the key if returned as a map, though callApi parses JSON.
+        return false;
     },
 
     isEmptyApiResponse(result) {
@@ -111,7 +133,7 @@ const mailcowService = {
         for (let attempt = 1; attempt <= attempts; attempt++) {
             try {
                 // 使用精确查询（对应 yaml: GET /api/v1/get/mailbox/{id}，id 为邮箱地址）
-                const result = await this.callApi(c, `get/mailbox/${email}`, 'GET', null, serverConfig);
+                const result = await this.callApi(c, `get/mailbox/${encodeURIComponent(email)}`, 'GET', null, serverConfig);
                 console.log(`accountExists attempt ${attempt} for ${email} result:`, JSON.stringify(result));
                 
                 if (this.mailboxMatchesEmail(result, email)) {
@@ -270,18 +292,22 @@ const mailcowService = {
             // 1. Check if domain exists
             const domainOk = await this.domainExists(c, domain, server);
             if (!domainOk) {
-                console.warn(`Mailcow domain precheck returned false for ${domain} on ${server.apiUrl}, continue to add/mailbox and rely on API result`);
+                throw new BizError(`${t('mailcowAccountCreateFailed')}: Domain ${domain} does not exist on mailcow server`);
             }
 
             const accountPassword = await this.resolvePassword(c, password);
-            // 最小化请求体，仅包含必需字段（对应 yaml: POST /api/v1/add/mailbox）
+            // 最小化请求体，符合 mailcow.yaml 规范 (POST /api/v1/add/mailbox)
             const data = {
-                active: '1',
+                active: 1,
                 domain: email.split('@')[1],
                 local_part: email.split('@')[0],
+                name: email, // 默认使用邮箱作为显示名称
                 password: accountPassword,
                 password2: accountPassword,
-                quota: 30720
+                quota: 2048, // 默认 2GB
+                force_pw_update: 0,
+                tls_enforce_in: 0,
+                tls_enforce_out: 0
             };
             
             console.log(`Creating mailcow account ${email} on ${server.apiUrl}`);
@@ -298,7 +324,11 @@ const mailcowService = {
                 });
 
                 if (!existsAfterCreate) {
-                    throw new BizError(`${t('mailcowAccountCreateFailed')}: API returned empty response and mailbox not found`);
+                    const domainExistsNow = await this.domainExists(c, domain, server);
+                    const errorMsg = domainExistsNow 
+                        ? `API returned empty response and mailbox not found after ${verifyAttempts} attempts`
+                        : `API returned empty response and domain ${domain} vanished or is unreachable`;
+                    throw new BizError(`${t('mailcowAccountCreateFailed')}: ${errorMsg}`);
                 }
                 console.log(`Mailbox ${email} found after empty response, treating as success.`);
                 const smtpConfig = await this.getSmtpConfig(c, server);
