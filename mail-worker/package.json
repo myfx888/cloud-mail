@@ -26,10 +26,5 @@
 		"ua-parser-js": "^2.0.3",
 		"uuid": "^11.1.0",
 		"worker-mailer": "^1.2.1"
-	},
-	"pnpm": {
-		"patchedDependencies": {
-			"worker-mailer": "patches/worker-mailer.patch"
-		}
 	}
 }
