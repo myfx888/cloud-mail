@@ -257,6 +257,9 @@ const mailcowService = {
             response.headers.forEach((v, k) => { responseHeaders[k] = v; });
             console.log(`Mailcow API Response Headers: ${JSON.stringify(responseHeaders)}`);
             
+            const responseText = await response.text().catch((e) => `[Read Body Error: ${e.message}]`);
+            console.log(`Mailcow API Raw Response Body (first 500 chars): ${responseText.slice(0, 500)}`);
+
             // Detect WAF/Security blocking (e.g. Cloudflare, Wallarm, etc.)
             const isCloudflare = responseHeaders['server']?.toLowerCase() === 'cloudflare';
             const hasCfRay = !!responseHeaders['cf-ray'];
@@ -264,13 +267,10 @@ const mailcowService = {
             
             if (isCloudflare || hasCfRay || hasSameOrigin) {
                 console.warn(`Potential Security/WAF blocking detected! Cloudflare=${isCloudflare}, CF-Ray=${hasCfRay}, SameOrigin=${hasSameOrigin}`);
-                if (hasSameOrigin && !responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
+                if (hasSameOrigin && responseText && !responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
                     console.error('CRITICAL: Response has X-Frame-Options: SAMEORIGIN and is not JSON. This usually means a firewall challenge (hCaptcha/Turnstile) or login page was returned instead of API response.');
                 }
             }
-
-            const responseText = await response.text().catch((e) => `[Read Body Error: ${e.message}]`);
-            console.log(`Mailcow API Raw Response Body (first 500 chars): ${responseText.slice(0, 500)}`);
 
             if (!response.ok) {
                 console.error(`Mailcow API Error Detail: Status=${response.status}, Body=${responseText}`);
