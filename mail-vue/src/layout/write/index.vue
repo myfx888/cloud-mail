@@ -9,11 +9,6 @@
             <span class="sender">{{ $t('sender') }}:</span>
             <span class="sender-name">{{ form.name }}</span>
             <span class="send-email"><{{ form.sendEmail }}></span>
-            <div class="signature-selector" v-if="signatures.length > 0">
-              <el-select v-model="selectedSignatureId" @change="handleSignatureChange" size="small" placeholder="选择签名">
-                <el-option v-for="signature in signatures" :key="signature.id" :label="signature.name" :value="signature.id"/>
-              </el-select>
-            </div>
           </div>
           <div @click="close" style="cursor: pointer;">
             <Icon icon="material-symbols-light:close-rounded" width="22" height="22"/>
@@ -67,6 +62,17 @@
             </div>
           </div>
           <div class="send-actions">
+              <el-select
+                  class="signature-select"
+                  v-model="selectedSignatureId"
+                  @change="handleSignatureChange"
+                  size="small"
+                  :placeholder="$t('selectSignature')"
+                  clearable
+                  v-if="signatures.length > 0"
+              >
+                <el-option v-for="signature in signatures" :key="signature.id" :label="signature.isDefault ? signature.name + ' ★' : signature.name" :value="signature.id"/>
+              </el-select>
               <el-radio-group v-model="form.sendMethod" size="small" v-if="form.sendType !== 'reply' && resendEnabled">
                 <el-radio-button value="resend">Resend</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
@@ -643,15 +649,12 @@ async function open() {
       const defaultSignature = signatureList.find(sig => sig.isDefault);
       if (defaultSignature) {
         selectedSignatureId.value = defaultSignature.id;
-        // 在编辑器中添加默认签名
         setTimeout(() => {
           const content = editor.value.getContent();
-          if (!content) {
-            editor.value.setContent(defaultSignature.content);
-          } else {
-            editor.value.setContent(content + '<br><br>' + defaultSignature.content);
-          }
+          editor.value.setContent(insertSignatureIntoContent(content, defaultSignature));
         }, 100);
+      } else {
+        selectedSignatureId.value = '';
       }
       
       // 处理SMTP账户
@@ -673,23 +676,47 @@ async function open() {
   editor.value.focus()
 }
 
-// 处理签名选择变化
+function getSignatureHtml(signature) {
+  if (!signature) return ''
+  return `<div class="email-signature" data-signature-id="${signature.id}"><br>${signature.content}</div>`
+}
+
+function removeSignatureFromContent(content) {
+  return content.replace(/<div[^>]*class="email-signature"[^>]*>[\s\S]*?<\/div>/gi, '')
+}
+
+function insertSignatureIntoContent(content, signature) {
+  if (!signature) return content
+  const sigHtml = getSignatureHtml(signature)
+  const cleaned = removeSignatureFromContent(content)
+
+  // Reply: insert before blockquote
+  const blockquoteMatch = cleaned.match(/(<div>[^<]*<br>\s*[\s\S]*?wrote:[\s\S]*?<\/div>\s*<blockquote[\s\S]*)/i)
+  if (blockquoteMatch) {
+    const idx = cleaned.indexOf(blockquoteMatch[1])
+    return cleaned.slice(0, idx) + sigHtml + cleaned.slice(idx)
+  }
+
+  // Forward: insert before forward header
+  const forwardMatch = cleaned.match(/(<div>-{5,}\s*Forwarded message\s*-{5,}<\/div>[\s\S]*)/i)
+  if (forwardMatch) {
+    const idx = cleaned.indexOf(forwardMatch[1])
+    return cleaned.slice(0, idx) + sigHtml + cleaned.slice(idx)
+  }
+
+  // New mail: append at end
+  return cleaned + sigHtml
+}
+
 function handleSignatureChange(signatureId) {
-  if (!signatureId) return;
-  
-  const selectedSignature = signatures.value.find(sig => sig.id === signatureId);
-  if (!selectedSignature) return;
-  
-  // 在编辑器中添加选择的签名
-  setTimeout(() => {
-    const content = editor.value.getContent();
-    // 移除之前的签名
-    const signatureRegex = /<br\s*\/?>\s*<br\s*\/?>\s*<div[^>]*>.*?<\/div>$/s;
-    const cleanedContent = content.replace(signatureRegex, '');
-    
-    // 添加新签名
-    editor.value.setContent(cleanedContent + '<br><br>' + selectedSignature.content);
-  }, 100);
+  const content = editor.value.getContent()
+  if (!signatureId) {
+    editor.value.setContent(removeSignatureFromContent(content))
+    return
+  }
+  const selectedSignature = signatures.value.find(sig => sig.id === signatureId)
+  if (!selectedSignature) return
+  editor.value.setContent(insertSignatureIntoContent(content, selectedSignature))
 }
 
 // 处理SMTP账户选择变化
@@ -859,11 +886,6 @@ function close() {
           overflow: hidden;
         }
 
-        .signature-selector {
-          margin-left: 15px;
-          min-width: 150px;
-        }
-
         div {
           display: flex;
           align-items: center;
@@ -887,6 +909,10 @@ function close() {
           display: inline-flex;
           align-items: center;
           gap: 10px;
+        }
+
+        .signature-select {
+          min-width: 140px;
         }
 
         .smtp-account-select {

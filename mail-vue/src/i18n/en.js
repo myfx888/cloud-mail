@@ -352,6 +352,20 @@ const en = {
     smtpAccountManager: 'SMTP Account Manager',
     addSmtpAccount: 'Add SMTP Account',
     editSmtpAccount: 'Edit SMTP Account',
-    setDefault: 'Set as Default'
+    setDefault: 'Set as Default',
+    signatureManager: 'Signature Manager',
+    addSignature: 'Add Signature',
+    editSignature: 'Edit Signature',
+    signatureName: 'Signature Name',
+    signatureContent: 'Signature Content',
+    selectSignature: 'Select Signature',
+    noSignature: 'No Signature',
+    defaultSignature: 'Default',
+    setAsDefaultSignature: 'Set as Default Signature',
+    deleteSignatureConfirm: 'Are you sure you want to delete this signature?',
+    signatureSaveSuccess: 'Signature saved successfully',
+    signatureDeleteSuccess: 'Signature deleted successfully',
+    signatureSetDefaultSuccess: 'Set as default signature',
+    signatureNameRequired: 'Please enter signature name'
 }
 export default en

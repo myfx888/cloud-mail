@@ -353,6 +353,20 @@ const zh = {
     smtpAccountManager: 'SMTP 账户管理',
     addSmtpAccount: '添加 SMTP 账户',
     editSmtpAccount: '编辑 SMTP 账户',
-    setDefault: '设为默认'
+    setDefault: '设为默认',
+    signatureManager: '签名管理',
+    addSignature: '添加签名',
+    editSignature: '编辑签名',
+    signatureName: '签名名称',
+    signatureContent: '签名内容',
+    selectSignature: '选择签名',
+    noSignature: '无签名',
+    defaultSignature: '默认',
+    setAsDefaultSignature: '设为默认签名',
+    deleteSignatureConfirm: '确定删除此签名吗？',
+    signatureSaveSuccess: '签名保存成功',
+    signatureDeleteSuccess: '签名删除成功',
+    signatureSetDefaultSuccess: '已设为默认签名',
+    signatureNameRequired: '请输入签名名称'
 }
 export default zh

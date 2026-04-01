@@ -17,6 +17,7 @@
               <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
             </div>
             <div class="settings" @click.stop>
+              <Icon icon="mdi:signature-freehand" width="22" height="22" color="#67C23A" @click.stop="openSignatureManager(item)" style="cursor:pointer"/>
               <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
               <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"
                     v-if="showNullSetting(item)"/>
@@ -124,9 +125,11 @@
       </div>
     </el-dialog>
   </div>
+  <signatureManager ref="signatureManagerRef" :account-id="signatureAccountId" @updated="onSignatureUpdated" />
 </template>
 <script setup>
 import {Icon} from "@iconify/vue";
+import signatureManager from "@/components/signature-manager/index.vue";
 import {nextTick, reactive, ref, watch} from "vue";
 import {
   accountList,
@@ -180,6 +183,8 @@ const queryParams = {
 }
 
 const mySelect = ref()
+const signatureManagerRef = ref()
+const signatureAccountId = ref(0)
 
 if (hasPerm('account:query')) {
   getAccountList()
@@ -360,6 +365,17 @@ function setAsTop(account, index) {
     accounts.splice(1, 0, item);
 
   });
+}
+
+function openSignatureManager(item) {
+  signatureAccountId.value = item.accountId
+  nextTick(() => {
+    signatureManagerRef.value.open()
+  })
+}
+
+function onSignatureUpdated() {
+  // signatures updated, no action needed in account list
 }
 
 async function copyAccount(account) {
