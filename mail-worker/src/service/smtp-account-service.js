@@ -33,7 +33,7 @@ const smtpAccountService = {
 			port: smtpAccountData.port,
 			user: smtpAccountData.user,
 			password: smtpAccountData.password,
-			secure: smtpAccountData.secure ?? 1,
+			secure: smtpAccountData.secure ?? 0,
 			authType: smtpAccountData.authType || 'plain',
 			isDefault: smtpAccountData.isDefault ? 1 : 0,
 			status: 1
@@ -81,7 +81,7 @@ const smtpAccountService = {
 				port: smtpAccountData.port,
 				user: smtpAccountData.user,
 				password: smtpAccountData.password,
-				secure: smtpAccountData.secure ?? 1,
+				secure: smtpAccountData.secure ?? 0,
 				authType: smtpAccountData.authType || 'plain',
 				isDefault: smtpAccountData.isDefault ? 1 : 0,
 				updateTime: new Date().toISOString()
@@ -188,7 +188,7 @@ const smtpAccountService = {
 			port: smtpAccountData.port,
 			user: smtpAccountData.user,
 			password: smtpAccountData.password,
-			secure: smtpAccountData.secure ?? 1,
+			secure: smtpAccountData.secure ?? 0,
 			authType: smtpAccountData.authType || 'plain'
 		});
 	}

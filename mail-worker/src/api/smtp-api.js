@@ -11,13 +11,15 @@ import { t } from '../i18n/i18n';
 // 验证全局SMTP配置
 app.post('/smtp/verify', async (c) => {
 	const params = await c.req.json();
+	const smtpPort = Number(params.smtpPort ?? 587);
+	const smtpSecure = Number(params.smtpSecure ?? 0);
 	
 	const smtpConfig = {
 		host: params.smtpHost,
-		port: params.smtpPort || 587,
+		port: smtpPort,
 		user: params.smtpUser,
 		password: params.smtpPassword,
-		secure: params.smtpSecure || 0,
+		secure: [0, 1, 2].includes(smtpSecure) ? smtpSecure : 0,
 		authType: params.smtpAuthType || 'plain'
 	};
 	
@@ -33,6 +35,8 @@ app.post('/smtp/verify', async (c) => {
 app.post('/smtp/verify-account', async (c) => {
 	const params = await c.req.json();
 	const userId = userContext.getUserId(c);
+	const smtpPort = Number(params.smtpPort ?? 587);
+	const smtpSecure = Number(params.smtpSecure ?? 0);
 	
 	const accountRow = await accountService.selectById(c, params.accountId);
 	if (!accountRow || accountRow.userId !== userId) {
@@ -41,10 +45,10 @@ app.post('/smtp/verify-account', async (c) => {
 	
 	const smtpConfig = {
 		host: params.smtpHost,
-		port: params.smtpPort || 587,
+		port: smtpPort,
 		user: params.smtpUser,
 		password: params.smtpPassword,
-		secure: params.smtpSecure || 0,
+		secure: [0, 1, 2].includes(smtpSecure) ? smtpSecure : 0,
 		authType: params.smtpAuthType || 'plain'
 	};
 	
