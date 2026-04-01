@@ -5,6 +5,17 @@ import { sleep } from '../utils/time-utils';
 
 const mailcowService = {
 
+    normalizeSmtpServerSecureMode(mode) {
+        const secureMode = Number(mode ?? 0);
+        if (secureMode === 1) {
+            return 2;
+        }
+        if (secureMode === 2) {
+            return 1;
+        }
+        return 0;
+    },
+
     async getServerById(c, serverId) {
         if (!serverId) {
             return this.getDefaultServer(c);
@@ -73,7 +84,7 @@ const mailcowService = {
             return {
                 smtpHost: associatedSmtpServer.smtpHost,
                 smtpPort: Number(associatedSmtpServer.smtpPort || 587),
-                smtpSecure: Number(associatedSmtpServer.smtpSecure ?? 0),
+                smtpSecure: this.normalizeSmtpServerSecureMode(associatedSmtpServer.smtpSecure),
                 smtpAuthType: associatedSmtpServer.smtpAuthType || 'plain'
             };
         }
@@ -81,7 +92,7 @@ const mailcowService = {
         return {
             smtpHost: server?.smtpHost || globalTemplate.smtpHost || (server?.apiUrl ? new URL(server.apiUrl).hostname : 'smtp.mailcow.email'),
             smtpPort: Number(server?.smtpPort || globalTemplate.smtpPort || 587),
-            smtpSecure: Number(server?.smtpSecure ?? globalTemplate.smtpSecure ?? 0),
+            smtpSecure: this.normalizeSmtpServerSecureMode(server?.smtpSecure ?? globalTemplate.smtpSecure ?? 0),
             smtpAuthType: server?.smtpAuthType || globalTemplate.smtpAuthType || 'plain'
         };
     },

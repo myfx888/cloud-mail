@@ -499,7 +499,7 @@ const accountService = {
 			smtpHost: targetServer.smtpHost,
 			smtpPort: Number(targetServer.smtpPort || 587),
 			smtpUser: targetServer.smtpUser || accountRow.email,
-			smtpSecure: Number(targetServer.smtpSecure ?? 0),
+			smtpSecure: mailcowService.normalizeSmtpServerSecureMode(targetServer.smtpSecure),
 			smtpAuthType: targetServer.smtpAuthType || 'plain',
 			smtpServerId: String(targetServer.id)
 		});
