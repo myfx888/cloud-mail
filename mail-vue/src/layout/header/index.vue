@@ -10,6 +10,9 @@
       </div>
     </div>
     <div class="toolbar">
+      <div class="lang-switch icon-item" @click="changeLang(settingStore.lang === 'en' ? 'zh' : 'en')">
+        {{ settingStore.lang === 'en' ? '中' : 'EN' }}
+      </div>
       <div v-if="uiStore.dark" class="sun-icon icon-item" @click="openDark($event)">
         <Icon icon="mingcute:sun-fill"/>
       </div>
@@ -436,6 +439,12 @@ function formatName(email) {
   .notice {
     font-size: 22px;
     margin-right: 4px;
+  }
+
+  .lang-switch {
+    font-size: 13px;
+    font-weight: 600;
+    user-select: none;
   }
 
   .dark-icon {
