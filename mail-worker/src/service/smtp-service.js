@@ -1,4 +1,4 @@
-import { WorkerMailer } from 'worker-mailer';
+import { WorkerMailer } from '../lib/worker-mailer/mailer.js';
 import { eq, and } from 'drizzle-orm';
 import BizError from '../error/biz-error';
 import { t } from '../i18n/i18n';
@@ -182,8 +182,8 @@ const smtpService = {
 			port: securityOptions.port,
 			secure: securityOptions.secure,
 			startTls: securityOptions.startTls,
-			socketTimeoutMs: 30000,
-			responseTimeoutMs: 15000,
+			socketTimeoutMs: securityOptions.socketTimeoutMs || 30000,
+			responseTimeoutMs: securityOptions.responseTimeoutMs || 15000,
 			logLevel: 0 // 开启 DEBUG 日志，方便排查连接问题
 		});
 	},
