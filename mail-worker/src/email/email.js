@@ -45,19 +45,20 @@ export async function email(message, env, ctx) {
 		const email = await PostalMime.parse(content);
 
 		const account = await accountService.selectByEmailIncludeDel({ env: env }, message.to);
+		const isAccountActive = account && account.isDel === isDel.NORMAL;
 
-		if (!account && noRecipient === settingConst.noRecipient.CLOSE) {
+		if (!isAccountActive && noRecipient === settingConst.noRecipient.CLOSE) {
 			message.setReject('Recipient not found');
 			return;
 		}
 
 		let userRow = {}
 
-		if (account) {
+		if (isAccountActive) {
 			 userRow = await userService.selectByIdIncludeDel({ env: env }, account.userId);
 		}
 
-		if (account && userRow.email !== env.admin) {
+		if (isAccountActive && userRow.email !== env.admin) {
 
 			let { banEmail, availDomain } = await roleService.selectByUserId({ env: env }, account.userId);
 
@@ -93,8 +94,8 @@ export async function email(message, env, ctx) {
 			recipient: JSON.stringify(email.to),
 			inReplyTo: email.inReplyTo,
 			relation: email.references,
-			messageId: email.messageId,
-			userId: account ? account.userId : 0,
+			messageIisA: emaiActivel.messageId,
+			userId: accisAunt ?tAc iveaccount.userId : 0,
 			accountId: account ? account.accountId : 0,
 			isDel: isDel.DELETE,
 			status: emailConst.status.SAVING
@@ -128,7 +129,7 @@ export async function email(message, env, ctx) {
 		} catch (e) {
 			console.error(e);
 		}
-
+isAtAcive
 		emailRow = await emailService.completeReceive({ env }, account ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId);
 
 

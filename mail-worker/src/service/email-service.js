@@ -104,12 +104,18 @@ const emailService = {
 				)
 		).get();
 
-		const latestEmailQuery = orm(c).select().from(email).where(
+		const latestEmailQuery = orm(c).select({...email}).from(email)
+			.leftJoin(
+				account,
+				eq(account.accountId, email.accountId)
+			)
+			.where(
 			and(
 				allReceive ? eq(1,1) : eq(email.accountId, accountId),
 				eq(email.userId, userId),
 				eq(email.type, type),
-				eq(email.isDel, isDel.NORMAL)
+				eq(email.isDel, isDel.NORMAL),
+				eq(account.isDel, isDel.NORMAL)
 			))
 			.orderBy(desc(email.emailId)).limit(1).get();
 
@@ -426,7 +432,7 @@ const emailService = {
 		const { noRecipient  } = await settingService.query(c);
 
 		//查询所有收件人账号信息
-		let accountList = await orm(c).select().from(account).where(inArray(account.email, receiveEmail)).all();
+		let accountList = await orm(c).select().from(account).where(and(inArray(account.email, receiveEmail), eq(account.isDel, isDel.NORMAL))).all();
 
 		//查询所有收件人权限身份
 		const userIds = accountList.map(accountRow => accountRow.userId);
@@ -767,10 +773,13 @@ const emailService = {
 
 		let list = await orm(c).select({...email, userEmail: user.email}).from(email)
 			.leftJoin(user, eq(email.userId, user.userId))
+			.leftJoin(account, eq(email.accountId, account.accountId))
 			.where(
 				and(
 					gt(email.emailId, emailId),
 					eq(email.type, emailConst.type.RECEIVE),
+					eq(email.isDel, isDel.NORMAL),
+					eq(account.isDel, isDel.NORMAL),
 					ne(email.status, emailConst.status.SAVING)
 				))
 			.orderBy(desc(email.emailId))
@@ -866,6 +875,51 @@ const emailService = {
 	async read(c, params, userId) {
 		const { emailIds } = params;
 		await orm(c).update(email).set({ unread: emailConst.unread.READ }).where(and(eq(email.userId, userId), inArray(email.emailId, emailIds)));
+	},
+
+	async claimHistoricalMails(c, emailAddress, userId, accountId) {
+		try {
+			// Find match NOONE emails
+			const matchedEmails = await orm(c).select({ emailId: email.emailId })
+				.from(email)
+				.where(and(
+					eq(email.status, emailConst.status.NOONE),
+					eq(email.userId, 0),
+					eq(email.accountId, 0),
+					sql`LOWER(${email.toEmail}) = LOWER(${emailAddress})`
+				))
+				.all();
+
+			if (matchedEmails.length === 0) {
+				return;
+			}
+
+			const emailIds = matchedEmails.map(e => e.emailId);
+
+			// Update emails
+			await orm(c).update(email)
+				.set({
+					userId: userId,
+					accountId: accountId,
+					status: emailConst.status.RECEIVE
+				})
+				.where(inArray(email.emailId, emailIds))
+				.run();
+
+			// Update attachments
+			await orm(c).update(att)
+				.set({
+					userId: userId,
+					accountId: accountId
+				})
+				.where(inArray(att.emailId, emailIds))
+				.run();
+
+			console.log(`Successfully claimed ${emailIds.length} historical mails for ${emailAddress}`);
+		} catch (error) {
+			console.error(`Failed to claim historical mails for ${emailAddress}:`, error);
+			// Option A: Not throwing error to avoid blocking account creation
+		}
 	},
 
 	async exportEmail(c, emailId, userId) {
