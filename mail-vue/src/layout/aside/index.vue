@@ -31,7 +31,7 @@
           <Icon icon="fluent:settings-48-regular" width="20" height="20" />
           <span class="menu-name" style="margin-left: 21px">{{$t('settings')}}</span>
         </el-menu-item>
-        <el-menu-item @click="router.push({name: 'account'})" index="account"
+        <el-menu-item @click="router.push({name: 'account'})" index="account" v-perm="'account:query'"
                       :class="route.meta.name === 'account' ? 'choose-item' : ''">
           <Icon icon="fluent:mail-24-regular" width="20" height="20" />
           <span class="menu-name" style="margin-left: 21px">{{$t('emailAccounts')}}</span>

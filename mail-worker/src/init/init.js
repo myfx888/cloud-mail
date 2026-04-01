@@ -114,7 +114,7 @@ const dbInit = {
 			if (accountRoot?.permId) {
 				const rootId = Number(accountRoot.permId);
 
-				await c.env.db.prepare(`UPDATE perm SET name = '邮件账户' WHERE perm_id = ?`).bind(rootId).run();
+				await c.env.db.prepare(`UPDATE perm SET name = '邮件账户', type = 1 WHERE perm_id = ?`).bind(rootId).run();
 
 				await c.env.db.prepare(`
 					INSERT INTO perm (name, perm_key, pid, type, sort)
