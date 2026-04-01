@@ -15,5 +15,10 @@ const userContext = {
 		const payload = await JwtUtils.verifyToken(c,jwt);
 		return payload?.token;
 	},
+
+	isAdmin(c) {
+		const user = c.get('user');
+		return user.type === 0;
+	},
 };
 export default userContext;
