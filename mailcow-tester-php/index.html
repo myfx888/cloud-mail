@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mailcow PHP Tester</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        button:hover { background: #0056b3; }
+        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 4px; overflow-x: auto; min-height: 50px; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.9em; font-weight: bold; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Mailcow API PHP Tester</h1>
+    <div class="card">
+        <div class="form-group">
+            <label>API URL:</label>
+            <input type="text" id="apiUrl" placeholder="https://mail.example.com">
+        </div>
+        <div class="form-group">
+            <label>API Key:</label>
+            <input type="password" id="apiKey">
+        </div>
+        <div class="form-group">
+            <label>Test Domain:</label>
+            <input type="text" id="testDomain" value="rttx.net">
+        </div>
+        <div class="form-group">
+            <label>Test Mailbox (for creation):</label>
+            <input type="text" id="testMailbox" value="tester@rttx.net">
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="text" id="testPassword" value="TestPassword123!">
+        </div>
+        <div class="form-group">
+            <label>Endpoint:</label>
+            <input type="text" id="endpoint" value="get/domain/rttx.net">
+        </div>
+        <button onclick="test('get/status/version')">Version</button>
+        <button onclick="test('get/domain/' + document.getElementById('testDomain').value)">Check Domain</button>
+        <button onclick="test('get/domain/all')">All Domains</button>
+        <button onclick="createMailbox()" style="background: #28a745;">Create Mailbox</button>
+    </div>
+
+    <div id="resultContainer" class="card" style="display:none;">
+        <h3>Result <span id="statusBadge" class="status-badge"></span></h3>
+        <p><strong>URL:</strong> <span id="targetUrl"></span></p>
+        <pre id="output"></pre>
+    </div>
+
+    <script>
+        async function createMailbox() {
+            const mailbox = document.getElementById('testMailbox').value;
+            const password = document.getElementById('testPassword').value;
+            const parts = mailbox.split('@');
+            if (parts.length !== 2) {
+                alert('Invalid mailbox format');
+                return;
+            }
+
+            const data = {
+                active: 1,
+                domain: parts[1],
+                local_part: parts[0],
+                name: mailbox,
+                password: password,
+                password2: password,
+                quota: 2048,
+                force_pw_update: 0,
+                tls_enforce_in: 0,
+                tls_enforce_out: 0
+            };
+
+            await test('add/mailbox', 'POST', data);
+        }
+
+        async function test(endpoint, method = 'GET', data = null) {
+            const resultContainer = document.getElementById('resultContainer');
+            const output = document.getElementById('output');
+            const statusBadge = document.getElementById('statusBadge');
+            const targetUrl = document.getElementById('targetUrl');
+
+            resultContainer.style.display = 'block';
+            output.textContent = 'Loading...';
+
+            const formData = new FormData();
+            formData.append('apiUrl', document.getElementById('apiUrl').value);
+            formData.append('apiKey', document.getElementById('apiKey').value);
+            formData.append('endpoint', endpoint);
+            formData.append('method', method);
+            if (data) {
+                formData.append('data', JSON.stringify(data));
+            }
+
+            try {
+                const response = await fetch('proxy.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                targetUrl.textContent = data.url || 'N/A';
+                statusBadge.textContent = data.status || 'Error';
+                statusBadge.className = 'status-badge ' + (data.success ? 'status-success' : 'status-error');
+
+                if (data.body) {
+                    try {
+                        const parsed = JSON.parse(data.body);
+                        output.textContent = JSON.stringify(parsed, null, 4);
+                    } catch (e) {
+                        output.textContent = data.body;
+                    }
+                } else if (data.error) {
+                    output.textContent = data.error;
+                } else {
+                    output.textContent = 'Empty response';
+                }
+            } catch (error) {
+                output.textContent = 'Request failed: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

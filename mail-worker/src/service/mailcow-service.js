@@ -199,11 +199,16 @@ const mailcowService = {
     async callApi(c, endpoint, method = 'GET', data = null, serverConfig = null) {
         try {
             const server = serverConfig || await this.getDefaultServer(c);
+            const apiKey = String(server.apiKey || '').trim();
             
             // Normalize apiUrl: remove trailing slash and redundant /api/v1
             let baseApiUrl = String(server.apiUrl || '').trim().replace(/\/+$/, '');
             if (baseApiUrl.toLowerCase().endsWith('/api/v1')) {
                 baseApiUrl = baseApiUrl.substring(0, baseApiUrl.length - 7).replace(/\/+$/, '');
+            }
+            // 确保 apiUrl 包含协议
+            if (!baseApiUrl.startsWith('http://') && !baseApiUrl.startsWith('https://')) {
+                baseApiUrl = 'https://' + baseApiUrl;
             }
             const url = `${baseApiUrl}/api/v1/${endpoint}`;
             
@@ -212,27 +217,28 @@ const mailcowService = {
                 throw new BizError('Mailcow API Key is masked (contains ****). Please re-enter and save your correct API key in Settings.', 401);
             }
 
+            // 最小化请求头，完全匹配 PHP 测试脚本，并增加 User-Agent 避免防火墙拦截
             const headers = {
-                'Content-Type': 'application/json',
-                'X-API-Key': server.apiKey
+                'X-API-Key': apiKey,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             };
-            
+
             const options = {
                 method,
                 headers,
-                cf: {
-                    cacheTtl: 0
-                }
+                redirect: 'follow',
+                cache: 'no-store'
             };
             
             if (data && (method === 'POST' || method === 'PUT')) {
+                headers['Content-Type'] = 'application/json';
                 options.body = JSON.stringify(data);
             }
             
             console.log(`Mailcow API Call: ${method} ${url}`);
-            const keyLength = server.apiKey ? server.apiKey.length : 0;
-            const isKeyMasked = server.apiKey && server.apiKey.includes('****');
-            console.log(`Mailcow API Key info: length=${keyLength}, looks_masked=${isKeyMasked}`);
+            // Log masked config for verification
+            const maskedKey = apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : 'null';
+            console.log(`Mailcow Config Check: URL=${url}, Key=${maskedKey}, KeyLength=${apiKey.length}`);
             
             if (data) {
                 const logData = { ...data };
@@ -241,44 +247,47 @@ const mailcowService = {
                 console.log(`Mailcow API Request Body: ${JSON.stringify(logData)}`);
             }
             const response = await fetch(url, options);
-            console.log(`Mailcow API Response: ${response.status}, ${response.statusText}`);
+            console.log(`Mailcow API Response: ${response.status} ${response.statusText} for ${method} ${url}`);
             
-            // Log important headers for debugging
-            console.log(`Mailcow API Response Content-Type: ${response.headers.get('Content-Type')}`);
+            const responseHeaders = {};
+            response.headers.forEach((v, k) => { responseHeaders[k] = v; });
+            console.log(`Mailcow API Response Headers: ${JSON.stringify(responseHeaders)}`);
             
+            // Detect WAF/Security blocking
+            if (responseHeaders['server'] === 'cloudflare' || responseHeaders['cf-ray'] || responseHeaders['x-frame-options'] === 'SAMEORIGIN') {
+                console.warn('Potential Security/WAF blocking detected in Mailcow API response');
+            }
+
+            const responseText = await response.text().catch((e) => `[Read Body Error: ${e.message}]`);
+            console.log(`Mailcow API Raw Response Body (first 500 chars): ${responseText.slice(0, 500)}`);
+
             if (!response.ok) {
-                const errorText = await response.text().catch(() => '');
-                console.error(`Mailcow API Error Detail: Status=${response.status}, Body=${errorText}`);
+                console.error(`Mailcow API Error Detail: Status=${response.status}, Body=${responseText}`);
                 let errorMessage = response.statusText;
                 try {
-                    if (errorText) {
-                        const errorData = JSON.parse(errorText);
-                        errorMessage = errorData.message || errorMessage;
+                    if (responseText && responseHeaders['content-type']?.includes('application/json')) {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.message || errorData.error || errorMessage;
                     }
                 } catch (e) {
-                    // Ignore JSON parse error for error response
-                    if (errorText) errorMessage = errorText;
+                    if (responseText) errorMessage = responseText;
                 }
                 throw new BizError(`mailcow API error: ${errorMessage}`, response.status);
             }
             
-            const responseText = await response.text().catch(() => '');
             if (!responseText) {
                 console.warn(`Mailcow API returned completely empty body for ${method} ${url}`);
                 return null;
             }
 
-            const contentType = response.headers.get('Content-Type');
-            if (contentType && contentType.includes('application/json')) {
+            if (responseHeaders['content-type']?.includes('application/json')) {
                 try {
                     return JSON.parse(responseText);
                 } catch (e) {
                     console.warn(`Failed to parse mailcow JSON response from ${url}:`, e.message);
-                    console.warn('Response preview:', responseText.slice(0, 200));
                     return responseText;
                 }
             }
-            console.log(`Mailcow API returned non-JSON response (${contentType || 'no-content-type'}) for ${url}. Preview:`, responseText.slice(0, 200));
             return responseText;
         } catch (error) {
             if (error instanceof BizError) {

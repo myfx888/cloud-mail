@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mailcow API Diagnostic Tool</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; padding: 20px; background: #f4f7f9; }
+        .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h2 { color: #2c3e50; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="password"], textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 10px; }
+        button:hover { background: #2980b9; }
+        button.secondary { background: #95a5a6; }
+        .results { background: #2d3436; color: #dfe6e9; padding: 15px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; min-height: 100px; max-height: 500px; overflow-y: auto; }
+        .status { padding: 5px 10px; border-radius: 4px; display: inline-block; margin-bottom: 10px; }
+        .success { background: #dff9fb; color: #0984e3; border: 1px solid #74b9ff; }
+        .error { background: #fab1a0; color: #d63031; border: 1px solid #ff7675; }
+        .info { background: #e1f5fe; color: #01579b; border: 1px solid #81d4fa; }
+        .cors-notice { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Mailcow API Diagnostic Tool</h1>
+    
+    <div class="cors-notice">
+        <strong>⚠️ CORS Notice:</strong> Browsers block cross-origin requests by default. 
+        To use this tool, you may need a browser extension like "Allow CORS" or run your browser with security disabled (e.g., <code>chrome.exe --disable-web-security</code>). 
+        This tool is for debugging parameters and response formats.
+    </div>
+
+    <div class="card">
+        <h2>Configuration</h2>
+        <div class="form-group">
+            <label for="apiUrl">Mailcow API URL (e.g., https://mail.example.com)</label>
+            <input type="text" id="apiUrl" placeholder="https://mail.example.com" value="">
+        </div>
+        <div class="form-group">
+            <label for="apiKey">API Key</label>
+            <input type="password" id="apiKey" placeholder="Your API Key" value="">
+        </div>
+        <div class="form-group">
+            <label for="testDomain">Domain to Test (e.g., rttx.net)</label>
+            <input type="text" id="testDomain" placeholder="rttx.net" value="rttx.net">
+        </div>
+        <div class="form-group">
+            <label for="testEmail">Email to Test (e.g., test@rttx.net)</label>
+            <input type="text" id="testEmail" placeholder="test@rttx.net" value="">
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Actions</h2>
+        <button onclick="runTest('status/version')">Test Connection</button>
+        <button onclick="runTest('get/domain/' + getDomain())">Check Specific Domain</button>
+        <button onclick="runTest('get/domain/all')">Check All Domains</button>
+        <button onclick="runTest('get/mailbox/' + getEmail())">Check Specific Mailbox</button>
+        <button onclick="clearLogs()" class="secondary">Clear Logs</button>
+    </div>
+
+    <div class="card">
+        <h2>Logs & Results</h2>
+        <div id="statusDisplay"></div>
+        <div id="results" class="results">Results will appear here...</div>
+    </div>
+
+    <script>
+        function getDomain() {
+            return document.getElementById('testDomain').value.trim();
+        }
+        function getEmail() {
+            return document.getElementById('testEmail').value.trim();
+        }
+        function clearLogs() {
+            document.getElementById('results').textContent = 'Logs cleared.';
+            document.getElementById('statusDisplay').innerHTML = '';
+        }
+
+        async function runTest(endpoint) {
+            const apiUrlInput = document.getElementById('apiUrl').value.trim().replace(/\/+$/, '');
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const resultsDiv = document.getElementById('results');
+            const statusDiv = document.getElementById('statusDisplay');
+
+            if (!apiUrlInput || !apiKey) {
+                alert('Please enter API URL and API Key');
+                return;
+            }
+
+            // Normalize URL
+            let baseApiUrl = apiUrlInput;
+            if (baseApiUrl.toLowerCase().endsWith('/api/v1')) {
+                baseApiUrl = baseApiUrl.substring(0, baseApiUrl.length - 7).replace(/\/+$/, '');
+            }
+            const fullUrl = `${baseApiUrl}/api/v1/${endpoint}`;
+
+            resultsDiv.textContent += `\n\n--- Testing: ${endpoint} ---\n`;
+            resultsDiv.textContent += `Full URL: ${fullUrl}\n`;
+            statusDiv.innerHTML = '<span class="status info">Running test...</span>';
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(fullUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    }
+                });
+                const duration = Date.now() - startTime;
+
+                resultsDiv.textContent += `Status: ${response.status} ${response.statusText}\n`;
+                resultsDiv.textContent += `Time: ${duration}ms\n`;
+
+                const contentType = response.headers.get('content-type');
+                resultsDiv.textContent += `Content-Type: ${contentType}\n`;
+
+                const text = await response.text();
+                resultsDiv.textContent += `Raw Response Body:\n${text || '(empty body)'}\n`;
+
+                if (text && contentType && contentType.includes('application/json')) {
+                    try {
+                        const json = JSON.parse(text);
+                        resultsDiv.textContent += `\nParsed JSON:\n${JSON.stringify(json, null, 2)}\n`;
+                        
+                        if (response.ok) {
+                            statusDiv.innerHTML = `<span class="status success">Success! (${response.status})</span>`;
+                        } else {
+                            statusDiv.innerHTML = `<span class="status error">Failed with status ${response.status}</span>`;
+                        }
+                    } catch (e) {
+                        resultsDiv.textContent += `\n[JSON Parse Error]: ${e.message}\n`;
+                        statusDiv.innerHTML = `<span class="status error">JSON Parse Error</span>`;
+                    }
+                } else if (response.ok) {
+                    statusDiv.innerHTML = `<span class="status success">Success! (Non-JSON)</span>`;
+                } else {
+                    statusDiv.innerHTML = `<span class="status error">Failed with status ${response.status}</span>`;
+                }
+
+            } catch (error) {
+                console.error(error);
+                resultsDiv.textContent += `\n[Fetch Error]: ${error.message}\n`;
+                resultsDiv.textContent += `Possible causes:\n1. Invalid URL\n2. Network issue\n3. CORS blocked (check console)\n4. DNS failed\n`;
+                statusDiv.innerHTML = `<span class="status error">Fetch Error - Check CORS</span>`;
+            }
+            
+            // Auto-scroll to bottom
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
