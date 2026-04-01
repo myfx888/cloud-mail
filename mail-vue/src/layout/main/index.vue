@@ -25,7 +25,7 @@ let  innerWidth =  window.innerWidth
 let elNotification = null
 
 const accountShow = computed(() => {
-  return uiStore.accountShow && settingStore.settings.manyEmail === 0
+  return uiStore.accountShow && settingStore.settings.manyEmail === 0 && ['content','email','send'].includes(route.meta?.name)
 })
 
 watch(() => uiStore.changeNotice, () => {

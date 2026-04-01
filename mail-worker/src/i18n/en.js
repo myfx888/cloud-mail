@@ -110,7 +110,10 @@ const en = {
 		"系统设置": "System Settings",
 		"设置查看": "View Settings",
 		"设置修改": "Change Settings",
-		"发件重置": "Reset Send Count"
+		"发件重置": "Reset Send Count",
+		"SMTP设置": "SMTP Settings",
+		"SMTP配置查看": "View SMTP Config",
+		"SMTP配置修改": "Edit SMTP Config"
 	}
 };
 

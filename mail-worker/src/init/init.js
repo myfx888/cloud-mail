@@ -95,50 +95,90 @@ const dbInit = {
 
 	async v3_9DB(c) {
 		try {
-			await c.env.db.prepare(`
-				INSERT INTO perm (name, perm_key, pid, type, sort)
-				SELECT '邮件账户', NULL, 0, 1, 1.1
-				WHERE NOT EXISTS (
-					SELECT 1 FROM perm WHERE pid = 0 AND (name = '邮件账户' OR name = '邮箱侧栏')
-				);
-			`).run();
+			// 1. 确保根节点存在
+			let rootRow = await c.env.db.prepare(
+				`SELECT perm_id AS permId FROM perm WHERE pid = 0 AND (name = '邮件账户' OR name = '邮箱侧栏') LIMIT 1`
+			).first();
 
-			const accountRoot = await c.env.db.prepare(`
-				SELECT perm_id AS permId
-				FROM perm
-				WHERE pid = 0 AND (name = '邮件账户' OR name = '邮箱侧栏')
-				ORDER BY CASE WHEN name = '邮件账户' THEN 0 ELSE 1 END, perm_id ASC
-				LIMIT 1
-			`).first();
+			if (!rootRow) {
+				await c.env.db.prepare(
+					`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES ('邮件账户', NULL, 0, 1, 1)`
+				).run();
+				rootRow = await c.env.db.prepare(
+					`SELECT perm_id AS permId FROM perm WHERE pid = 0 AND name = '邮件账户' LIMIT 1`
+				).first();
+			}
 
-			if (accountRoot?.permId) {
-				const rootId = Number(accountRoot.permId);
+			if (!rootRow?.permId) {
+				console.warn('v3_9DB: 无法创建或找到邮件账户根权限节点');
+				return;
+			}
 
-				await c.env.db.prepare(`UPDATE perm SET name = '邮件账户', type = 1 WHERE perm_id = ?`).bind(rootId).run();
+			const rootId = Number(rootRow.permId);
 
-				await c.env.db.prepare(`
-					INSERT INTO perm (name, perm_key, pid, type, sort)
-					SELECT '账户查看', 'account:query', ?, 0, 0
-					WHERE NOT EXISTS (SELECT 1 FROM perm WHERE perm_key = 'account:query');
-				`).bind(rootId).run();
-				await c.env.db.prepare(`UPDATE perm SET name = '账户查看', pid = ?, type = 0, sort = 0 WHERE perm_key = 'account:query'`).bind(rootId).run();
+			// 2. 更新根节点名称和类型
+			await c.env.db.prepare(
+				`UPDATE perm SET name = '邮件账户', type = 1 WHERE perm_id = ?`
+			).bind(rootId).run();
 
-				await c.env.db.prepare(`
-					INSERT INTO perm (name, perm_key, pid, type, sort)
-					SELECT '账户添加', 'account:add', ?, 2, 1
-					WHERE NOT EXISTS (SELECT 1 FROM perm WHERE perm_key = 'account:add');
-				`).bind(rootId).run();
-				await c.env.db.prepare(`UPDATE perm SET name = '账户添加', pid = ?, type = 2, sort = 1 WHERE perm_key = 'account:add'`).bind(rootId).run();
+			// 3. 确保子节点存在并更新
+			const children = [
+				{ name: '账户查看', permKey: 'account:query', sort: 0 },
+				{ name: '账户添加', permKey: 'account:add', sort: 1 },
+				{ name: '账户删除', permKey: 'account:delete', sort: 2 }
+			];
 
-				await c.env.db.prepare(`
-					INSERT INTO perm (name, perm_key, pid, type, sort)
-					SELECT '账户删除', 'account:delete', ?, 2, 2
-					WHERE NOT EXISTS (SELECT 1 FROM perm WHERE perm_key = 'account:delete');
-				`).bind(rootId).run();
-				await c.env.db.prepare(`UPDATE perm SET name = '账户删除', pid = ?, type = 2, sort = 2 WHERE perm_key = 'account:delete'`).bind(rootId).run();
+			for (const child of children) {
+				try {
+					const existing = await c.env.db.prepare(
+						`SELECT perm_id FROM perm WHERE perm_key = ? LIMIT 1`
+					).bind(child.permKey).first();
+
+					if (!existing) {
+						await c.env.db.prepare(
+							`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES (?, ?, ?, 2, ?)`
+						).bind(child.name, child.permKey, rootId, child.sort).run();
+					} else {
+						await c.env.db.prepare(
+							`UPDATE perm SET name = ?, pid = ?, type = 2, sort = ? WHERE perm_key = ?`
+						).bind(child.name, rootId, child.sort, child.permKey).run();
+					}
+				} catch (childErr) {
+					console.warn(`v3_9DB: 子节点 ${child.permKey} 处理失败: ${childErr.message}`);
+				}
+			}
+
+			// 4. 确保默认角色拥有这些权限
+			try {
+				const defaultRole = await c.env.db.prepare(
+					`SELECT role_id AS roleId FROM role WHERE is_default = 1 LIMIT 1`
+				).first();
+
+				if (defaultRole?.roleId) {
+					const allPermIds = [rootId];
+					for (const child of children) {
+						const row = await c.env.db.prepare(
+							`SELECT perm_id AS permId FROM perm WHERE perm_key = ? LIMIT 1`
+						).bind(child.permKey).first();
+						if (row?.permId) allPermIds.push(Number(row.permId));
+					}
+
+					for (const permId of allPermIds) {
+						const exists = await c.env.db.prepare(
+							`SELECT 1 FROM role_perm WHERE role_id = ? AND perm_id = ? LIMIT 1`
+						).bind(defaultRole.roleId, permId).first();
+						if (!exists) {
+							await c.env.db.prepare(
+								`INSERT INTO role_perm (role_id, perm_id) VALUES (?, ?)`
+							).bind(defaultRole.roleId, permId).run();
+						}
+					}
+				}
+			} catch (roleErr) {
+				console.warn(`v3_9DB: 默认角色权限更新失败: ${roleErr.message}`);
 			}
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`v3_9DB 迁移失败：${e.message}`);
 		}
 	},
 

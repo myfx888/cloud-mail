@@ -35,11 +35,12 @@ app.post('/smtp/verify', async (c) => {
 app.post('/smtp/verify-account', async (c) => {
 	const params = await c.req.json();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 	const smtpPort = Number(params.smtpPort ?? 587);
 	const smtpSecure = Number(params.smtpSecure ?? 0);
 	
 	const accountRow = await accountService.selectById(c, params.accountId);
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 	
@@ -64,6 +65,7 @@ app.post('/smtp/verify-account', async (c) => {
 app.get('/smtp/account-config', async (c) => {
 	const { accountId } = c.req.query();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 	
 	// 确保accountId是数字
 	const numericAccountId = parseInt(accountId, 10);
@@ -72,7 +74,7 @@ app.get('/smtp/account-config', async (c) => {
 	}
 	
 	const accountRow = await accountService.selectById(c, numericAccountId);
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 	
@@ -94,15 +96,15 @@ app.get('/smtp/account-config', async (c) => {
 app.post('/smtp/account-config', async (c) => {
 	const params = await c.req.json();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 
 	const accountRow = await accountService.selectById(c, params.accountId);
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 
 	// 检查用户是否有SMTP配置权限
 	const settingRow = await settingService.query(c);
-	const isAdmin = userContext.isAdmin(c);
 	
 	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
 		throw new BizError(t('smtpConfigPermissionDenied'));
@@ -127,16 +129,16 @@ app.post('/smtp/account-config', async (c) => {
 app.post('/smtp/accounts', async (c) => {
 	const params = await c.req.json();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectById(c, params.accountId);
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 
 	// 检查用户是否有SMTP配置权限
 	const settingRow = await settingService.query(c);
-	const isAdmin = userContext.isAdmin(c);
 	
 	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
 		throw new BizError(t('smtpConfigPermissionDenied'));
@@ -162,16 +164,16 @@ app.put('/smtp/accounts/:smtpAccountId', async (c) => {
 	const smtpAccountId = parseInt(c.req.param('smtpAccountId'), 10);
 	const params = await c.req.json();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectById(c, params.accountId);
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 
 	// 检查用户是否有SMTP配置权限
 	const settingRow = await settingService.query(c);
-	const isAdmin = userContext.isAdmin(c);
 	
 	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
 		throw new BizError(t('smtpConfigPermissionDenied'));
@@ -197,16 +199,16 @@ app.delete('/smtp/accounts/:smtpAccountId', async (c) => {
 	const smtpAccountId = parseInt(c.req.param('smtpAccountId'), 10);
 	const { accountId } = c.req.query();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 
 	// 检查用户是否有SMTP配置权限
 	const settingRow = await settingService.query(c);
-	const isAdmin = userContext.isAdmin(c);
 	
 	if (!isAdmin && settingRow.smtpUserConfig !== 1) {
 		throw new BizError(t('smtpConfigPermissionDenied'));
@@ -222,10 +224,11 @@ app.delete('/smtp/accounts/:smtpAccountId', async (c) => {
 app.get('/smtp/accounts', async (c) => {
 	const { accountId } = c.req.query();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -240,10 +243,11 @@ app.get('/smtp/accounts/:smtpAccountId', async (c) => {
 	const smtpAccountId = parseInt(c.req.param('smtpAccountId'), 10);
 	const { accountId } = c.req.query();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectById(c, parseInt(accountId, 10));
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -257,10 +261,11 @@ app.get('/smtp/accounts/:smtpAccountId', async (c) => {
 app.post('/smtp/accounts/verify', async (c) => {
 	const params = await c.req.json();
 	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectById(c, params.accountId);
-	if (!accountRow || accountRow.userId !== userId) {
+	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
 		throw new BizError(t('accountNotExist'));
 	}
 
