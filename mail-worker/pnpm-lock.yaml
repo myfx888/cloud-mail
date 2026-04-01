@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  worker-mailer:
+    hash: 1618a688e64cea0006519036af92a5947f483b39f7d64cad6143ac8be63fc955
+    path: patches/worker-mailer.patch
+
 importers:
 
   .:
@@ -43,7 +48,7 @@ importers:
         version: 11.1.0
       worker-mailer:
         specifier: ^1.2.1
-        version: 1.2.1
+        version: 1.2.1(patch_hash=1618a688e64cea0006519036af92a5947f483b39f7d64cad6143ac8be63fc955)
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.7.5
@@ -4673,7 +4678,7 @@ snapshots:
       siginfo: 2.0.0
       stackback: 0.0.2
 
-  worker-mailer@1.2.1: {}
+  worker-mailer@1.2.1(patch_hash=1618a688e64cea0006519036af92a5947f483b39f7d64cad6143ac8be63fc955): {}
 
   workerd@1.20250310.0:
     optionalDependencies:
