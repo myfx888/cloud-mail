@@ -454,12 +454,13 @@ const settingService = {
 		const allDomainList = Array.isArray(settingRow.domainList) ? settingRow.domainList : [];
 		const loginDomains = Array.isArray(settingRow.loginDomains) ? settingRow.loginDomains : [];
 
-		let domainList = allDomainList;
+		let loginDomainList = allDomainList;
 		if (loginDomains.length > 0) {
 			const allowed = new Set(loginDomains.map(item => String(item).replace(/^@/, '').toLowerCase()));
 			const filtered = allDomainList.filter(item => allowed.has(String(item).replace(/^@/, '').toLowerCase()));
-			domainList = filtered.length > 0 ? filtered : allDomainList;
+			loginDomainList = filtered.length > 0 ? filtered : allDomainList;
 		}
+		const domainList = allDomainList;
 
 		return {
 			register: settingRow.register,
@@ -476,6 +477,7 @@ const settingService = {
 			loginOpacity: settingRow.loginOpacity,
 			resendEnabled: settingRow.resendEnabled,
 			domainList,
+			loginDomainList,
 			regKey: settingRow.regKey,
 			regVerifyOpen: settingRow.regVerifyOpen,
 			addVerifyOpen: settingRow.addVerifyOpen,

@@ -43,6 +43,7 @@ export async function init() {
         setting = normalizeSetting(s);
         settingStore.settings = setting;
         settingStore.domainList = setting.domainList;
+        settingStore.loginDomainList = setting.loginDomainList || setting.domainList;
         document.title = setting.title;
 
         if (user) {
@@ -60,6 +61,7 @@ export async function init() {
         setting = normalizeSetting(await websiteConfig());
         settingStore.settings = setting;
         settingStore.domainList = setting.domainList;
+        settingStore.loginDomainList = setting.loginDomainList || setting.domainList;
         document.title = setting.title;
     }
 
