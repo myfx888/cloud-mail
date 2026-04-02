@@ -36,6 +36,7 @@ const smtpAccountService = {
 			secure: smtpAccountData.secure ?? 0,
 			authType: smtpAccountData.authType || 'plain',
 			isDefault: smtpAccountData.isDefault ? 1 : 0,
+			mailcowServerId: smtpAccountData.mailcowServerId || '',
 			status: 1
 		}).returning().get();
 
@@ -84,6 +85,7 @@ const smtpAccountService = {
 				secure: smtpAccountData.secure ?? 0,
 				authType: smtpAccountData.authType || 'plain',
 				isDefault: smtpAccountData.isDefault ? 1 : 0,
+				mailcowServerId: smtpAccountData.mailcowServerId || '',
 				updateTime: new Date().toISOString()
 			})
 			.where(and(
@@ -142,6 +144,19 @@ const smtpAccountService = {
 			...account,
 			password: ''
 		}));
+	},
+
+	/**
+	 * 按 mailcowServerId 查找SMTP账户
+	 */
+	async findByMailcowServer(c, accountId, mailcowServerId) {
+		if (!mailcowServerId) return null;
+		return await orm(c).select().from(smtpAccount).where(
+			and(
+				eq(smtpAccount.accountId, accountId),
+				eq(smtpAccount.mailcowServerId, mailcowServerId)
+			)
+		).get();
 	},
 
 	/**

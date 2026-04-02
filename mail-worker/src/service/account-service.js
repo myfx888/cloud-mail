@@ -26,29 +26,38 @@ const accountService = {
 	},
 
 	async applyMailcowSmtpConfig(c, accountId, mailcowAccount) {
-		// Create or update record in smtp_account table instead of account table
+		const serverId = mailcowAccount.mailcowServerId || '';
+		const serverName = mailcowAccount.serverName || '';
+		const smtpName = serverName ? `Mailcow SMTP (${serverName})` : 'Mailcow SMTP';
+
+		// Check if this account already has any SMTP records (for default logic)
+		const existingList = await smtpAccountService.list(c, accountId);
+		const hasExistingRecords = existingList && existingList.length > 0;
+
+		// Check if a record for this specific mailcow server already exists
+		const existingForServer = await smtpAccountService.findByMailcowServer(c, accountId, serverId);
+
 		const smtpData = {
-			name: 'Mailcow SMTP',
+			name: smtpName,
 			host: mailcowAccount.smtpHost,
 			port: mailcowAccount.smtpPort,
 			user: mailcowAccount.smtpUser,
 			password: mailcowAccount.password,
 			secure: mailcowAccount.smtpSecure,
 			authType: mailcowAccount.smtpAuthType || 'plain',
-			isDefault: true
+			mailcowServerId: serverId,
+			isDefault: !hasExistingRecords || (existingForServer && existingForServer.isDefault) ? true : false
 		};
 
-		// Check if a Mailcow SMTP account already exists for this account
-		const existingSmtp = await smtpAccountService.getDefault(c, accountId);
-		if (existingSmtp) {
-			await smtpAccountService.update(c, existingSmtp.smtpAccountId, accountId, smtpData);
+		if (existingForServer) {
+			await smtpAccountService.update(c, existingForServer.smtpAccountId, accountId, smtpData);
 		} else {
 			await smtpAccountService.create(c, accountId, smtpData);
 		}
 
 		// Update mailcowServerId in account table (keep this for server binding)
 		await orm(c).update(account).set({ 
-			mailcowServerId: mailcowAccount.mailcowServerId || '',
+			mailcowServerId: serverId,
 			smtpOverride: 1 // Keep this to signal that account has its own SMTP
 		}).where(eq(account.accountId, accountId)).run();
 	},
@@ -68,7 +77,8 @@ const accountService = {
 				smtpSecure: smtpConfig.smtpSecure,
 				smtpAuthType: smtpConfig.smtpAuthType,
 				smtpUser: accountRow.email,
-				mailcowServerId: targetServer?.id || ''
+				mailcowServerId: targetServer?.id || '',
+				serverName: targetServer?.name || ''
 			};
 			await this.applyMailcowSmtpConfig(c, accountRow.accountId, existedAccount);
 			return {
@@ -506,7 +516,8 @@ const accountService = {
 				smtpSecure: smtpConfig.smtpSecure,
 				smtpAuthType: smtpConfig.smtpAuthType,
 				smtpUser: accountRow.email,
-				mailcowServerId: targetServer?.id || ''
+				mailcowServerId: targetServer?.id || '',
+				serverName: targetServer?.name || ''
 			};
 		} else {
 			mailcowAccount = await mailcowService.createAccount(c, accountRow.email, '', targetServer);

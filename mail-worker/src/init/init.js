@@ -47,6 +47,7 @@ const dbInit = {
 			await this.v3_8DB(c);
 			await this.v3_9DB(c);
 			await this.v4_0DB(c);
+			await this.v4_1DB(c);
 			await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -272,6 +273,14 @@ const dbInit = {
 			log.push('ERR:' + e.message);
 		}
 		return log.join(';') || 'no-op';
+	},
+
+	async v4_1DB(c) {
+		try {
+			await c.env.db.prepare(`ALTER TABLE smtp_account ADD COLUMN mailcow_server_id TEXT NOT NULL DEFAULT '';`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
 	},
 
 	async v2_9DB(c) {

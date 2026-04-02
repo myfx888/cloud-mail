@@ -12,6 +12,7 @@ export const smtpAccount = sqliteTable('smtp_account', {
 	secure: integer('secure').default(1).notNull(),
 	authType: text('auth_type').default('plain').notNull(),
 	isDefault: integer('is_default').default(0).notNull(),
+	mailcowServerId: text('mailcow_server_id').default('').notNull(),
 	status: integer('status').default(1).notNull(),
 	createTime: text('create_time').default(sql`CURRENT_TIMESTAMP`),
 	updateTime: text('update_time').default(sql`CURRENT_TIMESTAMP`)

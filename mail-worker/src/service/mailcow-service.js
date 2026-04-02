@@ -398,7 +398,8 @@ const mailcowService = {
                     smtpSecure: smtpConfig.smtpSecure,
                     smtpAuthType: smtpConfig.smtpAuthType,
                     smtpUser: email,
-                    mailcowServerId: server?.id || ''
+                    mailcowServerId: server?.id || '',
+                    serverName: server?.name || ''
                 };
             }
             
@@ -434,7 +435,8 @@ const mailcowService = {
                 smtpSecure: smtpConfig.smtpSecure,
                 smtpAuthType: smtpConfig.smtpAuthType,
                 smtpUser: email,
-                mailcowServerId: server?.id || ''
+                mailcowServerId: server?.id || '',
+                serverName: server?.name || ''
             };
         } catch (error) {
             if (error instanceof BizError) {
