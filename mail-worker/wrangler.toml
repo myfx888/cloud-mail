@@ -16,6 +16,9 @@ database_id = "afb36ffa-1573-48e2-81f1-6c1d32109b0e"
 binding = "kv"
 id = "e99362e9e63a4a289c102c800c74d6dd"
 
+[[send_email]]
+name = "SEND_EMAIL"
+
 #[[r2_buckets]]
 #binding = "r2"			#r2对象存储绑定名默认不可修改
 #bucket_name = ""		#r2对象存储桶的名字
