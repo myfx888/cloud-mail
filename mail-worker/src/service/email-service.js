@@ -22,6 +22,7 @@ import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
 import smtpService from './smtp-service';
+import cfSendService from './cf-send-service';
 
 const emailService = {
 
@@ -243,11 +244,20 @@ const emailService = {
 		const resendToken = resendTokens[domain];
 
 		//如果接收方存在站外邮箱，又没有resend token且不是使用SMTP发送
-		let actualSendMethod = sendMethod || (send.resendEnabled === 0 ? emailConst.sendMethod.SMTP : emailConst.sendMethod.RESEND);
+		let actualSendMethod = sendMethod;
+		if (!actualSendMethod) {
+			if (cfSendService.isAvailable(c.env)) {
+				actualSendMethod = emailConst.sendMethod.CLOUDFLARE;
+			} else if (send.resendEnabled !== 0) {
+				actualSendMethod = emailConst.sendMethod.RESEND;
+			} else {
+				actualSendMethod = emailConst.sendMethod.SMTP;
+			}
+		}
 		if (send.resendEnabled === 0 && actualSendMethod === emailConst.sendMethod.RESEND) {
 			throw new BizError(t('noResendToken'));
 		}
-		if (!resendToken && !allInternal && actualSendMethod !== emailConst.sendMethod.SMTP) {
+		if (!resendToken && !allInternal && actualSendMethod !== emailConst.sendMethod.SMTP && actualSendMethod !== emailConst.sendMethod.CLOUDFLARE) {
 			throw new BizError(t('noResendToken'));
 		}
 
@@ -275,7 +285,27 @@ const emailService = {
 
 		// 存在站外邮箱时需要发送
 		if (!allInternal) {
-			if (actualSendMethod === emailConst.sendMethod.SMTP) {
+			if (actualSendMethod === emailConst.sendMethod.CLOUDFLARE) {
+				// 使用 Cloudflare send_email 发送
+				const emailPayload = {
+					sendEmail: accountRow.email,
+					name: name,
+					recipient: receiveEmail.map(email => ({ address: email, name: '' })),
+					cc: Array.isArray(cc) ? cc.map(email => ({ address: email, name: '' })) : (cc ? [{ address: cc, name: '' }] : []),
+					bcc: Array.isArray(bcc) ? bcc.map(email => ({ address: email, name: '' })) : (bcc ? [{ address: bcc, name: '' }] : []),
+					subject: subject,
+					text: text,
+					content: html,
+					attachments: [...imageDataList, ...attachments],
+					headers: sendType === 'reply' ? {
+						'In-Reply-To': emailRow.messageId,
+						'References': emailRow.messageId
+					} : {}
+				};
+
+				sendResult = await cfSendService.send(c, emailPayload);
+
+			} else if (actualSendMethod === emailConst.sendMethod.SMTP) {
 				// 使用SMTP发送
 				const smtpConfig = await smtpService.getSmtpConfig(c, accountId, smtpAccountId);
 				
@@ -330,7 +360,13 @@ const emailService = {
 
 		let messageId = null;
 
-		if (actualSendMethod === emailConst.sendMethod.SMTP) {
+		if (actualSendMethod === emailConst.sendMethod.CLOUDFLARE) {
+			// Cloudflare send_email 结果处理
+			if (!sendResult.success) {
+				throw new BizError(sendResult.message || t('cfSendFailed'));
+			}
+			messageId = sendResult.messageId;
+		} else if (actualSendMethod === emailConst.sendMethod.SMTP) {
 			// SMTP发送结果处理
 			if (!sendResult.success) {
 				throw new BizError(sendResult.message || t('smtpSendFailed'));
