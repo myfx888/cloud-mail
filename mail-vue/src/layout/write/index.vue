@@ -78,8 +78,9 @@
               >
                 <el-option v-for="signature in signatures" :key="signature.id" :label="signature.isDefault ? signature.name + ' ★' : signature.name" :value="signature.id"/>
               </el-select>
-              <el-radio-group v-model="form.sendMethod" size="small" v-if="form.sendType !== 'reply' && resendEnabled">
-                <el-radio-button value="resend">Resend</el-radio-button>
+              <el-radio-group v-model="form.sendMethod" size="small" v-if="form.sendType !== 'reply' && (sendEmailAvailable || resendEnabled)">
+                <el-radio-button value="cloudflare" v-if="sendEmailAvailable">Cloudflare</el-radio-button>
+                <el-radio-button value="resend" v-if="resendEnabled">Resend</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
               </el-radio-group>
               <el-select
@@ -206,18 +207,19 @@ const selectRecipientList = ref([])
 
 const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
 const resendEnabled = computed(() => Number(settingStore.settings?.resendEnabled ?? 1) === 1)
+const sendEmailAvailable = computed(() => !!settingStore.settings?.sendEmailAvailable)
 const showSmtpSelector = computed(() => {
   if (form.sendType === 'reply') {
     return smtpAccounts.value.length > 0
   }
-  if (!resendEnabled.value) {
+  if (!resendEnabled.value && !sendEmailAvailable.value) {
     return smtpAccounts.value.length > 0
   }
   return form.sendMethod === 'smtp' && smtpAccounts.value.length > 0
 })
 
 watch(resendEnabled, (enabled) => {
-  if (!enabled) {
+  if (!enabled && !sendEmailAvailable.value) {
     form.sendMethod = 'smtp'
   }
 })
@@ -501,6 +503,26 @@ async function sendEmail() {
     }
     show.value = true
     addRecipientRecord();
+
+    // 发送失败询问用户是否切换方式重试
+    const availableMethods = []
+    if (sendEmailAvailable.value && form.sendMethod !== 'cloudflare') availableMethods.push('cloudflare')
+    if (resendEnabled.value && form.sendMethod !== 'resend') availableMethods.push('resend')
+    if (form.sendMethod !== 'smtp') availableMethods.push('smtp')
+
+    if (availableMethods.length > 0 && e.code !== 401) {
+      ElMessageBox.confirm(
+        t('sendFailRetryMsg', { msg: e?.message || t('sendFailMsg') }),
+        t('sendFailRetryTitle'),
+        {
+          confirmButtonText: t('switchMethodRetry'),
+          cancelButtonText: t('cancel'),
+          type: 'warning'
+        }
+      ).then(() => {
+        form.sendMethod = availableMethods[0]
+      }).catch(() => {})
+    }
   }).finally(() => {
     percentMessage.close()
     percent.value = 0
@@ -526,7 +548,7 @@ function resetForm() {
   form.sendType = ''
   form.emailId = 0
   form.draftId = null
-  form.sendMethod = resendEnabled.value ? 'resend' : 'smtp'
+  form.sendMethod = sendEmailAvailable.value ? 'cloudflare' : (resendEnabled.value ? 'resend' : 'smtp')
   form.smtpAccountId = null
   selectedSmtpAccountId.value = ''
   backReply.content = ''
@@ -552,7 +574,7 @@ function openForward(email) {
 
   form.subject = normalizeForwardSubject(email.subject)
   form.sendType = 'forward'
-  form.sendMethod = resendEnabled.value ? 'resend' : 'smtp'
+  form.sendMethod = sendEmailAvailable.value ? 'cloudflare' : (resendEnabled.value ? 'resend' : 'smtp')
 
   const fromName = escapeHtml(email.name || '')
   const fromEmail = escapeHtml(email.sendEmail || '')
