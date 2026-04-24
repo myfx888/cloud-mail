@@ -21,6 +21,7 @@
 		"hono": "^4.7.5",
 		"i18next": "^25.3.2",
 		"linkedom": "^0.18.10",
+		"mimetext": "^3.0.28",
 		"postal-mime": "^2.4.3",
 		"resend": "^6.4.1",
 		"ua-parser-js": "^2.0.3",
