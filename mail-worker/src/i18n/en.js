@@ -67,6 +67,8 @@ const en = {
 	notConfigOss: 'Object storage not configured',
 	smtpNotConfigured: 'SMTP not configured, please configure SMTP in settings',
 	smtpSendFailed: 'SMTP send failed',
+	cfSendFailed: 'Cloudflare email send failed',
+	cfBindingNotConfigured: 'Cloudflare send_email binding not configured',
 	smtpConfigIncomplete: 'SMTP configuration incomplete, please fill in server, username and password',
 	smtpConnectionSuccess: 'SMTP connection successful',
 	smtpConnectionFailed: 'SMTP connection failed',

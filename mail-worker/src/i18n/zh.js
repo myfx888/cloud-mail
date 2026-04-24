@@ -67,6 +67,8 @@ const zh = {
 	notConfigOss: '对象存储未配置',
 	smtpNotConfigured: 'SMTP未配置，请在设置中配置SMTP',
 	smtpSendFailed: 'SMTP发送失败',
+	cfSendFailed: 'Cloudflare邮件发送失败',
+	cfBindingNotConfigured: 'Cloudflare send_email未配置',
 	smtpConfigIncomplete: 'SMTP配置不完整，请填写服务器、用户名和密码',
 	smtpConnectionSuccess: 'SMTP连接成功',
 	smtpConnectionFailed: 'SMTP连接失败',

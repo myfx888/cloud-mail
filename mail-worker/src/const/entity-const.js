@@ -58,6 +58,7 @@ export const emailConst = {
 	sendMethod: {
 		RESEND: 'resend',
 		SMTP: 'smtp',
+		CLOUDFLARE: 'cloudflare',
 		IMPORTED: 'imported'
 	}
 }
