@@ -10,6 +10,8 @@ const en = {
     permissions: 'Role',
     inviteCode: 'Invite Code',
     SystemSettings: 'System Settings',
+    compose: 'Compose',
+    switchAccount: 'Switch Account',
     noMoreData: 'No more data',
     noMessagesFound: 'No messages found',
     addAccount: 'Add Email Address',
