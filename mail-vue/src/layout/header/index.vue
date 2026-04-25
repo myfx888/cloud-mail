@@ -2,7 +2,25 @@
   <div class="header" :class="!hasPerm('email:send') ? 'not-send' : ''">
     <div class="header-btn">
       <hanburger @click="changeAside"></hanburger>
-      <span class="breadcrumb-item">{{ $t(route.meta.title) }}</span>
+      <span class="breadcrumb-item" v-if="!isMobile">{{ $t(route.meta.title) }}</span>
+      <el-dropdown v-if="isMobile && hasPerm('account:query')" class="account-switcher" trigger="click" max-height="300px">
+        <div class="account-switcher-trigger">
+          <span class="current-account-name">{{ truncateEmail(accountStore.currentAccount?.email) }}</span>
+          <Icon icon="mingcute:down-small-fill" width="16" height="16" />
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              v-for="account in accountStore.accounts"
+              :key="account.accountId"
+              :class="{ 'active-account': account.accountId === accountStore.currentAccountId }"
+              @click="switchAccount(account)"
+            >
+              {{ account.email }}
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
     <div v-perm="'email:send'" class="writer-box" @click="openSend">
       <div class="writer">
@@ -83,17 +101,21 @@ import {Icon} from "@iconify/vue";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
 import {useRoute} from "vue-router";
-import {computed, ref} from "vue";
+import {computed, ref, onMounted, onBeforeUnmount} from "vue";
 import {useSettingStore} from "@/store/setting.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
 import {setExtend} from "@/utils/day.js"
+import {useAccountStore} from "@/store/account.js"
+import {accountList} from "@/request/account.js"
 
 const {t} = useI18n();
 const route = useRoute();
 const settingStore = useSettingStore();
 const userStore = useUserStore();
 const uiStore = useUiStore();
+const accountStore = useAccountStore();
+const isMobile = ref(window.innerWidth < 767)
 const logoutLoading = ref(false)
 const userInfoShow = ref(false)
 const userinfoRef = ref({})
@@ -257,6 +279,39 @@ function formatName(email) {
   return email[0]?.toUpperCase() || ''
 }
 
+const handleMobileResize = () => {
+  isMobile.value = window.innerWidth < 767
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleMobileResize)
+  loadAccountsForSwitcher()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleMobileResize)
+})
+
+async function loadAccountsForSwitcher() {
+  if (accountStore.accountsLoaded || !hasPerm('account:query')) return
+  try {
+    const list = await accountList(0, 100, null)
+    accountStore.setAccounts(list)
+  } catch (e) {
+    console.error('加载账户列表失败:', e)
+  }
+}
+
+function switchAccount(account) {
+  accountStore.currentAccountId = account.accountId
+  accountStore.currentAccount = account
+}
+
+function truncateEmail(email) {
+  if (!email) return ''
+  return email.length > 20 ? email.substring(0, 20) + '...' : email
+}
+
 </script>
 <style>
 .detail-dropdown {
@@ -414,6 +469,39 @@ function formatName(email) {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.account-switcher {
+  margin-left: 4px;
+  max-width: 160px;
+
+  .account-switcher-trigger {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    gap: 2px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    &:hover {
+      background: var(--base-fill);
+    }
+  }
+
+  .current-account-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+  }
+}
+
+:deep(.active-account) {
+  background: var(--el-color-primary-light-9) !important;
+  color: var(--el-color-primary) !important;
+  font-weight: bold;
 }
 
 .toolbar {
