@@ -428,43 +428,43 @@
 
           <!-- AI Settings Card -->
           <div class="settings-card">
-            <div class="card-title">AI</div>
+            <div class="card-title">{{ $t('aiSetting') }}</div>
             <div class="card-content">
               <div class="setting-item">
-                <div><span>AI {{ $t('enable') }}</span></div>
+                <div><span>{{ $t('aiEnable') }}</span></div>
                 <div>
                   <el-switch @change="change" :active-value="1" :inactive-value="0" v-model="setting.aiEnabled"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
-                <div><span>API Base URL</span></div>
+                <div><span>{{ $t('aiBaseUrl') }}</span></div>
                 <div>
                   <el-input v-model="setting.aiBaseUrl" placeholder="https://api.openai.com/v1" style="width: 300px" @change="change"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
-                <div><span>API Key</span></div>
+                <div><span>{{ $t('aiApiKey') }}</span></div>
                 <div>
                   <el-input v-model="setting.aiApiKey" type="password" show-password placeholder="sk-..." style="width: 300px" @change="change"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
-                <div><span>Model</span></div>
+                <div><span>{{ $t('aiModel') }}</span></div>
                 <div>
                   <el-input v-model="setting.aiModel" placeholder="gpt-4o-mini" style="width: 200px" @change="change"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
-                <div><span>System Prompt</span></div>
+                <div><span>{{ $t('aiSystemPrompt') }}</span></div>
                 <div>
-                  <el-input v-model="setting.aiSystemPrompt" type="textarea" :rows="3" placeholder="Custom system prompt (optional)" style="width: 400px" @change="change"/>
+                  <el-input v-model="setting.aiSystemPrompt" type="textarea" :rows="3" :placeholder="$t('aiSystemPromptPlaceholder')" style="width: 400px" @change="change"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
                 <div></div>
                 <div>
                   <el-button type="primary" :loading="aiTestLoading" @click="testAiConnection">
-                    Test Connection
+                    {{ $t('aiTestConnection') }}
                   </el-button>
                 </div>
               </div>
@@ -1063,23 +1063,22 @@ defineOptions({
   name: 'sys-setting'
 })
 
+const currentVersion = 'v2.9.0'
+const hasUpdate = ref(false)
+let getUpdateErrorCount = 1;
+const {t, locale} = useI18n();
 const aiTestLoading = ref(false)
 const testAiConnection = async () => {
     aiTestLoading.value = true
     try {
         const data = await aiTestConnection()
-        ElMessage.success(`AI Connected! Model: ${data.model}`)
+        ElMessage.success(t('aiTestSuccess', { model: data.model }))
     } catch (e) {
-        ElMessage.error(`AI Connection failed: ${e.message || e}`)
+        ElMessage.error(t('aiTestFailed', { msg: e.message || e }))
     } finally {
         aiTestLoading.value = false
     }
 }
-
-const currentVersion = 'v2.9.0'
-const hasUpdate = ref(false)
-let getUpdateErrorCount = 1;
-const {t, locale} = useI18n();
 const firstLoading = ref(true)
 const backgroundImage = ref('')
 const localUpShow = ref(false)

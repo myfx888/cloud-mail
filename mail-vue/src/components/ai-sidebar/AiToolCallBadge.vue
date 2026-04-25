@@ -11,6 +11,9 @@
 <script setup>
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   name: { type: String, required: true },
@@ -24,15 +27,18 @@ const TOOL_ICONS = {
   move_email: '📁', discard_draft: '🗑️'
 }
 
-const TOOL_NAMES = {
-  list_emails: 'List Emails', get_email: 'Read Email', get_thread: 'Get Thread',
-  search_emails: 'Search', draft_reply: 'Draft Reply', draft_email: 'Draft Email',
-  mark_email_read: 'Mark Read', summarize_email: 'Summarize', translate_email: 'Translate',
-  move_email: 'Move Email', discard_draft: 'Discard Draft'
+const TOOL_I18N_KEYS = {
+  list_emails: 'aiToolListEmails', get_email: 'aiToolGetEmail', get_thread: 'aiToolGetThread',
+  search_emails: 'aiToolSearch', draft_reply: 'aiToolDraftReply', draft_email: 'aiToolDraftEmail',
+  mark_email_read: 'aiToolMarkRead', summarize_email: 'aiToolSummarize', translate_email: 'aiToolTranslate',
+  move_email: 'aiToolMoveEmail', discard_draft: 'aiToolDiscardDraft'
 }
 
 const toolIcon = computed(() => TOOL_ICONS[props.name] || '🔧')
-const displayName = computed(() => TOOL_NAMES[props.name] || props.name)
+const displayName = computed(() => {
+  const key = TOOL_I18N_KEYS[props.name]
+  return key ? t(key) : props.name
+})
 </script>
 
 <style scoped>

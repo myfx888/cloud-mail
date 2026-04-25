@@ -3,10 +3,10 @@
     <!-- Empty state -->
     <div v-if="!aiStore.messages.length && !aiStore.isStreaming" class="empty-state">
       <div class="robot-icon">🤖</div>
-      <p class="intro">I'm your email assistant. I can read, search, draft, and manage your emails.</p>
+      <p class="intro">{{ $t('aiIntro') }}</p>
       <div class="suggestions">
-        <el-button v-for="s in suggestions" :key="s" size="small" @click="sendSuggestion(s)" round>
-          {{ s }}
+        <el-button v-for="s in suggestions" :key="s.key" size="small" @click="sendSuggestion(s.text)" round>
+          {{ s.text }}
         </el-button>
       </div>
     </div>
@@ -42,21 +42,23 @@
 </template>
 
 <script setup>
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAiStore } from '@/store/ai.js'
 import AiMessageBubble from './AiMessageBubble.vue'
 import AiToolCallBadge from './AiToolCallBadge.vue'
 import AiInputBar from './AiInputBar.vue'
 
+const { t } = useI18n()
 const aiStore = useAiStore()
 const scrollRef = ref(null)
 const messagesRef = ref(null)
 
-const suggestions = [
-  'Show my latest emails',
-  'Find unread emails',
-  'Draft a new email'
-]
+const suggestions = computed(() => [
+  { key: 'aiSuggestLatest', text: t('aiSuggestLatest') },
+  { key: 'aiSuggestUnread', text: t('aiSuggestUnread') },
+  { key: 'aiSuggestDraft', text: t('aiSuggestDraft') }
+])
 
 function renderMarkdown(text) {
   if (!text) return ''

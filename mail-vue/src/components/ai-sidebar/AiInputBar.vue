@@ -6,7 +6,7 @@
         v-model="text"
         type="textarea"
         :autosize="{ minRows: 1, maxRows: 4 }"
-        placeholder="Ask your email assistant..."
+        :placeholder="$t('aiInputPlaceholder')"
         @keydown.enter.exact.prevent="send"
         :disabled="isStreaming"
       />
