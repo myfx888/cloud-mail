@@ -17,9 +17,19 @@
         <Main />
       </el-main>
     </el-container>
+    <AiSidebar />
   </el-container>
   <writer ref="writerRef" />
   <MobileNav />
+  <!-- AI toggle button -->
+  <div
+    v-if="settingStore.settings.aiEnabled"
+    class="ai-fab"
+    :class="{ 'ai-fab-hidden': uiStore.aiSidebarOpen }"
+    @click="uiStore.aiSidebarOpen = true"
+  >
+    🤖
+  </div>
 </template>
 
 <script setup>
@@ -30,7 +40,10 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import {useUiStore} from "@/store/ui.js";
 import writer from '@/layout/write/index.vue'
 import MobileNav from '@/components/mobile-nav/index.vue'
+import AiSidebar from '@/components/ai-sidebar/AiSidebar.vue'
+import {useSettingStore} from "@/store/setting.js";
 
+const settingStore = useSettingStore();
 const uiStore = useUiStore();
 const writerRef = ref({})
 const isMobile = ref(window.innerWidth < 1025)
@@ -126,5 +139,35 @@ onBeforeUnmount(() => {
   display: flex;
   pointer-events: none;
   opacity: 0;
+}
+
+.ai-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--el-color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  z-index: 100;
+  transition: all 0.2s;
+}
+.ai-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.ai-fab-hidden { display: none; }
+
+@media (max-width: 767px) {
+  .ai-fab {
+    bottom: calc(70px + env(safe-area-inset-bottom));
+  }
 }
 </style>
