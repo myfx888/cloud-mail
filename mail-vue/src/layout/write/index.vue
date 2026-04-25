@@ -982,6 +982,9 @@ function close() {
           display: inline-flex;
           align-items: center;
           gap: 10px;
+          @media (max-width: 767px) {
+            gap: 6px;
+          }
         }
 
         .signature-select {
