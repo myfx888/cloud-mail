@@ -377,6 +377,9 @@ function formatName(email) {
   align-items: center;
   justify-content: center;
   margin-left: 5px;
+  @media (max-width: 767px) {
+    display: none;
+  }
 
   .writer {
     width: 34px;

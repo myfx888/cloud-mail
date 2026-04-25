@@ -19,6 +19,7 @@
     </el-container>
   </el-container>
   <writer ref="writerRef" />
+  <MobileNav />
 </template>
 
 <script setup>
@@ -28,6 +29,7 @@ import Main from '@/layout/main/index.vue'
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import {useUiStore} from "@/store/ui.js";
 import writer from '@/layout/write/index.vue'
+import MobileNav from '@/components/mobile-nav/index.vue'
 
 const uiStore = useUiStore();
 const writerRef = ref({})
@@ -94,6 +96,9 @@ onBeforeUnmount(() => {
   background: var(--el-bg-color);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  @media (max-width: 767px) {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
 }
 
 .el-main {
