@@ -78,7 +78,7 @@
               >
                 <el-option v-for="signature in signatures" :key="signature.id" :label="signature.isDefault ? signature.name + ' ★' : signature.name" :value="signature.id"/>
               </el-select>
-              <el-radio-group v-model="form.sendMethod" size="small" v-if="form.sendType !== 'reply' && (sendEmailAvailable || resendEnabled)">
+              <el-radio-group v-model="form.sendMethod" size="small" v-if="sendEmailAvailable || resendEnabled">
                 <el-radio-button value="cloudflare" v-if="sendEmailAvailable">Cloudflare</el-radio-button>
                 <el-radio-button value="resend" v-if="resendEnabled">Resend</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
