@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" :title="$t('signatureManager')" width="720" @closed="onClosed" :close-on-click-modal="false">
+  <el-dialog v-model="visible" :title="$t('signatureManager')" :width="isMobile ? '95%' : 720" @closed="onClosed" :close-on-click-modal="false">
     <div class="signature-manager">
       <div class="signature-list">
         <div class="signature-list-header">
@@ -9,7 +9,7 @@
             {{ $t('addSignature') }}
           </el-button>
         </div>
-        <el-scrollbar class="signature-list-body" max-height="400px">
+        <el-scrollbar class="signature-list-body" :max-height="isMobile ? '180px' : '400px'">
           <div
             v-for="sig in signatureList"
             :key="sig.id"
@@ -31,7 +31,7 @@
       </div>
       <div class="signature-editor" v-if="currentSignature">
         <div class="signature-editor-header">
-          <el-input v-model="currentSignature.name" :placeholder="$t('signatureName')" size="small" style="max-width: 300px" />
+          <el-input v-model="currentSignature.name" :placeholder="$t('signatureName')" size="small" :style="isMobile ? '' : 'max-width: 300px'" />
           <el-button type="primary" size="small" :loading="saving" @click="save">{{ $t('save') }}</el-button>
         </div>
         <div class="signature-editor-body">
@@ -71,6 +71,7 @@ const saving = ref(false)
 const editor = shallowRef(null)
 const editorRef = ref(null)
 const editorId = `sig-editor-${Date.now()}`
+const isMobile = ref(window.innerWidth < 767)
 
 function open() {
   visible.value = true
@@ -203,7 +204,7 @@ function createEditor(content) {
   window.tinymce.init({
     selector: `#${editorId}`,
     statusbar: false,
-    height: 300,
+    height: isMobile.value ? 200 : 300,
     forced_root_block: 'div',
     skin: `${uiStore.dark ? 'oxide-dark' : 'oxide'}`,
     content_css: `/tinymce/css/index.css,${uiStore.dark ? 'dark' : 'default'}`,
@@ -268,9 +269,11 @@ defineExpose({ open })
   gap: 15px;
   min-height: 380px;
 
-  @media (max-width: 640px) {
+  @media (max-width: 767px) {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
+    min-height: auto;
+    gap: 10px;
   }
 }
 
@@ -278,7 +281,7 @@ defineExpose({ open })
   border-right: 1px solid var(--el-border-color-light);
   padding-right: 15px;
 
-  @media (max-width: 640px) {
+  @media (max-width: 767px) {
     border-right: none;
     border-bottom: 1px solid var(--el-border-color-light);
     padding-right: 0;
