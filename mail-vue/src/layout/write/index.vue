@@ -874,6 +874,7 @@ function close() {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 210;
 
   .write-box {
     background: var(--el-bg-color);
@@ -893,7 +894,6 @@ function close() {
       border: 0;
       padding-top: 10px;
     }
-
     @media (min-width: 1025px) {
       height: min(800px, calc(100vh - 60px));
     }
