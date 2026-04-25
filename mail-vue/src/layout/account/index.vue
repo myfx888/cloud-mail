@@ -578,7 +578,7 @@ path[fill="#ffdda1"] {
     height: calc(100% - 38px);
     overflow: auto;
     @media (max-width: 767px) {
-      height: calc(100% - 98px);
+      height: calc(100% - 154px);
     }
 
     .empty {
