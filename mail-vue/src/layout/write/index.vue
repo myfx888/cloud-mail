@@ -965,6 +965,19 @@ function close() {
         display: grid;
         grid-template-columns: auto auto 1fr auto;
 
+        @media (max-width: 767px) {
+          grid-template-columns: auto auto 1fr;
+          grid-template-rows: auto auto;
+
+          .send-actions {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+          }
+        }
+
         .send-actions {
           display: inline-flex;
           align-items: center;
@@ -973,10 +986,16 @@ function close() {
 
         .signature-select {
           min-width: 140px;
+          @media (max-width: 767px) {
+            min-width: 110px;
+          }
         }
 
         .smtp-account-select {
           min-width: 170px;
+          @media (max-width: 767px) {
+            min-width: 130px;
+          }
         }
 
         .att-add {
