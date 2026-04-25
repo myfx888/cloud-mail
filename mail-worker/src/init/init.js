@@ -48,6 +48,7 @@ const dbInit = {
 			await this.v3_9DB(c);
 			await this.v4_0DB(c);
 			await this.v4_1DB(c);
+			await this.v4_2DB(c);
 			await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -280,6 +281,39 @@ const dbInit = {
 			await c.env.db.prepare(`ALTER TABLE smtp_account ADD COLUMN mailcow_server_id TEXT NOT NULL DEFAULT '';`).run();
 		} catch (e) {
 			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v4_2DB(c) {
+		const settingMigrations = [
+			`ALTER TABLE setting ADD COLUMN ai_enabled INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE setting ADD COLUMN ai_base_url TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE setting ADD COLUMN ai_api_key TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE setting ADD COLUMN ai_model TEXT NOT NULL DEFAULT 'gpt-4o-mini';`,
+			`ALTER TABLE setting ADD COLUMN ai_system_prompt TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE setting ADD COLUMN ai_auto_draft INTEGER NOT NULL DEFAULT 0;`
+		];
+
+		for (const sql of settingMigrations) {
+			try {
+				await c.env.db.prepare(sql).run();
+			} catch (e) {
+				console.warn(`跳过字段：${e.message}`);
+			}
+		}
+
+		try {
+			await c.env.db.prepare(`
+				CREATE TABLE IF NOT EXISTS ai_conversations (
+					id TEXT PRIMARY KEY,
+					user_id INTEGER NOT NULL,
+					messages TEXT NOT NULL DEFAULT '[]',
+					created_at TEXT NOT NULL DEFAULT (datetime('now')),
+					updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+				)
+			`).run();
+		} catch (e) {
+			console.warn(`AI conversations table: ${e.message}`);
 		}
 	},
 

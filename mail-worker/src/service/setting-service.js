@@ -68,6 +68,14 @@ const settingService = {
 		if (parsed.mailcowTimeout === undefined) parsed.mailcowTimeout = parsed.mailcow_timeout;
 		if (parsed.loginDomains === undefined) parsed.loginDomains = parsed.login_domains;
 
+		// 兼容 AI 设置下划线命名
+		if (parsed.aiEnabled === undefined) parsed.aiEnabled = parsed.ai_enabled ?? 0;
+		if (parsed.aiBaseUrl === undefined) parsed.aiBaseUrl = parsed.ai_base_url ?? '';
+		if (parsed.aiApiKey === undefined) parsed.aiApiKey = parsed.ai_api_key ?? '';
+		if (parsed.aiModel === undefined) parsed.aiModel = parsed.ai_model ?? 'gpt-4o-mini';
+		if (parsed.aiSystemPrompt === undefined) parsed.aiSystemPrompt = parsed.ai_system_prompt ?? '';
+		if (parsed.aiAutoDraft === undefined) parsed.aiAutoDraft = parsed.ai_auto_draft ?? 0;
+
 		if (Array.isArray(parsed.loginDomains)) {
 			parsed.loginDomains = parsed.loginDomains.filter(Boolean);
 		} else if (typeof parsed.loginDomains === 'string') {
@@ -208,6 +216,7 @@ const settingService = {
 
 		settingRow.s3AccessKey = settingRow.s3AccessKey ? `${settingRow.s3AccessKey.slice(0, 12)}******` : null;
 		settingRow.s3SecretKey = settingRow.s3SecretKey ? `${settingRow.s3SecretKey.slice(0, 12)}******` : null;
+		settingRow.aiApiKey = settingRow.aiApiKey ? `${settingRow.aiApiKey.slice(0, 8)}******` : '';
 		settingRow.mailcowProvisionPassword = settingRow.mailcowProvisionPassword ? '******' : '';
 		if (Array.isArray(settingRow.mailcowServers)) {
 			settingRow.mailcowServers = settingRow.mailcowServers.map(server => ({
@@ -397,6 +406,11 @@ const settingService = {
 		// 处理SMTP密码（如果不更新则保留原值）
 		if (params.smtpPassword === '' || params.smtpPassword === undefined) {
 			delete params.smtpPassword;
+		}
+
+		// AI API Key: 保留原始 key 如果前端发送了 masked 值
+		if (params.aiApiKey && params.aiApiKey.includes('******')) {
+			delete params.aiApiKey;
 		}
 
 		await orm(c).update(setting).set({ ...params }).returning().get();

@@ -65,6 +65,12 @@ export const setting = sqliteTable('setting', {
 	mailcowGlobalSmtpTemplate: text('mailcow_global_smtp_template').default('{}').notNull(),
 	smtpServers: text('smtp_servers').default('[]').notNull(),
 	mailcowRetryCount: integer('mailcow_retry_count').default(3).notNull(),
-	mailcowTimeout: integer('mailcow_timeout').default(30000).notNull()
+	mailcowTimeout: integer('mailcow_timeout').default(30000).notNull(),
+	aiEnabled: integer('ai_enabled').default(0).notNull(),
+	aiBaseUrl: text('ai_base_url').default('').notNull(),
+	aiApiKey: text('ai_api_key').default('').notNull(),
+	aiModel: text('ai_model').default('gpt-4o-mini').notNull(),
+	aiSystemPrompt: text('ai_system_prompt').default('').notNull(),
+	aiAutoDraft: integer('ai_auto_draft').default(0).notNull()
 });
 export default setting
