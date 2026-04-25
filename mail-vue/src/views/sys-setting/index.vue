@@ -426,6 +426,51 @@
             </div>
           </div>
 
+          <!-- AI Settings Card -->
+          <div class="settings-card">
+            <div class="card-title">AI</div>
+            <div class="card-content">
+              <div class="setting-item">
+                <div><span>AI {{ $t('enable') }}</span></div>
+                <div>
+                  <el-switch @change="change" :active-value="1" :inactive-value="0" v-model="setting.aiEnabled"/>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
+                <div><span>API Base URL</span></div>
+                <div>
+                  <el-input v-model="setting.aiBaseUrl" placeholder="https://api.openai.com/v1" style="width: 300px" @change="change"/>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
+                <div><span>API Key</span></div>
+                <div>
+                  <el-input v-model="setting.aiApiKey" type="password" show-password placeholder="sk-..." style="width: 300px" @change="change"/>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
+                <div><span>Model</span></div>
+                <div>
+                  <el-input v-model="setting.aiModel" placeholder="gpt-4o-mini" style="width: 200px" @change="change"/>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
+                <div><span>System Prompt</span></div>
+                <div>
+                  <el-input v-model="setting.aiSystemPrompt" type="textarea" :rows="3" placeholder="Custom system prompt (optional)" style="width: 400px" @change="change"/>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
+                <div></div>
+                <div>
+                  <el-button type="primary" :loading="aiTestLoading" @click="testAiConnection">
+                    Test Connection
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="settings-card about">
             <div class="card-title">{{ $t('about') }}</div>
             <div class="card-content">
@@ -998,6 +1043,7 @@
 <script setup>
 import {computed, defineOptions, reactive, ref, watch} from "vue";
 import {deleteBackground, getMailcowServerDependencies, mailcowTestConnection, mailcowTestConnectionWithConfig, setBackground, settingQuery, settingSet} from "@/request/setting.js";
+import {aiTestConnection} from '@/request/ai.js';
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
@@ -1016,6 +1062,19 @@ import axios from "axios";
 defineOptions({
   name: 'sys-setting'
 })
+
+const aiTestLoading = ref(false)
+const testAiConnection = async () => {
+    aiTestLoading.value = true
+    try {
+        const data = await aiTestConnection()
+        ElMessage.success(`AI Connected! Model: ${data.model}`)
+    } catch (e) {
+        ElMessage.error(`AI Connection failed: ${e.message || e}`)
+    } finally {
+        aiTestLoading.value = false
+    }
+}
 
 const currentVersion = 'v2.9.0'
 const hasUpdate = ref(false)
