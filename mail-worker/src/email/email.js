@@ -10,6 +10,7 @@ import emailUtils from '../utils/email-utils';
 import roleService from '../service/role-service';
 import userService from '../service/user-service';
 import telegramService from '../service/telegram-service';
+import aiService from '../service/ai-service';
 
 export async function email(message, env, ctx) {
 
@@ -163,6 +164,15 @@ export async function email(message, env, ctx) {
 
 			}));
 
+		}
+
+		// AI 自动草稿（异步触发，不阻塞邮件接收）
+		if (isAccountActive && emailRow && emailRow.emailId) {
+			try {
+				await aiService.handleNewEmail({ env }, emailRow.emailId, emailRow.userId);
+			} catch (e) {
+				console.warn('AI auto-draft failed (non-blocking):', e.message);
+			}
 		}
 
 	} catch (e) {

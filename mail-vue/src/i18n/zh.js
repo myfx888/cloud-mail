@@ -437,6 +437,18 @@ const zh = {
     aiToolSummarize: '生成摘要',
     aiToolTranslate: '翻译邮件',
     aiToolMoveEmail: '移动邮件',
-    aiToolDiscardDraft: '丢弃草稿'
+    aiToolDiscardDraft: '丢弃草稿',
+    aiAutoDraft: '自动草稿',
+    aiAutoDraftDesc: '收到新邮件时自动生成回复草稿',
+    aiAutoDraftEnabled: '已启用自动草稿',
+    aiAutoDraftDisabled: '自动草稿已关闭',
+    aiToolSendReply: '发送回复',
+    aiToolSendEmail: '发送邮件',
+    aiToolUpdateDraft: '更新草稿',
+    aiToolDeleteEmail: '删除邮件',
+    aiToolListAccounts: '列出邮箱账户',
+    mcpSetting: 'MCP 服务器',
+    mcpDesc: '允许外部 AI 工具（如 Claude Desktop、Cursor）通过 MCP 协议操作邮箱',
+    mcpEndpoint: 'MCP 端点'
 }
 export default zh

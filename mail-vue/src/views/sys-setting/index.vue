@@ -461,6 +461,22 @@
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
+                <div><span>{{ $t('aiAutoDraft') }}</span></div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <el-switch @change="change" :active-value="1" :inactive-value="0" v-model="setting.aiAutoDraft"/>
+                  <span style="color: var(--el-text-color-secondary); font-size: 12px;">{{ $t('aiAutoDraftDesc') }}</span>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
+                <div><span>{{ $t('mcpSetting') }}</span></div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <span style="color: var(--el-text-color-secondary); font-size: 12px;">{{ $t('mcpDesc') }}</span>
+                  <el-input :model-value="mcpEndpointUrl" readonly style="width: 400px">
+                    <template #prepend>{{ $t('mcpEndpoint') }}</template>
+                  </el-input>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
                 <div></div>
                 <div>
                   <el-button type="primary" :loading="aiTestLoading" @click="testAiConnection">
@@ -1067,6 +1083,10 @@ const currentVersion = 'v2.9.0'
 const hasUpdate = ref(false)
 let getUpdateErrorCount = 1;
 const {t, locale} = useI18n();
+const mcpEndpointUrl = computed(() => {
+    const base = import.meta.env.VITE_BASE_URL || window.location.origin
+    return `${base}/mcp`
+})
 const aiTestLoading = ref(false)
 const testAiConnection = async () => {
     aiTestLoading.value = true

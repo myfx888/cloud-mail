@@ -5,6 +5,7 @@ import { emailConst, isDel } from '../const/entity-const';
 import { and, eq, desc, like, or } from 'drizzle-orm';
 import account from '../entity/account';
 import attService from './att-service';
+import aiProvider from './ai-provider';
 
 const tools = [
 	{
@@ -162,14 +163,17 @@ const tools = [
 				.get();
 			if (!original) return { error: 'Original email not found' };
 
+			let body = params.body;
+			try { body = await aiProvider.verifyDraft(ctx.c, body); } catch (e) { console.warn('verifyDraft skipped:', e.message); }
+
 			const draftData = {
 				sendEmail: original.sendEmail,
 				name: original.name || '',
 				accountId: original.accountId,
 				userId: ctx.userId,
 				subject: original.subject?.startsWith('Re:') ? original.subject : `Re: ${original.subject || ''}`,
-				text: params.body,
-				content: `<div style="white-space:pre-wrap">${escapeHtml(params.body)}</div>`,
+				text: body,
+				content: `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`,
 				toEmail: original.sendEmail || '',
 				inReplyTo: original.messageId || '',
 				messageId: '',
@@ -206,14 +210,17 @@ const tools = [
 				accountId = acc.accountId;
 			}
 
+			let body = params.body;
+			try { body = await aiProvider.verifyDraft(ctx.c, body); } catch (e) { console.warn('verifyDraft skipped:', e.message); }
+
 			const draftData = {
 				sendEmail: '',
 				name: '',
 				accountId: accountId,
 				userId: ctx.userId,
 				subject: params.subject,
-				text: params.body,
-				content: `<div style="white-space:pre-wrap">${escapeHtml(params.body)}</div>`,
+				text: body,
+				content: `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`,
 				toEmail: params.to,
 				type: emailConst.type.SEND,
 				status: emailConst.status.SAVING,

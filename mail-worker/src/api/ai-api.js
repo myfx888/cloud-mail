@@ -151,6 +151,21 @@ app.delete('/ai/conversations', async (c) => {
 	return c.json(result.ok());
 });
 
+// Auto-draft trigger (internal use by email receive flow)
+app.post('/ai/auto-draft', async (c) => {
+	const userId = userContext.getUserId(c);
+	const { emailId } = await c.req.json();
+	if (!emailId) {
+		return c.json(result.fail('emailId is required', 400));
+	}
+	try {
+		const data = await aiService.handleNewEmail(c, Number(emailId), userId);
+		return c.json(result.ok(data));
+	} catch (e) {
+		return c.json(result.fail(e.message, e.code || 500));
+	}
+});
+
 // Test AI connection (admin only)
 app.post('/ai/test-connection', async (c) => {
 	try {

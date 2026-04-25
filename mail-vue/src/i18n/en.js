@@ -436,6 +436,18 @@ const en = {
     aiToolSummarize: 'Summarize',
     aiToolTranslate: 'Translate',
     aiToolMoveEmail: 'Move Email',
-    aiToolDiscardDraft: 'Discard Draft'
+    aiToolDiscardDraft: 'Discard Draft',
+    aiAutoDraft: 'Auto Draft',
+    aiAutoDraftDesc: 'Automatically generate reply drafts when new emails arrive',
+    aiAutoDraftEnabled: 'Auto-draft enabled',
+    aiAutoDraftDisabled: 'Auto-draft disabled',
+    aiToolSendReply: 'Send Reply',
+    aiToolSendEmail: 'Send Email',
+    aiToolUpdateDraft: 'Update Draft',
+    aiToolDeleteEmail: 'Delete Email',
+    aiToolListAccounts: 'List Accounts',
+    mcpSetting: 'MCP Server',
+    mcpDesc: 'Allow external AI tools (e.g. Claude Desktop, Cursor) to manage your mailbox via MCP protocol',
+    mcpEndpoint: 'MCP Endpoint'
 }
 export default en

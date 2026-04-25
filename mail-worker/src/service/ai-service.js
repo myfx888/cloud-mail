@@ -1,5 +1,6 @@
 import aiProvider from './ai-provider';
 import aiToolService from './ai-tool-service';
+import settingService from './setting-service';
 
 const DEFAULT_SYSTEM_PROMPT = `You are an email assistant helping manage this inbox. You can read emails, draft replies, search, and organize conversations.
 
@@ -224,6 +225,81 @@ const aiService = {
 			}
 		} catch (e) {
 			console.warn('Failed to delete conversation:', e.message);
+		}
+	},
+
+	async handleNewEmail(c, emailId, userId) {
+		try {
+			const settings = await settingService.query(c);
+			if (!settings.aiEnabled || !settings.aiAutoDraft) {
+				return { skipped: true, reason: 'AI or auto-draft disabled' };
+			}
+			if (!settings.aiBaseUrl || !settings.aiApiKey) {
+				return { skipped: true, reason: 'AI not configured' };
+			}
+
+			const ctx = { c, userId };
+			const emailData = await aiToolService.executeTool('get_email', { emailId }, ctx);
+			if (emailData.error) {
+				return { skipped: true, reason: emailData.error };
+			}
+
+			// Prompt injection check on email body
+			const isInjection = await aiProvider.isPromptInjection(c, emailData.body);
+			if (isInjection) {
+				console.warn('Auto-draft skipped: prompt injection detected in email', emailId);
+				return { skipped: true, reason: 'prompt_injection_detected' };
+			}
+
+			// Load thread context if available
+			let threadContext = '';
+			const threadData = await aiToolService.executeTool('get_thread', { emailId }, ctx);
+			if (threadData.thread && threadData.thread.length > 1) {
+				// Check thread for injection too
+				const threadText = threadData.thread.map(e => e.body).join('\n---\n');
+				const threadInjection = await aiProvider.isPromptInjection(c, threadText);
+				if (threadInjection) {
+					console.warn('Auto-draft skipped: prompt injection detected in thread for email', emailId);
+					return { skipped: true, reason: 'thread_injection_detected' };
+				}
+				threadContext = threadData.thread
+					.filter(e => e.emailId !== emailId)
+					.map(e => `From: ${e.from}\nDate: ${e.date}\n${e.body}`)
+					.join('\n---\n');
+			}
+
+			const config = await aiProvider._getConfig(c);
+			const systemPrompt = config.systemPrompt || DEFAULT_SYSTEM_PROMPT;
+
+			const messages = [
+				{ role: 'system', content: systemPrompt },
+				{ role: 'system', content: `You are auto-drafting a reply. Create a helpful, professional reply draft. Use draft_reply tool to save it.` }
+			];
+
+			if (threadContext) {
+				messages.push({ role: 'system', content: `Thread history:\n${threadContext}` });
+			}
+
+			messages.push({
+				role: 'user',
+				content: `New email received:\nFrom: ${emailData.from} (${emailData.fromName})\nSubject: ${emailData.subject}\nDate: ${emailData.date}\n\n${emailData.body}\n\nPlease draft a reply using the draft_reply tool.`
+			});
+
+			const toolDefs = aiToolService.getToolDefinitions();
+			const executeTool = async (name, args) => {
+				return await aiToolService.executeTool(name, args, ctx);
+			};
+
+			const result = await aiProvider.callWithTools(c, messages, toolDefs, executeTool, { timeout: 60000 });
+			const draftCall = result.toolCalls.find(tc => tc.name === 'draft_reply' && tc.status === 'done');
+			return {
+				skipped: false,
+				draftId: draftCall?.result?.draftId || null,
+				content: result.content
+			};
+		} catch (e) {
+			console.error('Auto-draft failed for email', emailId, ':', e.message);
+			return { skipped: true, reason: e.message };
 		}
 	}
 };
