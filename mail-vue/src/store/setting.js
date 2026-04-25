@@ -9,6 +9,7 @@ export const useSettingStore = defineStore('setting', {
             loginOpacity: 1.00,
             resendEnabled: 1,
             sendEmailAvailable: false,
+            aiEnabled: 0,
         },
         lang: '',
     }),
