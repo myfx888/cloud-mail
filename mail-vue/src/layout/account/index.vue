@@ -343,6 +343,7 @@ function refresh() {
   getSkeletonRows();
   scrollbarRef.value.setScrollTop(0)
   accounts.splice(0, accounts.length)
+  accountStore.accountsLoaded = false
   getAccountList()
 }
 
@@ -439,6 +440,7 @@ function getAccountList() {
     }
 
     accounts.push(...list)
+    accountStore.setAccounts([...accounts])
 
     loading.value = false
     followLoading.value = false
