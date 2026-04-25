@@ -2,15 +2,15 @@
   <div class="tool-badge" :class="status">
     <span class="tool-icon">{{ toolIcon }}</span>
     <span class="tool-name">{{ displayName }}</span>
-    <el-icon v-if="status === 'done'" class="status-icon"><Check /></el-icon>
-    <el-icon v-else-if="status === 'error'" class="status-icon error"><CloseBold /></el-icon>
-    <el-icon v-else class="status-icon loading"><Loading /></el-icon>
+    <Icon v-if="status === 'done'" icon="ep:check" class="status-icon" />
+    <Icon v-else-if="status === 'error'" icon="ep:close-bold" class="status-icon error" />
+    <Icon v-else icon="ep:loading" class="status-icon loading" />
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { Check, CloseBold, Loading } from '@element-plus/icons-vue'
+import { Icon } from '@iconify/vue'
 
 const props = defineProps({
   name: { type: String, required: true },

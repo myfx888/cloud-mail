@@ -6,10 +6,10 @@
       </div>
       <div class="header-actions">
         <el-button link size="small" @click="aiStore.clearMessages()" :disabled="aiStore.isStreaming">
-          <el-icon><Delete /></el-icon>
+          <Icon icon="ep:delete" width="16" height="16" />
         </el-button>
         <el-button link size="small" @click="uiStore.aiSidebarOpen = false">
-          <el-icon><Close /></el-icon>
+          <Icon icon="ep:close" width="16" height="16" />
         </el-button>
       </div>
     </div>
@@ -24,7 +24,7 @@ import { ref } from 'vue'
 import { useUiStore } from '@/store/ui.js'
 import { useAiStore } from '@/store/ai.js'
 import AiChatPanel from './AiChatPanel.vue'
-import { Delete, Close } from '@element-plus/icons-vue'
+import { Icon } from '@iconify/vue'
 
 const uiStore = useUiStore()
 const aiStore = useAiStore()

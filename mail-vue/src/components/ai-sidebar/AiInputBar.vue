@@ -18,7 +18,7 @@
         @click="$emit('stop')"
         class="send-btn"
       >
-        <el-icon><VideoPause /></el-icon>
+        <Icon icon="ep:video-pause" />
       </el-button>
       <el-button
         v-else
@@ -29,7 +29,7 @@
         :disabled="!text.trim()"
         class="send-btn"
       >
-        <el-icon><Promotion /></el-icon>
+        <Icon icon="ep:promotion" />
       </el-button>
     </div>
   </div>
@@ -37,7 +37,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { Promotion, VideoPause } from '@element-plus/icons-vue'
+import { Icon } from '@iconify/vue'
 
 const props = defineProps({
   isStreaming: { type: Boolean, default: false }
