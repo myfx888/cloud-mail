@@ -10,6 +10,23 @@
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openReply" icon="la:reply" width="21" height="21" />
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openForward" icon="iconoir:arrow-up-right" width="20" height="20" />
       <Icon class="icon" @click="exportEmail" icon="material-symbols-light:download" width="20" height="20" />
+      <template v-if="settingStore.settings.aiEnabled">
+        <span class="ai-divider"></span>
+        <Icon class="icon ai-icon" icon="mdi:text-box-search-outline" width="18" height="18" @click="quickSummary" :title="$t('aiQuickSummary')" />
+        <el-dropdown trigger="click" @command="quickTranslate">
+          <Icon class="icon ai-icon" icon="mdi:translate" width="18" height="18" :title="$t('aiQuickTranslate')" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="中文">{{ $t('aiLangZh') }}</el-dropdown-item>
+              <el-dropdown-item command="English">{{ $t('aiLangEn') }}</el-dropdown-item>
+              <el-dropdown-item command="日本語">{{ $t('aiLangJa') }}</el-dropdown-item>
+              <el-dropdown-item command="한국어">{{ $t('aiLangKo') }}</el-dropdown-item>
+              <el-dropdown-item command="Français">{{ $t('aiLangFr') }}</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <Icon class="icon ai-icon" icon="mdi:robot-outline" width="18" height="18" @click="quickAiReply" :title="$t('aiQuickReply')" />
+      </template>
     </div>
     <div></div>
     <el-scrollbar class="scrollbar">
@@ -91,6 +108,7 @@ import {getIconByName} from "@/utils/icon-utils.js";
 import {useSettingStore} from "@/store/setting.js";
 import {allEmailDelete} from "@/request/all-email.js";
 import {useUiStore} from "@/store/ui.js";
+import {useAiStore} from "@/store/ai.js";
 import {useI18n} from "vue-i18n";
 import {EmailUnreadEnum} from "@/enums/email-enum.js";
 
@@ -99,6 +117,7 @@ const settingStore = useSettingStore();
 const accountStore = useAccountStore();
 const emailStore = useEmailStore();
 const router = useRouter()
+const aiStore = useAiStore()
 const email = emailStore.contentData.email
 const showPreview = ref(false)
 const srcList = reactive([])
@@ -121,6 +140,18 @@ onUnmounted(() => {
 
 function openReply() {
   uiStore.writerRef.openReply(email)
+}
+
+function quickSummary() {
+  aiStore.sendQuickAction('请帮我总结这封邮件的要点', email.emailId)
+}
+
+function quickTranslate(lang) {
+  aiStore.sendQuickAction(`请将这封邮件翻译成${lang}`, email.emailId)
+}
+
+function quickAiReply() {
+  aiStore.sendQuickAction('请帮我起草一封回复', email.emailId)
 }
 
 function openForward() {
@@ -430,5 +461,22 @@ const exportEmail = () => {
   margin-bottom: 30px;
 }
 
+.ai-divider {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: var(--el-border-color);
+  margin: 0 -4px;
+  vertical-align: middle;
+}
+
+.ai-icon {
+  color: var(--el-color-primary);
+  opacity: 0.7;
+}
+
+.ai-icon:hover {
+  opacity: 1;
+}
 
 </style>
