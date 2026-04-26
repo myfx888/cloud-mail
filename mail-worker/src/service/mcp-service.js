@@ -168,6 +168,51 @@ const mcpExtraTools = [
 				)).run();
 			return { deleted: true, emailId: params.emailId };
 		}
+	},
+	{
+		name: 'create_draft',
+		description: 'Create a new draft email and save it to Drafts. Does not send. Fields to and subject are optional - user can fill them in the UI later.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				body: { type: 'string', description: 'Draft body text' },
+				to: { type: 'string', description: 'Recipient email address (optional)' },
+				subject: { type: 'string', description: 'Email subject (optional)' },
+				accountId: { type: 'number', description: 'Sender account ID (optional, defaults to first account)' }
+			},
+			required: ['body']
+		},
+		execute: async (params, ctx) => {
+			let accountId = params.accountId;
+			if (!accountId) {
+				const acc = await orm(ctx.c).select().from(account)
+					.where(and(eq(account.userId, ctx.userId), eq(account.isDel, isDel.NORMAL)))
+					.limit(1).get();
+				if (!acc) return { error: 'No email account found' };
+				accountId = acc.accountId;
+			}
+
+			let body = params.body;
+			try { body = await aiProvider.verifyDraft(ctx.c, body); } catch (e) { /* skip */ }
+
+			const draftData = {
+				sendEmail: '',
+				name: '',
+				accountId: accountId,
+				userId: ctx.userId,
+				subject: params.subject || '',
+				text: body,
+				content: `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`,
+				toEmail: params.to || '',
+				type: emailConst.type.SEND,
+				status: emailConst.status.SAVING,
+				isDel: isDel.NORMAL,
+				unread: emailConst.unread.READ
+			};
+
+			const result = await orm(ctx.c).insert(email).values(draftData).returning().get();
+			return { created: true, emailId: result.emailId };
+		}
 	}
 ];
 
