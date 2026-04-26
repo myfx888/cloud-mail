@@ -228,6 +228,33 @@ const aiService = {
 		}
 	},
 
+	async _logAutoDraft(c, userId, sender, subject, assistantText) {
+		const conversationId = `auto-draft-${userId}`;
+		const now = new Date().toISOString();
+		const userMsg = {
+			role: 'user',
+			content: `[Auto] 收到 ${sender} 的邮件 "${subject}"`,
+			timestamp: now
+		};
+		const assistantMsg = {
+			role: 'assistant',
+			content: assistantText,
+			timestamp: now
+		};
+
+		try {
+			const existing = await this.getConversation(c, userId, conversationId);
+			let messages = existing?.messages || [];
+			messages.push(userMsg, assistantMsg);
+			if (messages.length > 100) {
+				messages = messages.slice(messages.length - 100);
+			}
+			await this.saveConversation(c, userId, conversationId, messages);
+		} catch (e) {
+			console.warn('Failed to log auto-draft:', e.message);
+		}
+	},
+
 	async handleNewEmail(c, emailId, userId) {
 		try {
 			const settings = await settingService.query(c);
@@ -248,6 +275,8 @@ const aiService = {
 			const isInjection = await aiProvider.isPromptInjection(c, emailData.body);
 			if (isInjection) {
 				console.warn('Auto-draft skipped: prompt injection detected in email', emailId);
+				await this._logAutoDraft(c, userId, emailData.from, emailData.subject,
+					'⚠️ 检测到可疑内容，已跳过自动草稿');
 				return { skipped: true, reason: 'prompt_injection_detected' };
 			}
 
@@ -260,6 +289,8 @@ const aiService = {
 				const threadInjection = await aiProvider.isPromptInjection(c, threadText);
 				if (threadInjection) {
 					console.warn('Auto-draft skipped: prompt injection detected in thread for email', emailId);
+					await this._logAutoDraft(c, userId, emailData.from, emailData.subject,
+						'⚠️ 会话历史中检测到可疑内容，已跳过自动草稿');
 					return { skipped: true, reason: 'thread_injection_detected' };
 				}
 				threadContext = threadData.thread
@@ -292,6 +323,8 @@ const aiService = {
 
 			const result = await aiProvider.callWithTools(c, messages, toolDefs, executeTool, { timeout: 60000 });
 			const draftCall = result.toolCalls.find(tc => tc.name === 'draft_reply' && tc.status === 'done');
+			await this._logAutoDraft(c, userId, emailData.from, emailData.subject,
+				draftCall ? '已为该邮件创建回复草稿' : (result.content || '自动草稿生成完成'));
 			return {
 				skipped: false,
 				draftId: draftCall?.result?.draftId || null,
@@ -299,6 +332,8 @@ const aiService = {
 			};
 		} catch (e) {
 			console.error('Auto-draft failed for email', emailId, ':', e.message);
+			await this._logAutoDraft(c, userId, 'unknown', '',
+				`自动草稿生成失败: ${e.message}`).catch(() => {});
 			return { skipped: true, reason: e.message };
 		}
 	}
