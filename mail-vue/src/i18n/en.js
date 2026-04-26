@@ -452,6 +452,14 @@ const en = {
     aiToolListAccounts: 'List Accounts',
     mcpSetting: 'MCP Server',
     mcpDesc: 'Allow external AI tools (e.g. Claude Desktop, Cursor) to manage your mailbox via MCP protocol',
+    aiQuickSummary: 'Summary',
+    aiQuickTranslate: 'Translate',
+    aiQuickReply: 'AI Reply',
+    aiLangZh: 'Chinese',
+    aiLangEn: 'English',
+    aiLangJa: 'Japanese',
+    aiLangKo: 'Korean',
+    aiLangFr: 'French',
     mcpEndpoint: 'MCP Endpoint'
 }
 export default en

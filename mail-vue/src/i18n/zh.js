@@ -453,6 +453,14 @@ const zh = {
     aiToolListAccounts: '列出邮箱账户',
     mcpSetting: 'MCP 服务器',
     mcpDesc: '允许外部 AI 工具（如 Claude Desktop、Cursor）通过 MCP 协议操作邮箱',
+    aiQuickSummary: '摘要',
+    aiQuickTranslate: '翻译',
+    aiQuickReply: 'AI 回复',
+    aiLangZh: '中文',
+    aiLangEn: '英文',
+    aiLangJa: '日文',
+    aiLangKo: '韩文',
+    aiLangFr: '法文',
     mcpEndpoint: 'MCP 端点'
 }
 export default zh

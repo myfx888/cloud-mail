@@ -111,6 +111,15 @@ export const useAiStore = defineStore('ai', {
             }
         },
 
+        async sendQuickAction(text, emailId) {
+            const { useUiStore } = await import('@/store/ui.js');
+            const uiStore = useUiStore();
+            this.currentEmailId = emailId;
+            uiStore.aiSidebarOpen = true;
+            await new Promise(r => setTimeout(r, 100));
+            await this.sendMessage(text);
+        },
+
         clearMessages() {
             this.messages = [];
             this.streamingContent = '';
