@@ -41,14 +41,18 @@ const aiProvider = {
 			if (msg.role === 'system') {
 				systemText += (systemText ? '\n\n' : '') + msg.content;
 			} else if (msg.role === 'tool') {
-				converted.push({
-					role: 'user',
-					content: [{
-						type: 'tool_result',
-						tool_use_id: msg.tool_call_id,
-						content: msg.content
-					}]
-				});
+				const toolResult = {
+					type: 'tool_result',
+					tool_use_id: msg.tool_call_id,
+					content: msg.content
+				};
+				const last = converted[converted.length - 1];
+				if (last && last.role === 'user' && Array.isArray(last.content)
+					&& last.content[0]?.type === 'tool_result') {
+					last.content.push(toolResult);
+				} else {
+					converted.push({ role: 'user', content: [toolResult] });
+				}
 			} else if (msg.role === 'assistant' && msg.tool_calls) {
 				const content = [];
 				if (msg.content) content.push({ type: 'text', text: msg.content });
@@ -242,6 +246,9 @@ const aiProvider = {
 									choices: [{ delta: { content: evt.delta.text }, index: 0 }]
 								};
 								controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+							} else if (evt.choices?.[0]?.delta?.content) {
+								// OpenAI-compatible format (some Anthropic proxies return this)
+								controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n\n`));
 							} else if (evt.type === 'message_stop') {
 								controller.enqueue(encoder.encode('data: [DONE]\n\n'));
 								controller.close();

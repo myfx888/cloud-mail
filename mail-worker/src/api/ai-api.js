@@ -85,7 +85,21 @@ app.post('/ai/chat', async (c) => {
 			}
 		});
 	} catch (e) {
-		return c.json(result.fail(e.message, e.code || 500));
+		const encoder = new TextEncoder();
+		const { readable: errReadable, writable: errWritable } = new TransformStream();
+		const errWriter = errWritable.getWriter();
+		(async () => {
+			await errWriter.write(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: e.message })}\n\n`));
+			await errWriter.write(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+			await errWriter.close();
+		})();
+		return new Response(errReadable, {
+			headers: {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'Connection': 'keep-alive'
+			}
+		});
 	}
 });
 
