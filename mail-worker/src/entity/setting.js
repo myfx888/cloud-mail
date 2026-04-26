@@ -67,6 +67,7 @@ export const setting = sqliteTable('setting', {
 	mailcowRetryCount: integer('mailcow_retry_count').default(3).notNull(),
 	mailcowTimeout: integer('mailcow_timeout').default(30000).notNull(),
 	aiEnabled: integer('ai_enabled').default(0).notNull(),
+	aiProvider: text('ai_provider').default('openai').notNull(),
 	aiBaseUrl: text('ai_base_url').default('').notNull(),
 	aiApiKey: text('ai_api_key').default('').notNull(),
 	aiModel: text('ai_model').default('gpt-4o-mini').notNull(),

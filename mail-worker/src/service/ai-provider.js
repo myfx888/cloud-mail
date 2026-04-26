@@ -2,6 +2,7 @@ import settingService from './setting-service';
 
 const AI_TIMEOUT = 30000;
 const MAX_TOOL_STEPS = 5;
+const ANTHROPIC_VERSION = '2023-06-01';
 
 const aiProvider = {
 
@@ -13,37 +14,133 @@ const aiProvider = {
 		if (!settings.aiBaseUrl || !settings.aiApiKey) {
 			throw Object.assign(new Error('AI未配置（缺少API地址或密钥）'), { code: 400 });
 		}
+		const provider = settings.aiProvider || 'openai';
 		return {
+			provider,
 			baseUrl: settings.aiBaseUrl.replace(/\/+$/, ''),
 			apiKey: settings.aiApiKey,
-			model: settings.aiModel || 'gpt-4o-mini',
+			model: settings.aiModel || (provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o-mini'),
 			systemPrompt: settings.aiSystemPrompt || ''
+		};
+	},
+
+	// ── Anthropic Messages API adapter ──────────────────────────────
+
+	_buildAnthropicHeaders(config) {
+		return {
+			'Content-Type': 'application/json',
+			'x-api-key': config.apiKey,
+			'anthropic-version': ANTHROPIC_VERSION
+		};
+	},
+
+	_convertToAnthropicMessages(messages) {
+		let systemText = '';
+		const converted = [];
+		for (const msg of messages) {
+			if (msg.role === 'system') {
+				systemText += (systemText ? '\n\n' : '') + msg.content;
+			} else if (msg.role === 'tool') {
+				converted.push({
+					role: 'user',
+					content: [{
+						type: 'tool_result',
+						tool_use_id: msg.tool_call_id,
+						content: msg.content
+					}]
+				});
+			} else if (msg.role === 'assistant' && msg.tool_calls) {
+				const content = [];
+				if (msg.content) content.push({ type: 'text', text: msg.content });
+				for (const tc of msg.tool_calls) {
+					content.push({
+						type: 'tool_use',
+						id: tc.id,
+						name: tc.function.name,
+						input: JSON.parse(tc.function.arguments || '{}')
+					});
+				}
+				converted.push({ role: 'assistant', content });
+			} else {
+				converted.push({ role: msg.role, content: msg.content });
+			}
+		}
+		return { system: systemText, messages: converted };
+	},
+
+	_convertAnthropicTools(tools) {
+		if (!tools) return undefined;
+		return tools.map(t => ({
+			name: t.function.name,
+			description: t.function.description,
+			input_schema: t.function.parameters
+		}));
+	},
+
+	_convertAnthropicResponse(data) {
+		const textParts = data.content?.filter(b => b.type === 'text').map(b => b.text) || [];
+		const toolUses = data.content?.filter(b => b.type === 'tool_use') || [];
+		const toolCalls = toolUses.map(tu => ({
+			id: tu.id,
+			type: 'function',
+			function: { name: tu.name, arguments: JSON.stringify(tu.input) }
+		}));
+		return {
+			choices: [{
+				message: {
+					role: 'assistant',
+					content: textParts.join('\n') || null,
+					...(toolCalls.length > 0 && { tool_calls: toolCalls })
+				},
+				finish_reason: data.stop_reason === 'tool_use' ? 'tool_calls' : 'stop'
+			}],
+			model: data.model
 		};
 	},
 
 	async chatCompletion(c, messages, options = {}) {
 		const config = await this._getConfig(c);
-		const body = {
-			model: options.model || config.model,
-			messages,
-			...(options.temperature !== undefined && { temperature: options.temperature }),
-			...(options.max_tokens && { max_tokens: options.max_tokens }),
-			...(options.tools && { tools: options.tools })
-		};
+		const isAnthropic = config.provider === 'anthropic';
 
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), options.timeout || AI_TIMEOUT);
 
 		try {
-			const resp = await fetch(`${config.baseUrl}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${config.apiKey}`
-				},
-				body: JSON.stringify(body),
-				signal: controller.signal
-			});
+			let resp;
+			if (isAnthropic) {
+				const { system, messages: anthropicMsgs } = this._convertToAnthropicMessages(messages);
+				const body = {
+					model: options.model || config.model,
+					messages: anthropicMsgs,
+					max_tokens: options.max_tokens || 4096,
+					...(system && { system }),
+					...(options.temperature !== undefined && { temperature: options.temperature }),
+					...(options.tools && { tools: this._convertAnthropicTools(options.tools) })
+				};
+				resp = await fetch(`${config.baseUrl}/messages`, {
+					method: 'POST',
+					headers: this._buildAnthropicHeaders(config),
+					body: JSON.stringify(body),
+					signal: controller.signal
+				});
+			} else {
+				const body = {
+					model: options.model || config.model,
+					messages,
+					...(options.temperature !== undefined && { temperature: options.temperature }),
+					...(options.max_tokens && { max_tokens: options.max_tokens }),
+					...(options.tools && { tools: options.tools })
+				};
+				resp = await fetch(`${config.baseUrl}/chat/completions`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${config.apiKey}`
+					},
+					body: JSON.stringify(body),
+					signal: controller.signal
+				});
+			}
 
 			if (!resp.ok) {
 				const errBody = await resp.text().catch(() => '');
@@ -53,7 +150,8 @@ const aiProvider = {
 				throw Object.assign(new Error(`AI请求失败: ${resp.status} ${errBody.slice(0, 200)}`), { code: resp.status });
 			}
 
-			return await resp.json();
+			const data = await resp.json();
+			return isAnthropic ? this._convertAnthropicResponse(data) : data;
 		} catch (e) {
 			if (e.name === 'AbortError') throw Object.assign(new Error('AI请求超时'), { code: 408 });
 			throw e;
@@ -64,23 +162,43 @@ const aiProvider = {
 
 	async chatCompletionStream(c, messages, options = {}) {
 		const config = await this._getConfig(c);
-		const body = {
-			model: options.model || config.model,
-			messages,
-			stream: true,
-			...(options.temperature !== undefined && { temperature: options.temperature }),
-			...(options.max_tokens && { max_tokens: options.max_tokens }),
-			...(options.tools && { tools: options.tools })
-		};
+		const isAnthropic = config.provider === 'anthropic';
 
-		const resp = await fetch(`${config.baseUrl}/chat/completions`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${config.apiKey}`
-			},
-			body: JSON.stringify(body)
-		});
+		let resp;
+		if (isAnthropic) {
+			const { system, messages: anthropicMsgs } = this._convertToAnthropicMessages(messages);
+			const body = {
+				model: options.model || config.model,
+				messages: anthropicMsgs,
+				max_tokens: options.max_tokens || 4096,
+				stream: true,
+				...(system && { system }),
+				...(options.temperature !== undefined && { temperature: options.temperature }),
+				...(options.tools && { tools: this._convertAnthropicTools(options.tools) })
+			};
+			resp = await fetch(`${config.baseUrl}/messages`, {
+				method: 'POST',
+				headers: this._buildAnthropicHeaders(config),
+				body: JSON.stringify(body)
+			});
+		} else {
+			const body = {
+				model: options.model || config.model,
+				messages,
+				stream: true,
+				...(options.temperature !== undefined && { temperature: options.temperature }),
+				...(options.max_tokens && { max_tokens: options.max_tokens }),
+				...(options.tools && { tools: options.tools })
+			};
+			resp = await fetch(`${config.baseUrl}/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${config.apiKey}`
+				},
+				body: JSON.stringify(body)
+			});
+		}
 
 		if (!resp.ok) {
 			const errBody = await resp.text().catch(() => '');
@@ -89,7 +207,51 @@ const aiProvider = {
 			throw Object.assign(new Error(`AI请求失败: ${resp.status} ${errBody.slice(0, 200)}`), { code: resp.status });
 		}
 
+		if (isAnthropic) {
+			return this._convertAnthropicStreamToOpenAI(resp.body);
+		}
 		return resp.body;
+	},
+
+	_convertAnthropicStreamToOpenAI(anthropicStream) {
+		const reader = anthropicStream.getReader();
+		const encoder = new TextEncoder();
+		const decoder = new TextDecoder();
+		let buffer = '';
+
+		return new ReadableStream({
+			async pull(controller) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) {
+						controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+						controller.close();
+						return;
+					}
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() || '';
+					for (const line of lines) {
+						if (!line.startsWith('data: ')) continue;
+						const payload = line.slice(6).trim();
+						if (!payload || payload === '[DONE]') continue;
+						try {
+							const evt = JSON.parse(payload);
+							if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+								const chunk = {
+									choices: [{ delta: { content: evt.delta.text }, index: 0 }]
+								};
+								controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+							} else if (evt.type === 'message_stop') {
+								controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+								controller.close();
+								return;
+							}
+						} catch {} // skip malformed events
+					}
+				}
+			}
+		});
 	},
 
 	async callWithTools(c, messages, tools, executeTool, options = {}) {
@@ -196,18 +358,33 @@ RULES:
 
 	async testConnection(c) {
 		const config = await this._getConfig(c);
-		const resp = await fetch(`${config.baseUrl}/chat/completions`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${config.apiKey}`
-			},
-			body: JSON.stringify({
-				model: config.model,
-				messages: [{ role: 'user', content: 'Hi' }],
-				max_tokens: 5
-			})
-		});
+		const isAnthropic = config.provider === 'anthropic';
+
+		let resp;
+		if (isAnthropic) {
+			resp = await fetch(`${config.baseUrl}/messages`, {
+				method: 'POST',
+				headers: this._buildAnthropicHeaders(config),
+				body: JSON.stringify({
+					model: config.model,
+					messages: [{ role: 'user', content: 'Hi' }],
+					max_tokens: 5
+				})
+			});
+		} else {
+			resp = await fetch(`${config.baseUrl}/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${config.apiKey}`
+				},
+				body: JSON.stringify({
+					model: config.model,
+					messages: [{ role: 'user', content: 'Hi' }],
+					max_tokens: 5
+				})
+			});
+		}
 
 		if (!resp.ok) {
 			const errBody = await resp.text().catch(() => '');

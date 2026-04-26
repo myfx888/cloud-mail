@@ -70,6 +70,7 @@ const settingService = {
 
 		// 兼容 AI 设置下划线命名
 		if (parsed.aiEnabled === undefined) parsed.aiEnabled = parsed.ai_enabled ?? 0;
+		if (parsed.aiProvider === undefined) parsed.aiProvider = parsed.ai_provider ?? 'openai';
 		if (parsed.aiBaseUrl === undefined) parsed.aiBaseUrl = parsed.ai_base_url ?? '';
 		if (parsed.aiApiKey === undefined) parsed.aiApiKey = parsed.ai_api_key ?? '';
 		if (parsed.aiModel === undefined) parsed.aiModel = parsed.ai_model ?? 'gpt-4o-mini';

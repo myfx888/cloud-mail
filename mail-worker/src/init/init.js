@@ -287,6 +287,7 @@ const dbInit = {
 	async v4_2DB(c) {
 		const settingMigrations = [
 			`ALTER TABLE setting ADD COLUMN ai_enabled INTEGER NOT NULL DEFAULT 0;`,
+			`ALTER TABLE setting ADD COLUMN ai_provider TEXT NOT NULL DEFAULT 'openai';`,
 			`ALTER TABLE setting ADD COLUMN ai_base_url TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE setting ADD COLUMN ai_api_key TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE setting ADD COLUMN ai_model TEXT NOT NULL DEFAULT 'gpt-4o-mini';`,

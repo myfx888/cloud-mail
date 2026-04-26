@@ -437,21 +437,30 @@
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
+                <div><span>{{ $t('aiProviderLabel') }}</span></div>
+                <div>
+                  <el-radio-group v-model="setting.aiProvider" @change="onProviderChange">
+                    <el-radio-button value="openai">OpenAI</el-radio-button>
+                    <el-radio-button value="anthropic">Anthropic</el-radio-button>
+                  </el-radio-group>
+                </div>
+              </div>
+              <div class="setting-item" v-if="setting.aiEnabled">
                 <div><span>{{ $t('aiBaseUrl') }}</span></div>
                 <div>
-                  <el-input v-model="setting.aiBaseUrl" placeholder="https://api.openai.com/v1" style="width: 300px" @change="change"/>
+                  <el-input v-model="setting.aiBaseUrl" :placeholder="setting.aiProvider === 'anthropic' ? 'https://api.anthropic.com/v1' : 'https://api.openai.com/v1'" style="width: 300px" @change="change"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
                 <div><span>{{ $t('aiApiKey') }}</span></div>
                 <div>
-                  <el-input v-model="setting.aiApiKey" type="password" show-password placeholder="sk-..." style="width: 300px" @change="change"/>
+                  <el-input v-model="setting.aiApiKey" type="password" show-password :placeholder="setting.aiProvider === 'anthropic' ? 'sk-ant-...' : 'sk-...'" style="width: 300px" @change="change"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
                 <div><span>{{ $t('aiModel') }}</span></div>
                 <div>
-                  <el-input v-model="setting.aiModel" placeholder="gpt-4o-mini" style="width: 200px" @change="change"/>
+                  <el-input v-model="setting.aiModel" :placeholder="setting.aiProvider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o-mini'" style="width: 200px" @change="change"/>
                 </div>
               </div>
               <div class="setting-item" v-if="setting.aiEnabled">
@@ -1087,6 +1096,19 @@ const mcpEndpointUrl = computed(() => {
     const base = import.meta.env.VITE_BASE_URL || window.location.origin
     return `${base}/mcp`
 })
+const onProviderChange = (val) => {
+    if (val === 'anthropic' && !setting.value.aiBaseUrl) {
+        setting.value.aiBaseUrl = 'https://api.anthropic.com/v1'
+    } else if (val === 'openai' && setting.value.aiBaseUrl === 'https://api.anthropic.com/v1') {
+        setting.value.aiBaseUrl = ''
+    }
+    if (val === 'anthropic' && (!setting.value.aiModel || setting.value.aiModel === 'gpt-4o-mini')) {
+        setting.value.aiModel = 'claude-sonnet-4-20250514'
+    } else if (val === 'openai' && setting.value.aiModel === 'claude-sonnet-4-20250514') {
+        setting.value.aiModel = 'gpt-4o-mini'
+    }
+    change()
+}
 const aiTestLoading = ref(false)
 const testAiConnection = async () => {
     aiTestLoading.value = true
