@@ -319,8 +319,36 @@ Respond with exactly one word: YES or NO.`;
 		}
 	},
 
+	_splitQuotedBlock(html) {
+		const match = html.match(
+			/(\s*(?:<br\s*\/?>)\s*)?(<blockquote[\s\S]*<\/blockquote>)\s*$/i
+		);
+		if (match) {
+			const quoted = match[0];
+			const reply = html.slice(0, html.length - quoted.length);
+			return { reply, quoted };
+		}
+		return { reply: html, quoted: '' };
+	},
+
+	_stripHtmlToText(html) {
+		return html
+			.replace(/<br\s*\/?>/gi, '\n')
+			.replace(/<\/?(p|div|h[1-6]|li|tr)[^>]*>/gi, '\n')
+			.replace(/<[^>]+>/g, '')
+			.replace(/&nbsp;/gi, ' ')
+			.replace(/&amp;/gi, '&')
+			.replace(/&lt;/gi, '<')
+			.replace(/&gt;/gi, '>')
+			.replace(/&quot;/gi, '"')
+			.replace(/&#39;/gi, "'")
+			.replace(/\n{3,}/g, '\n\n')
+			.trim();
+	},
+
 	async verifyDraft(c, draftBody) {
 		if (!draftBody || draftBody.trim().length === 0) return draftBody;
+
 		const VERIFIER_PROMPT = `You are a proofreader for outgoing business emails. You will receive the text of an email draft that was composed by an AI assistant on behalf of a human.
 
 Your job: check if the AI assistant accidentally included any of its own internal commentary or system artifacts in the email text.
@@ -344,12 +372,41 @@ RULES:
 2. If you find artifacts, remove ONLY those specific lines. Keep everything else identical.
 3. When in doubt, KEEP the content.
 4. Return ONLY the email text. No explanations, no wrapper text.`;
+
+		const isHtml = /<[a-z][\s\S]*>/i.test(draftBody);
+		const { reply: replyPart, quoted: quotedBlock } = isHtml
+			? this._splitQuotedBlock(draftBody)
+			: { reply: draftBody, quoted: '' };
+
+		const replyText = isHtml ? this._stripHtmlToText(replyPart) : replyPart;
+
+		if (replyText.trim().length < 20) return draftBody;
+
 		try {
 			const result = await this.chatCompletion(c, [
 				{ role: 'system', content: VERIFIER_PROMPT },
-				{ role: 'user', content: draftBody }
-			], { max_tokens: 2000, temperature: 0 });
-			return (result.choices?.[0]?.message?.content || draftBody).trim();
+				{ role: 'user', content: replyText }
+			], { max_tokens: 4096, temperature: 0 });
+
+			const cleaned = (result.choices?.[0]?.message?.content || '').trim();
+			if (!cleaned) return draftBody;
+
+			const normalize = s => s.replace(/\s+/g, ' ').trim();
+			if (normalize(cleaned) === normalize(replyText)) return draftBody;
+
+			if (cleaned.length < replyText.trim().length * 0.5) {
+				console.warn(
+					'Draft verifier removed >50% of content, falling back to original.',
+					`Original: ${replyText.trim().length} chars, Cleaned: ${cleaned.length} chars`
+				);
+				return draftBody;
+			}
+
+			if (isHtml) {
+				const cleanedHtml = `<div style="white-space:pre-wrap">${cleaned.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
+				return quotedBlock ? `${cleanedHtml}${quotedBlock}` : cleanedHtml;
+			}
+			return quotedBlock ? `${cleaned}\n\n${quotedBlock}` : cleaned;
 		} catch (e) {
 			console.warn('Draft verification failed, using original:', e.message);
 			return draftBody;
