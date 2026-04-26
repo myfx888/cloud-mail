@@ -314,8 +314,8 @@ Respond with exactly one word: YES or NO.`;
 			const answer = (result.choices?.[0]?.message?.content || '').trim().toUpperCase();
 			return answer === 'YES';
 		} catch (e) {
-			console.warn('Prompt injection check failed, allowing by default:', e.message);
-			return false;
+			console.warn('Prompt injection check failed, blocking by default:', e.message);
+			return true;
 		}
 	},
 
