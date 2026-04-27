@@ -509,7 +509,8 @@ const settingService = {
 			linuxdoCallbackUrl: settingRow.linuxdoCallbackUrl,
 			linuxdoSwitch: settingRow.linuxdoSwitch,
 			minEmailPrefix: settingRow.minEmailPrefix,
-			sendEmailAvailable: !!(c.env.SEND_EMAIL && typeof c.env.SEND_EMAIL.send === 'function')
+			sendEmailAvailable: !!(c.env.SEND_EMAIL && typeof c.env.SEND_EMAIL.send === 'function'),
+			aiEnabled: settingRow.aiEnabled ?? 0
 		};
 	}
 };
