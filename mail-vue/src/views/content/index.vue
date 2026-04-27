@@ -157,13 +157,14 @@ async function quickAiReply() {
   aiReplyLoading.value = true
   try {
     const res = await aiQuickReply(email.emailId)
-    if (res.data?.code === 200 && res.data?.data?.replyBody) {
-      uiStore.writerRef.openReplyWithContent(email, res.data.data.replyBody)
+    if (res?.replyBody) {
+      uiStore.writerRef.openReplyWithContent(email, res.replyBody)
     } else {
-      ElMessage.error(res.data?.message || 'AI reply failed')
+      ElMessage.error('AI reply failed')
     }
   } catch (e) {
-    ElMessage.error(e.message || 'AI reply failed')
+    // axios interceptor already shows error message for non-200 responses
+    console.error('quickAiReply error:', e)
   } finally {
     aiReplyLoading.value = false
   }
