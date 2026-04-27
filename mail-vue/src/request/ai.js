@@ -16,6 +16,10 @@ export function aiConversationDelete(id) {
     return http.delete('/ai/conversations' + (id ? `?id=${id}` : ''))
 }
 
+export function aiQuickReply(emailId) {
+    return http.post('/ai/quick-reply', { emailId })
+}
+
 export function aiTestConnection() {
     return http.post('/ai/test-connection')
 }

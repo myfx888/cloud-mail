@@ -151,6 +151,7 @@ import {ElMessageBox} from "element-plus";
 defineExpose({
   open,
   openReply,
+  openReplyWithContent,
   openForward,
   openDraft
 })
@@ -607,7 +608,7 @@ function openForward(email) {
   });
 }
 
-function openReply(email) {
+function openReply(email, preContent) {
 
   resetForm();
 
@@ -621,9 +622,13 @@ function openReply(email) {
 
   defValue.value = ''
 
+  const preHtml = preContent
+    ? `<div style="white-space:pre-wrap">${preContent.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>`
+    : '<div></div>'
+
   setTimeout(async () => {
     defValue.value = `
-    <div></div>
+    ${preHtml}
     <div>
     <br>
         ${formatDetailDateEn(email.createTime)} ${email.name} &lt${email.sendEmail}&gt wrote:
@@ -643,6 +648,10 @@ function openReply(email) {
     })
   })
 
+}
+
+function openReplyWithContent(email, content) {
+  openReply(email, content)
 }
 
 function formatImage(content) {

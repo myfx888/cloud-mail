@@ -25,7 +25,7 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <Icon class="icon ai-icon" icon="mdi:robot-outline" width="18" height="18" @click="quickAiReply" :title="$t('aiQuickReply')" />
+        <Icon class="icon ai-icon" :class="{ 'ai-loading': aiReplyLoading }" :icon="aiReplyLoading ? 'mdi:loading' : 'mdi:robot-outline'" width="18" height="18" @click="quickAiReply" :title="$t('aiQuickReply')" />
       </template>
     </div>
     <div></div>
@@ -109,6 +109,7 @@ import {useSettingStore} from "@/store/setting.js";
 import {allEmailDelete} from "@/request/all-email.js";
 import {useUiStore} from "@/store/ui.js";
 import {useAiStore} from "@/store/ai.js";
+import {aiQuickReply} from "@/request/ai.js";
 import {useI18n} from "vue-i18n";
 import {EmailUnreadEnum} from "@/enums/email-enum.js";
 
@@ -150,8 +151,22 @@ function quickTranslate(lang) {
   aiStore.sendQuickAction(`请将这封邮件翻译成${lang}`, email.emailId)
 }
 
-function quickAiReply() {
-  aiStore.sendQuickAction('请帮我起草一封回复', email.emailId)
+const aiReplyLoading = ref(false)
+async function quickAiReply() {
+  if (aiReplyLoading.value) return
+  aiReplyLoading.value = true
+  try {
+    const res = await aiQuickReply(email.emailId)
+    if (res.data?.code === 200 && res.data?.data?.replyBody) {
+      uiStore.writerRef.openReplyWithContent(email, res.data.data.replyBody)
+    } else {
+      ElMessage.error(res.data?.message || 'AI reply failed')
+    }
+  } catch (e) {
+    ElMessage.error(e.message || 'AI reply failed')
+  } finally {
+    aiReplyLoading.value = false
+  }
 }
 
 function openForward() {
@@ -477,6 +492,17 @@ const exportEmail = () => {
 
 .ai-icon:hover {
   opacity: 1;
+}
+
+.ai-loading {
+  animation: spin 1s linear infinite;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 </style>

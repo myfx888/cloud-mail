@@ -126,6 +126,19 @@ app.post('/ai/chatSync', async (c) => {
 	}
 });
 
+// Quick AI reply — returns reply text for compose UI
+app.post('/ai/quick-reply', async (c) => {
+	const userId = userContext.getUserId(c);
+	const { emailId } = await c.req.json();
+	if (!emailId) return c.json(result.fail('emailId is required', 400));
+	try {
+		const data = await aiService.quickReply(c, userId, Number(emailId));
+		return c.json(result.ok(data));
+	} catch (e) {
+		return c.json(result.fail(e.message, e.code || 500));
+	}
+});
+
 // Summarize email
 app.post('/ai/summarize', async (c) => {
 	const userId = userContext.getUserId(c);

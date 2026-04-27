@@ -178,6 +178,28 @@ const aiService = {
 		};
 	},
 
+	async quickReply(c, userId, emailId) {
+		const result = await aiToolService.executeTool('get_email', { emailId }, { c, userId });
+		if (result.error) throw new Error(result.error);
+
+		const prompt = `You are a professional email assistant. Draft a concise, polite reply to the following email.
+Rules:
+- Reply in the SAME language as the original email
+- Be professional and concise
+- Output ONLY the reply body text, no subject line, no greeting/sign-off boilerplate unless contextually appropriate
+- Do NOT include any system commentary or explanations`;
+
+		const aiResult = await aiProvider.chatCompletion(c, [
+			{ role: 'system', content: prompt },
+			{ role: 'user', content: `From: ${result.from} <${result.fromName || ''}>\nSubject: ${result.subject}\nDate: ${result.date}\n\n${result.body}` }
+		], { max_tokens: 1000, temperature: 0.7 });
+
+		const replyBody = aiResult.choices?.[0]?.message?.content || '';
+		if (!replyBody) throw new Error('AI did not generate a reply');
+
+		return { replyBody };
+	},
+
 	async saveConversation(c, userId, conversationId, messages) {
 		const now = new Date().toISOString();
 		const messagesJson = JSON.stringify(messages);
