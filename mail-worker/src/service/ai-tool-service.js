@@ -158,33 +158,47 @@ const tools = [
 			required: ['emailId', 'body']
 		},
 		execute: async (params, ctx) => {
-			const original = await orm(ctx.c).select().from(email)
-				.where(and(eq(email.emailId, params.emailId), eq(email.userId, ctx.userId), eq(email.isDel, isDel.NORMAL)))
-				.get();
-			if (!original) return { error: 'Original email not found' };
+			try {
+				const eid = Number(params.emailId);
+				if (!eid) return { error: 'Invalid emailId' };
 
-			let body = params.body;
-			try { body = await aiProvider.verifyDraft(ctx.c, body); } catch (e) { console.warn('verifyDraft skipped:', e.message); }
+				const original = await orm(ctx.c).select().from(email)
+					.where(and(eq(email.emailId, eid), eq(email.userId, ctx.userId), eq(email.isDel, isDel.NORMAL)))
+					.get();
+				if (!original) return { error: 'Original email not found' };
 
-			const draftData = {
-				sendEmail: original.sendEmail,
-				name: original.name || '',
-				accountId: original.accountId,
-				userId: ctx.userId,
-				subject: original.subject?.startsWith('Re:') ? original.subject : `Re: ${original.subject || ''}`,
-				text: body,
-				content: `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`,
-				toEmail: original.sendEmail || '',
-				inReplyTo: original.messageId || '',
-				messageId: '',
-				type: emailConst.type.SEND,
-				status: emailConst.status.SAVING,
-				isDel: isDel.NORMAL,
-				unread: emailConst.unread.READ
-			};
+				const acc = await orm(ctx.c).select().from(account)
+					.where(and(eq(account.accountId, original.accountId), eq(account.isDel, isDel.NORMAL)))
+					.get();
+				const senderEmail = acc?.email || '';
 
-			const result = await orm(ctx.c).insert(email).values(draftData).returning().get();
-			return { draftId: result.emailId, message: 'Draft reply saved. User can review and send from the UI.' };
+				let body = params.body;
+				try { body = await aiProvider.verifyDraft(ctx.c, body); } catch (e) { console.warn('verifyDraft skipped:', e.message); }
+
+				const draftData = {
+					sendEmail: senderEmail,
+					name: acc?.name || '',
+					accountId: original.accountId,
+					userId: ctx.userId,
+					subject: original.subject?.startsWith('Re:') ? original.subject : `Re: ${original.subject || ''}`,
+					text: body,
+					content: `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`,
+					toEmail: original.sendEmail || '',
+					inReplyTo: original.messageId || '',
+					messageId: '',
+					recipient: JSON.stringify([{ address: original.sendEmail || '', name: original.name || '' }]),
+					type: emailConst.type.SEND,
+					status: emailConst.status.SAVING,
+					isDel: isDel.NORMAL,
+					unread: emailConst.unread.READ
+				};
+
+				const result = await orm(ctx.c).insert(email).values(draftData).returning().get();
+				return { draftId: result.emailId, message: 'Draft reply saved. User can review and send from the UI.' };
+			} catch (e) {
+				console.error('draft_reply failed:', e.message, e.stack);
+				return { error: `Failed to create draft: ${e.message}` };
+			}
 		}
 	},
 	{
@@ -201,35 +215,47 @@ const tools = [
 			required: ['to', 'subject', 'body']
 		},
 		execute: async (params, ctx) => {
-			let accountId = params.accountId;
-			if (!accountId) {
-				const acc = await orm(ctx.c).select().from(account)
-					.where(and(eq(account.userId, ctx.userId), eq(account.isDel, isDel.NORMAL)))
-					.limit(1).get();
+			try {
+				let accountId = params.accountId ? Number(params.accountId) : null;
+				let senderEmail = '';
+				let senderName = '';
+
+				const acc = accountId
+					? await orm(ctx.c).select().from(account)
+						.where(and(eq(account.accountId, accountId), eq(account.isDel, isDel.NORMAL))).get()
+					: await orm(ctx.c).select().from(account)
+						.where(and(eq(account.userId, ctx.userId), eq(account.isDel, isDel.NORMAL)))
+						.limit(1).get();
 				if (!acc) return { error: 'No email account found' };
 				accountId = acc.accountId;
+				senderEmail = acc.email || '';
+				senderName = acc.name || '';
+
+				let body = params.body;
+				try { body = await aiProvider.verifyDraft(ctx.c, body); } catch (e) { console.warn('verifyDraft skipped:', e.message); }
+
+				const draftData = {
+					sendEmail: senderEmail,
+					name: senderName,
+					accountId: accountId,
+					userId: ctx.userId,
+					subject: params.subject || '',
+					text: body,
+					content: `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`,
+					toEmail: params.to || '',
+					recipient: params.to ? JSON.stringify([{ address: params.to, name: '' }]) : '[]',
+					type: emailConst.type.SEND,
+					status: emailConst.status.SAVING,
+					isDel: isDel.NORMAL,
+					unread: emailConst.unread.READ
+				};
+
+				const result = await orm(ctx.c).insert(email).values(draftData).returning().get();
+				return { draftId: result.emailId, message: 'Draft email saved. User can review and send from the UI.' };
+			} catch (e) {
+				console.error('draft_email failed:', e.message, e.stack);
+				return { error: `Failed to create draft: ${e.message}` };
 			}
-
-			let body = params.body;
-			try { body = await aiProvider.verifyDraft(ctx.c, body); } catch (e) { console.warn('verifyDraft skipped:', e.message); }
-
-			const draftData = {
-				sendEmail: '',
-				name: '',
-				accountId: accountId,
-				userId: ctx.userId,
-				subject: params.subject,
-				text: body,
-				content: `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`,
-				toEmail: params.to,
-				type: emailConst.type.SEND,
-				status: emailConst.status.SAVING,
-				isDel: isDel.NORMAL,
-				unread: emailConst.unread.READ
-			};
-
-			const result = await orm(ctx.c).insert(email).values(draftData).returning().get();
-			return { draftId: result.emailId, message: 'Draft email saved. User can review and send from the UI.' };
 		}
 	},
 	{
