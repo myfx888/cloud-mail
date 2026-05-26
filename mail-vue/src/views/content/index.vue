@@ -52,18 +52,18 @@
             <el-alert v-if="email.status === 4" :closable="false" :title="$t('complained')" class="email-msg" type="warning" show-icon />
             <el-alert v-if="email.status === 5" :closable="false" :title="$t('delayed')" class="email-msg" type="warning" show-icon />
           </div>
-          <el-scrollbar class="htm-scrollbar" :class="email.attList.length === 0 ? 'bottom-distance' : ''">
-            <ShadowHtml class="shadow-html" :html="formatImage(email.content)" v-if="email.content" />
+          <el-scrollbar class="htm-scrollbar" :class="attList.length === 0 ? 'bottom-distance' : ''">
+            <ShadowHtml class="shadow-html" :html="formatImage(email.content)" v-if="hasDisplayableHtml(email.content)" />
             <pre v-else class="email-text" >{{email.text}}</pre>
           </el-scrollbar>
-          <div class="att" v-if="email.attList.length > 0">
+          <div class="att" v-if="attList.length > 0">
             <div class="att-title">
               <span>{{$t('attachments')}}</span>
-              <span>{{$t('attCount',{total: email.attList.length})}}</span>
+              <span>{{$t('attCount',{total: attList.length})}}</span>
             </div>
             <div class="att-box">
 
-              <div class="att-item" v-for="att in email.attList" :key="att.attId">
+              <div class="att-item" v-for="att in attList" :key="att.attId">
                 <div class="att-icon" @click="showImage(att.key)">
                   <Icon v-bind="getIconByName(att.filename)" />
                 </div>
@@ -93,7 +93,7 @@
 </template>
 <script setup>
 import ShadowHtml from '@/components/shadow-html/index.vue'
-import {reactive, ref, watch, onMounted, onUnmounted} from "vue";
+import {computed, reactive, ref, watch, onMounted, onUnmounted} from "vue";
 import {useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {emailDelete, emailRead} from "@/request/email.js";
@@ -120,6 +120,7 @@ const emailStore = useEmailStore();
 const router = useRouter()
 const aiStore = useAiStore()
 const email = emailStore.contentData.email
+const attList = computed(() => email.attList || [])
 const showPreview = ref(false)
 const srcList = reactive([])
 
@@ -182,6 +183,15 @@ function formatImage(content) {
   content = content || '';
   const domain = settingStore.settings.r2Domain;
   return  content.replace(/{{domain}}/g, toOssDomain(domain) + '/');
+}
+
+function hasDisplayableHtml(content) {
+  if (!content) return false;
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = content;
+  tempDiv.querySelectorAll('script, style, title').forEach(el => el.remove());
+  if (tempDiv.querySelector('img, iframe, object, embed, video, audio, table')) return true;
+  return Boolean((tempDiv.textContent || tempDiv.innerText || '').replace(/[\u200B-\u200F\uFEFF\u034F\u00A0\u3000\u00AD]/g, '').trim());
 }
 
 function showImage(key) {
