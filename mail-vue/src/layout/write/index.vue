@@ -200,7 +200,7 @@ const form = reactive({
   emailId: 0,
   attachments: [],
   draftId: null,
-  sendMethod: 'resend',
+  sendMethod: 'cloudflare',
   smtpAccountId: null,
 })
 
@@ -617,7 +617,7 @@ function openReply(email, preContent) {
   form.receiveEmail.push(email.sendEmail)
   form.subject = normalizeReplySubject(email.subject)
   form.sendType = 'reply'
-  form.sendMethod = 'smtp'
+  form.sendMethod = sendEmailAvailable.value ? 'cloudflare' : (resendEnabled.value ? 'resend' : 'smtp')
   form.emailId = email.emailId
 
   defValue.value = ''
