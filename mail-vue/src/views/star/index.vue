@@ -2,7 +2,7 @@
   <emailScroll type="star" ref="scroll"
                :allow-star="false"
                :cancel-success="cancelStar"
-               :getEmailList="starList"
+               :getEmailList="getStarList"
                :emailDelete="emailDelete"
                :star-add="starAdd"
                :star-cancel="starCancel"
@@ -26,6 +26,10 @@ defineOptions({
 
 const scroll = ref({})
 const emailStore = useEmailStore();
+
+function getStarList(emailId, size, signal) {
+  return starList(emailId, size, signal)
+}
 
 function jumpContent(email) {
   emailStore.contentData.email = email
