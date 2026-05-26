@@ -71,6 +71,11 @@ http.interceptors.response.use((res) => {
     },
     (error) => {
 
+        // 被 AbortController 取消的请求，静默 reject，不弹任何提示
+        if (error?.code === 'ERR_CANCELED') {
+            return Promise.reject(error);
+        }
+
         if (error.status === 403) {
             location.reload();
             return;
