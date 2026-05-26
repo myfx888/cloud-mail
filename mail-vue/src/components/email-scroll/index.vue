@@ -312,6 +312,7 @@ let scrollTop = 0
 const latestEmail = ref(null)
 const scrollbarRef = ref(null)
 let reqLock = false
+let abortController = null
 let isMobile = ref(innerWidth < 1367)
 let skeletonRows = 0
 const timePaddingRight = ref('');
@@ -937,25 +938,30 @@ function jumpDetails(email) {
 
 function getEmailList(refresh = false) {
 
-  if (reqLock) return;
-
   let emailId = emailList.length > 0 ? emailList.at(-1).emailId : 0;
-
-  reqLock = true
 
   if (!refresh) {
 
-    if (loading.value || noLoading.value) {
-      reqLock = false
+    if (reqLock || loading.value || noLoading.value) {
       return
     }
 
   } else {
+    // refresh 场景：取消旧请求，立即发新请求
+    if (abortController) {
+      abortController.abort()
+      abortController = null
+      reqLock = false
+    }
     getSkeletonRows()
     emailId = 0
     loading.value = true
     scrollTop = 0
   }
+
+  reqLock = true
+  abortController = new AbortController()
+  const signal = abortController.signal
 
   if (emailList.length === 0) {
     loading.value = true
@@ -964,7 +970,7 @@ function getEmailList(refresh = false) {
   }
   let start = Date.now();
 
-  props.getEmailList(emailId, queryParam.size).then(async data => {
+  props.getEmailList(emailId, queryParam.size, signal).then(async data => {
     let end = Date.now();
     let duration = end - start;
     if (duration < 300 && !emailId) {
@@ -992,9 +998,16 @@ function getEmailList(refresh = false) {
     followLoading.value = data.list.length >= queryParam.size;
 
     total.value = data.total;
+  }).catch(err => {
+    // 被 AbortController 取消的请求，静默忽略
+    if (err?.code === 'ERR_CANCELED' || err?.name === 'AbortError' || err?.name === 'CanceledError') {
+      return
+    }
+    console.error(err)
   }).finally(() => {
     loading.value = false
     reqLock = false
+    abortController = null
   })
 }
 
