@@ -14,6 +14,7 @@ const zh = {
     switchAccount: '切换账户',
     noMoreData: '没有更多数据了',
     noMessagesFound: '没有任何邮件',
+    noContent: '该邮件没有正文内容',
     addAccount: '添加邮箱',
     emailAccount: '邮箱',
     account: '邮箱',

@@ -82,14 +82,28 @@ export async function email(message, env, ctx) {
 
 		const toName = email.to.find(item => item.address === message.to)?.name || '';
 
+		let parsedHtml = email.html;
+		let parsedText = email.text;
+
+		if (!parsedHtml && !parsedText && email.attachments && email.attachments.length > 0) {
+			for (const att of email.attachments) {
+				if (!parsedHtml && att.mimeType === 'text/html' && att.content) {
+					parsedHtml = typeof att.content === 'string' ? att.content : new TextDecoder().decode(att.content);
+				}
+				if (!parsedText && att.mimeType === 'text/plain' && att.content) {
+					parsedText = typeof att.content === 'string' ? att.content : new TextDecoder().decode(att.content);
+				}
+			}
+		}
+
 		const params = {
 			toEmail: message.to,
 			toName: toName,
 			sendEmail: email.from.address,
 			name: email.from.name || emailUtils.getName(email.from.address),
 			subject: email.subject,
-			content: email.html,
-			text: email.text,
+			content: parsedHtml,
+			text: parsedText,
 			cc: email.cc ? JSON.stringify(email.cc) : '[]',
 			bcc: email.bcc ? JSON.stringify(email.bcc) : '[]',
 			recipient: JSON.stringify(email.to),

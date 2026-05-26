@@ -54,7 +54,8 @@
           </div>
           <el-scrollbar class="htm-scrollbar" :class="attList.length === 0 ? 'bottom-distance' : ''">
             <ShadowHtml class="shadow-html" :html="formatImage(email.content)" v-if="hasDisplayableHtml(email.content)" />
-            <pre v-else class="email-text" >{{email.text}}</pre>
+            <pre v-else-if="email.text" class="email-text" >{{email.text}}</pre>
+            <div v-else class="no-content">{{ $t('noContent') }}</div>
           </el-scrollbar>
           <div class="att" v-if="attList.length > 0">
             <div class="att-title">
@@ -481,6 +482,11 @@ const exportEmail = () => {
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
+}
+
+.no-content {
+  color: var(--el-text-color-secondary);
+  padding: 20px 0;
 }
 
 .bottom-distance {

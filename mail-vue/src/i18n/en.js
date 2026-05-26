@@ -14,6 +14,7 @@ const en = {
     switchAccount: 'Switch Account',
     noMoreData: 'No more data',
     noMessagesFound: 'No messages found',
+    noContent: 'This email has no body content',
     addAccount: 'Add Email Address',
     emailAccount: 'Email',
     account: 'Address',
