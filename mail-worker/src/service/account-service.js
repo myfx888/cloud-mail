@@ -227,7 +227,7 @@ const accountService = {
 		return orm(c).select().from(account).where(sql`${account.email} COLLATE NOCASE = ${email}`).get();
 	},
 
-	list(c, params, userId) {
+	async list(c, params, userId) {
 
 		let { accountId, size, lastSort } = params;
 
@@ -247,7 +247,7 @@ const accountService = {
 			lastSort = 9999999999;
 		}
 
-		return orm(c).select({ account: account })
+		const rows = await orm(c).select({ account: account })
 			.from(account)
 			.innerJoin(accountMember, eq(accountMember.accountId, account.accountId))
 			.where(
@@ -264,8 +264,8 @@ const accountService = {
 				)
 			.orderBy(desc(account.sort), asc(account.accountId))
 			.limit(size)
-			.all()
-			.map(row => row.account);
+			.all();
+		return rows.map(row => row.account);
 	},
 
 	async delete(c, params, userId) {
