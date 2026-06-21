@@ -48,8 +48,9 @@ const dbInit = {
 			await this.v3_9DB(c);
 			await this.v4_0DB(c);
 			await this.v4_1DB(c);
-			await this.v4_2DB(c);
-			await settingService.refresh(c);
+		await this.v4_2DB(c);
+		await this.v4_3DB(c);
+		await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
 			console.error('Database initialization error:', e);
@@ -315,6 +316,86 @@ const dbInit = {
 			`).run();
 		} catch (e) {
 			console.warn(`AI conversations table: ${e.message}`);
+		}
+	},
+
+	async v4_3DB(c) {
+		try {
+			// 1. 成员关系表
+			await c.env.db.prepare(
+				`CREATE TABLE IF NOT EXISTS account_member (
+					member_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					account_id INTEGER NOT NULL,
+					user_id INTEGER NOT NULL,
+					role INTEGER NOT NULL DEFAULT 0,
+					last_sig_scope TEXT NOT NULL DEFAULT '',
+					last_sig_id TEXT NOT NULL DEFAULT '',
+					create_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+				);`
+			).run();
+			await c.env.db.prepare(
+				`CREATE UNIQUE INDEX IF NOT EXISTS idx_account_member_unique ON account_member(account_id, user_id);`
+			).run();
+
+			// 2. 个人签名表
+			await c.env.db.prepare(
+				`CREATE TABLE IF NOT EXISTS account_member_signature (
+					sig_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					account_id INTEGER NOT NULL,
+					user_id INTEGER NOT NULL,
+					sig_uid TEXT NOT NULL,
+					name TEXT NOT NULL DEFAULT '',
+					content TEXT NOT NULL DEFAULT '',
+					is_default INTEGER NOT NULL DEFAULT 0,
+					create_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+				);`
+			).run();
+			await c.env.db.prepare(
+				`CREATE INDEX IF NOT EXISTS idx_ams_lookup ON account_member_signature(account_id, user_id);`
+			).run();
+
+			// 3. 回填：现有 account 的 owner 成为单成员邮箱
+			await c.env.db.prepare(
+				`INSERT OR IGNORE INTO account_member(account_id, user_id)
+				 SELECT account_id, user_id FROM account WHERE is_del = 0;`
+			).run();
+
+			// 4. star 改为按邮件共享：去重后加唯一索引
+			try {
+				await c.env.db.prepare(
+					`DELETE FROM star WHERE rowid NOT IN (SELECT MIN(rowid) FROM star GROUP BY email_id);`
+				).run();
+			} catch (e) {
+				console.warn('v4_3DB star dedupe skipped:', e.message);
+			}
+			try {
+				await c.env.db.prepare(
+					`CREATE UNIQUE INDEX IF NOT EXISTS idx_star_email ON star(email_id);`
+				).run();
+			} catch (e) {
+				console.warn('v4_3DB star unique index skipped:', e.message);
+			}
+
+			// 5. 权限播种：在「邮件账户」根下加 mailbox:share（默认不给任何角色，需管理员勾选）
+			const rootRow = await c.env.db.prepare(
+				`SELECT perm_id AS permId FROM perm WHERE pid = 0 AND name = '邮件账户' LIMIT 1`
+			).first();
+			if (rootRow?.permId) {
+				const exist = await c.env.db.prepare(
+					`SELECT perm_id FROM perm WHERE perm_key = 'mailbox:share' LIMIT 1`
+				).first();
+				if (!exist) {
+					const maxSortRow = await c.env.db.prepare(
+						`SELECT MAX(sort) AS ms FROM perm WHERE pid = ?`
+					).bind(rootRow.permId).first();
+					const sort = (maxSortRow?.ms ?? -1) + 1;
+					await c.env.db.prepare(
+						`INSERT INTO perm (name, perm_key, pid, type, sort) VALUES ('共享邮箱', 'mailbox:share', ?, 2, ?)`
+					).bind(rootRow.permId, sort).run();
+				}
+			}
+		} catch (e) {
+			console.warn('v4_3DB 迁移失败：', e.message);
 		}
 	},
 
