@@ -72,6 +72,7 @@ export const setting = sqliteTable('setting', {
 	aiApiKey: text('ai_api_key').default('').notNull(),
 	aiModel: text('ai_model').default('gpt-4o-mini').notNull(),
 	aiSystemPrompt: text('ai_system_prompt').default('').notNull(),
-	aiAutoDraft: integer('ai_auto_draft').default(0).notNull()
+	aiAutoDraft: integer('ai_auto_draft').default(0).notNull(),
+	backupCron: integer('backup_cron').default(0).notNull()
 });
 export default setting

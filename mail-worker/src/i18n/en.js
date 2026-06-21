@@ -60,6 +60,7 @@ const en = {
 	botVerifyFail: 'Bot verification failed, please try again',
 	authExpired: 'Authentication has expired. Please sign in again',
 	unauthorized: 'Unauthorized',
+	notExistEmail: 'Mail does not exist',
 	bannedSend: 'You can only send emails to internal mailboxes',
 	onlyInternalSend: 'Your current role allows sending internal emails only',
 	noDomainPermAdd: "No permission to add this domain email",
