@@ -66,6 +66,8 @@ const en = {
     banned: 'Banned',
     reset: 'Reset',
     restore: 'Restore',
+    recycleBin: 'Trash',
+    permanentDelete: 'Delete Permanently',
     tabSetting: 'Settings',
     registrationIp: 'Registration IP',
     recentIP: 'Recent IP',

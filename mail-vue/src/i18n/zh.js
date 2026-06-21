@@ -66,6 +66,8 @@ const zh = {
     banned: '封禁',
     reset: '重置',
     restore: '恢复',
+    recycleBin: '回收站',
+    permanentDelete: '永久删除',
     tabSetting: '设置',
     registrationIp: '注册IP',
     recentIP: '近期IP',
