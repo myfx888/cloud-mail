@@ -796,7 +796,6 @@ const emailService = {
 			query.orderBy(desc(email.emailId));
 		}
 
-		const t0 = Date.now();
 		let [list, totalRow, latestEmail] = await Promise.all([
 			query.limit(size).all(),
 			queryCount.get(),
@@ -807,12 +806,8 @@ const emailService = {
 				))
 				.orderBy(desc(email.emailId)).limit(1).get()
 		]);
-		const t1 = Date.now();
+
 		await this.emailAddAtt(c, list);
-		const t2 = Date.now();
-		let _respSize = 0;
-		try { _respSize = JSON.stringify({ list, total: totalRow?.total, latestEmail }).length; } catch (_) {}
-		console.log('[allList] timing(ms):', { db: t1 - t0, att: t2 - t1, listLen: list?.length, total: totalRow?.total, respSize: _respSize });
 
 		if (!latestEmail) {
 			latestEmail = {
