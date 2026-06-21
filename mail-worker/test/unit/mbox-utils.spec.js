@@ -1,0 +1,40 @@
+import { describe, it, expect } from 'vitest';
+import mboxUtils from '../../src/utils/mbox-utils';
+
+describe('mbox-utils', () => {
+	it('appendEntry 加分隔符', () => {
+		const out = mboxUtils.appendEntry('', 'Subject: a\r\n\r\nbody');
+		expect(out.startsWith('\nFrom - cloud-mail\n')).toBe(true);
+	});
+
+	it('appendEntry 转义正文中的行首 From', () => {
+		const out = mboxUtils.appendEntry('', 'From danger\r\nx');
+		expect(out).toContain('\n>From danger');
+	});
+
+	it('splitNextBatch 切批并推进游标', () => {
+		let mbox = mboxUtils.appendEntry('', 'Subject: 1\r\n\r\nbody1');
+		mbox = mboxUtils.appendEntry(mbox, 'Subject: 2\r\n\r\nbody2');
+		const r1 = mboxUtils.splitNextBatch(mbox, 0, 1);
+		expect(r1.messages.length).toBe(1);
+		expect(r1.messages[0]).toContain('Subject: 1');
+		expect(r1.messages[0]).toContain('body1');
+		expect(r1.done).toBe(false);
+		const r2 = mboxUtils.splitNextBatch(mbox, r1.nextCursor, 10);
+		expect(r2.messages.length).toBe(1);
+		expect(r2.messages[0]).toContain('Subject: 2');
+		expect(r2.done).toBe(true);
+	});
+
+	it('还原转义 >From -> From', () => {
+		const mbox = mboxUtils.appendEntry('', 'From danger\r\nx');
+		const r = mboxUtils.splitNextBatch(mbox, 0, 10);
+		expect(r.messages[0]).toContain('From danger\r\nx');
+	});
+
+	it('countEntries 统计封数', () => {
+		let mbox = mboxUtils.appendEntry('', 'a');
+		mbox = mboxUtils.appendEntry(mbox, 'b');
+		expect(mboxUtils.countEntries(mbox)).toBe(2);
+	});
+});
