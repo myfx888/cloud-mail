@@ -16,6 +16,8 @@ import mailcowService from './mailcow-service';
 import smtpAccountService from './smtp-account-service';
 import user from '../entity/user';
 import smtpAccount from '../entity/smtp-account';
+import accountMember from '../entity/account-member';
+import memberService from './member-service';
 
 const accountService = {
 
@@ -135,7 +137,8 @@ const accountService = {
 		}
 
 		if (accountRow) {
-			throw new BizError(t('isRegAccount'));
+			// 邮箱已存在 → create-or-share 的「共享」分支
+			return await memberService.join(c, accountRow.accountId, userId);
 		}
 
 		const userRow = await userService.selectById(c, userId);
@@ -170,6 +173,7 @@ const accountService = {
 
 
 		accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email) }).returning().get();
+		await orm(c).insert(accountMember).values({ accountId: accountRow.accountId, userId }).run();
 
 		// 集成 mailcow 功能
 		const settings = await settingService.query(c);
