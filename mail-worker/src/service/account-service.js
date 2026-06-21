@@ -246,10 +246,13 @@ const accountService = {
 			lastSort = 9999999999;
 		}
 
-		return orm(c).select().from(account).where(
-			and(
-				eq(account.userId, userId),
-				eq(account.isDel, isDel.NORMAL),
+		return orm(c).select({ account: account })
+			.from(account)
+			.innerJoin(accountMember, eq(accountMember.accountId, account.accountId))
+			.where(
+				and(
+					eq(accountMember.userId, userId),
+					eq(account.isDel, isDel.NORMAL),
 					or(
 						lt(account.sort, lastSort),
 						and(
@@ -260,7 +263,8 @@ const accountService = {
 				)
 			.orderBy(desc(account.sort), asc(account.accountId))
 			.limit(size)
-			.all();
+			.all()
+			.map(row => row.account);
 	},
 
 	async delete(c, params, userId) {
@@ -367,8 +371,7 @@ const accountService = {
 	},
 
 	async countUserAccount(c, userId) {
-		const { num } = await orm(c).select({num: count()}).from(account).where(and(eq(account.userId, userId),eq(account.isDel, isDel.NORMAL))).get();
-		return num;
+		return await memberService.countUserMailboxes(c, userId);
 	},
 
 	async countByMailcowServerId(c, mailcowServerId) {
