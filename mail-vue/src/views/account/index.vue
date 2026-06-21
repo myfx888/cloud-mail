@@ -85,6 +85,11 @@
                     <span style="color: var(--el-text-color-secondary)">{{ scope.row.userEmail }}</span>
                   </template>
                 </el-table-column>
+                <el-table-column prop="memberCount" :label="$t('memberCount')" width="90" align="center">
+                  <template #default="scope">
+                    <el-button link type="primary" size="small" @click="openAdminMembers(scope.row)">{{ scope.row.memberCount ?? 0 }}</el-button>
+                  </template>
+                </el-table-column>
                 <el-table-column :label="$t('smtpStatus')" width="160">
                   <template #default="scope">
                     <el-tag v-if="scope.row.smtpAccountCount > 0 && scope.row.mailcowServerId" type="success" size="small">
@@ -106,6 +111,9 @@
                         <el-dropdown-menu>
                           <el-dropdown-item @click="openGlobalSmtpManager(scope.row)">
                             {{ $t('smtpSetting') }}
+                          </el-dropdown-item>
+                          <el-dropdown-item @click="openAdminMembers(scope.row)">
+                            {{ $t('manageMembers') }}
                           </el-dropdown-item>
                           <el-dropdown-item
                             v-if="mailcowEnabled && globalMailcowServers.length > 0"
@@ -148,11 +156,33 @@
     
     <smtpAccountManager ref="smtpAccountManagerRef" :account-id="smtpManagerAccountId" />
     <mailboxMembers ref="mailboxMembersRef" :account-id="membersAccountId" @left="onMemberLeft" />
+
+    <el-drawer v-model="adminMemberDrawer" :title="$t('manageMembers')" size="440px" v-if="isAdmin">
+      <el-table :data="adminMembers" size="small" v-loading="adminMemberLoading">
+        <el-table-column prop="userEmail" :label="$t('member')" />
+        <el-table-column :label="$t('role')" width="90">
+          <template #default="{ row }">
+            <el-tag v-if="row.isCreator" type="warning" size="small">{{ $t('owner') }}</el-tag>
+            <el-tag v-else size="small">{{ $t('member') }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('action')" width="80">
+          <template #default="{ row }">
+            <el-button v-if="!row.isCreator" type="danger" link size="small" @click="adminKick(row.userId)">{{ $t('remove') }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="admin-assign-row">
+        <el-input v-model="adminAssignUserId" :placeholder="$t('enterUserId')" size="small" />
+        <el-button type="primary" size="small" @click="adminAssign">{{ $t('assignMember') }}</el-button>
+      </div>
+    </el-drawer>
   </div>
 </template>
 <script setup>
 import {reactive, ref, computed, onMounted, nextTick} from 'vue'
 import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow, accountProvisionSmtpByMailcowServer} from "@/request/account.js"
+import {adminMailboxMembers, adminAssignMember, adminKickMember} from "@/request/admin.js"
 import {useAccountStore} from "@/store/account.js"
 import {useUserStore} from "@/store/user.js"
 
@@ -358,6 +388,39 @@ function openGlobalSmtpManager(account) {
   })
 }
 
+// ---- 共享成员管理（admin） ----
+const adminMemberDrawer = ref(false)
+const adminMembers = ref([])
+const adminMemberLoading = ref(false)
+const adminAssignUserId = ref('')
+const adminMemberAccountId = ref(0)
+
+async function openAdminMembers(account) {
+  adminMemberAccountId.value = account.accountId
+  adminMemberDrawer.value = true
+  await loadAdminMembers()
+}
+async function loadAdminMembers() {
+  adminMemberLoading.value = true
+  try {
+    adminMembers.value = await adminMailboxMembers(adminMemberAccountId.value)
+  } finally {
+    adminMemberLoading.value = false
+  }
+}
+async function adminKick(userId) {
+  await adminKickMember(adminMemberAccountId.value, userId)
+  await loadAdminMembers()
+  await loadGlobalAccounts()
+}
+async function adminAssign() {
+  if (!adminAssignUserId.value) return
+  await adminAssignMember(adminMemberAccountId.value, Number(adminAssignUserId.value))
+  adminAssignUserId.value = ''
+  await loadAdminMembers()
+  await loadGlobalAccounts()
+}
+
 async function provisionGlobalAccount(account) {
   const serverId = globalMailcowServers.value[0]?.id
   if (!serverId) return
@@ -466,5 +529,11 @@ async function deleteGlobalAccount(account) {
     display: flex;
     justify-content: flex-end;
   }
+}
+
+.admin-assign-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>
