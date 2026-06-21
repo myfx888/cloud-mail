@@ -18,8 +18,14 @@ http.interceptors.response.use((res) => {
 
         return new Promise((resolve, reject) => {
 
-            const noMsg = res.config.noMsg;
-            const data = res.data
+        const data = res.data
+
+        if (data instanceof Blob) {
+            resolve(data)
+            return
+        }
+
+        const noMsg = res.config.noMsg;
 
             if (noMsg) {
 

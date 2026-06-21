@@ -128,5 +128,15 @@ const routers = {
             name: 'analysis',
             menu: true
         }
+    }],
+    'backup:query': [{
+        path: '/backup',
+        name: 'backup',
+        component: () => import('@/views/backup/index.vue'),
+        meta: {
+            title: 'backupRestore',
+            name: 'backup',
+            menu: true
+        }
     }]
 }
