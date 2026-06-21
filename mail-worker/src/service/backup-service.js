@@ -1,6 +1,6 @@
 import orm from '../entity/orm';
 import { backupTask } from '../entity/backup-task';
-import { eq, and, asc, desc, sql } from 'drizzle-orm';
+import { eq, asc, desc, sql, lt } from 'drizzle-orm';
 import { email } from '../entity/email';
 import user from '../entity/user';
 import accountEntity from '../entity/account';
@@ -69,63 +69,105 @@ const backupService = {
 		};
 	},
 
-	async restoreConfig(c, config) {
-		let insertedUsers = 0, insertedAccounts = 0, skippedUsers = 0, skippedAccounts = 0;
+	// C3 白名单字段防权限提升（强制 type=1、清空 password/salt）；W2 逐行 try/catch + 剥离自增 id 维护映射
+	async restoreConfig(c, config, taskId) {
+		let insertedUsers = 0, insertedAccounts = 0, skippedUsers = 0, skippedAccounts = 0, failed = 0;
+		const userIdMap = {}, accountIdMap = {};
 		for (const u of config.users || []) {
 			const exists = await orm(c).select({ id: user.userId }).from(user).where(sql`${user.email} COLLATE NOCASE = ${u.email}`).get();
-			if (exists) { skippedUsers++; continue; }
-			await orm(c).insert(user).values(u).run();
-			insertedUsers++;
+			if (exists) { skippedUsers++; userIdMap[u.userId] = exists.id; continue; }
+			try {
+				const safe = {
+					email: u.email,
+					type: 1,
+					password: '',
+					salt: '',
+					status: 0,
+					createTime: u.createTime,
+					isDel: 0
+				};
+				const row = await orm(c).insert(user).values(safe).returning().get();
+				userIdMap[u.userId] = row.userId;
+				insertedUsers++;
+			} catch (e) {
+				failed++;
+				if (taskId) await this.pushDetail(c, taskId, { email: u.email, reason: 'user restore: ' + e.message });
+			}
 		}
 		for (const a of config.accounts || []) {
+			const mappedUserId = userIdMap[a.userId] || a.userId;
 			const exists = await orm(c).select({ id: accountEntity.accountId }).from(accountEntity).where(sql`${accountEntity.email} COLLATE NOCASE = ${a.email}`).get();
-			if (exists) { skippedAccounts++; continue; }
-			await orm(c).insert(accountEntity).values(a).run();
-			insertedAccounts++;
+			if (exists) { skippedAccounts++; accountIdMap[a.accountId] = exists.id; continue; }
+			try {
+				const safe = {
+					email: a.email,
+					name: a.name || '',
+					status: a.status ?? 0,
+					createTime: a.createTime,
+					userId: mappedUserId,
+					allReceive: a.allReceive ?? 0,
+					sort: a.sort ?? 0,
+					isDel: 0
+				};
+				const row = await orm(c).insert(accountEntity).values(safe).returning().get();
+				accountIdMap[a.accountId] = row.accountId;
+				insertedAccounts++;
+			} catch (e) {
+				failed++;
+				if (taskId) await this.pushDetail(c, taskId, { email: a.email, reason: 'account restore: ' + e.message });
+			}
 		}
-		return { insertedUsers, skippedUsers, insertedAccounts, skippedAccounts };
+		return { insertedUsers, skippedUsers, insertedAccounts, skippedAccounts, failed };
 	},
 
+	// C4 分片写入（每批独立 part，避免读-改-写 O(n²)）；W4 一次性批量查附件
 	async processBackupBatch(c, taskId) {
 		const task = await this.getTask(c, taskId);
 		if (!task || task.status === 'cancelled') return task;
 		if (task.status === 'pending') {
 			await this.patchTask(c, taskId, { status: 'processing' });
-			const total = await this._countEmails(c);
-			await this.patchTask(c, taskId, { total });
+			await this.patchTask(c, taskId, { total: await this._countEmails(c) });
 		}
-		const refreshed = await this.getTask(c, taskId);
-		const rows = await this._selectEmailBatch(c, refreshed.cursor, this.BACKUP_BATCH);
+		const cur = await this.getTask(c, taskId);
+		const rows = await this._selectEmailBatch(c, cur.cursor, this.BACKUP_BATCH);
 		if (rows.length === 0) {
 			await this.finalizeBackup(c, taskId);
 			return await this.getTask(c, taskId);
 		}
+		const emailIds = rows.map(r => r.emailId);
+		const allAtt = await attService.selectByEmailIds(c, emailIds);
+		const attMap = {};
+		allAtt.forEach(a => { (attMap[a.emailId] = attMap[a.emailId] || []).push(a); });
 		let mboxChunk = '';
-		let lastId = refreshed.cursor;
+		let lastId = cur.cursor;
 		for (const row of rows) {
 			try {
-				const attList = await attService.selectByEmailIds(c, [row.emailId]);
-				const eml = await emailService.generateEml(row, attList, c);
+				const eml = await emailService.generateEml(row, attMap[row.emailId] || [], c);
 				mboxChunk = mboxUtils.appendEntry(mboxChunk, eml);
 				lastId = row.emailId;
 			} catch (e) {
 				await this.pushDetail(c, taskId, { emailId: row.emailId, reason: e.message });
 			}
 		}
-		const key = this.BACKUP_PREFIX + taskId + '/emails.mbox';
-		const existing = await r2Service.getObj(c, key);
-		const prevText = existing ? await existing.text() : '';
-		await r2Service.putObj(c, key, prevText + mboxChunk, { contentType: 'application/mbox' });
-		await this.patchTask(c, taskId, {
-			cursor: lastId,
-			processed: refreshed.processed + rows.length
-		});
+		const partKey = `${this.BACKUP_PREFIX}${taskId}/part-${cur.processed}.mbox`;
+		await r2Service.putObj(c, partKey, mboxChunk, { contentType: 'application/mbox' });
+		await this.patchTask(c, taskId, { cursor: lastId, processed: cur.processed + rows.length });
 		return await this.getTask(c, taskId);
 	},
 
 	async finalizeBackup(c, taskId) {
 		const task = await this.getTask(c, taskId);
 		const params = JSON.parse(task.params || '{}');
+		let combined = '';
+		for (let i = 0; i < task.processed; i += this.BACKUP_BATCH) {
+			const partKey = `${this.BACKUP_PREFIX}${taskId}/part-${i}.mbox`;
+			const obj = await r2Service.getObj(c, partKey);
+			if (obj) {
+				combined += await obj.text();
+				try { await r2Service.delete(c, partKey); } catch (_) {}
+			}
+		}
+		await r2Service.putObj(c, `${this.BACKUP_PREFIX}${taskId}/emails.mbox`, combined, { contentType: 'application/mbox' });
 		const config = params.includeConfig ? await this.dumpConfig(c, !!params.includeSecrets) : null;
 		const manifest = {
 			version: 1,
@@ -135,11 +177,12 @@ const backupService = {
 			includeSecrets: !!params.includeSecrets,
 			sensitivity: params.includeSecrets ? 'confidential' : 'normal'
 		};
-		await r2Service.putObj(c, this.BACKUP_PREFIX + taskId + '/manifest.json', JSON.stringify(manifest, null, 2), { contentType: 'application/json' });
+		await r2Service.putObj(c, `${this.BACKUP_PREFIX}${taskId}/manifest.json`, JSON.stringify(manifest, null, 2), { contentType: 'application/json' });
 		if (config) {
-			await r2Service.putObj(c, this.BACKUP_PREFIX + taskId + '/config.json', JSON.stringify(config, null, 2), { contentType: 'application/json' });
+			await r2Service.putObj(c, `${this.BACKUP_PREFIX}${taskId}/config.json`, JSON.stringify(config, null, 2), { contentType: 'application/json' });
 		}
-		await this.patchTask(c, taskId, { status: 'completed', resultKey: this.BACKUP_PREFIX + taskId + '/', updateTime: new Date().toISOString() });
+		const expire = new Date(Date.now() + 30 * 86400000).toISOString();
+		await this.patchTask(c, taskId, { status: 'completed', resultKey: `${this.BACKUP_PREFIX}${taskId}/`, expireTime: expire });
 	},
 
 	async _countEmails(c) {
@@ -189,7 +232,13 @@ const backupService = {
 		return keys;
 	},
 
+	// W1 校验 sourceKeys 必须位于 restore/ 前缀
 	async createRestoreTask(c, sourceKeys, mode, dedup) {
+		for (const k of sourceKeys || []) {
+			if (!k.startsWith(this.STORE_PREFIX) || k.includes('..') || k.includes('\0')) {
+				throw new BizError('invalid source key');
+			}
+		}
 		return this.createTask(c, mode === 'restore' ? 'restore' : 'import', { mode, dedup: dedup || 'skip' }, sourceKeys);
 	},
 
@@ -200,7 +249,7 @@ const backupService = {
 		const cur = await this.getTask(c, taskId);
 		const sourceKeys = JSON.parse(cur.sourceKeys || '[]');
 		if (cur.fileIndex >= sourceKeys.length) {
-			await this.patchTask(c, taskId, { status: 'completed' });
+			await this._completeRestore(c, taskId, sourceKeys);
 			return await this.getTask(c, taskId);
 		}
 		const key = sourceKeys[cur.fileIndex];
@@ -216,21 +265,24 @@ const backupService = {
 		if (isTar) {
 			const entries = tarUtils.unpack(bytes);
 			if (entries['config.json']) {
-				try { await this.restoreConfig(c, JSON.parse(entries['config.json'])); }
+				try { await this.restoreConfig(c, JSON.parse(entries['config.json']), taskId); }
 				catch (e) { await this.pushDetail(c, taskId, { file: key, reason: 'config: ' + e.message }); }
 			}
 			if (entries['emails.mbox']) {
 				const mboxKey = this.STORE_PREFIX + taskId + '/extracted-emails.mbox';
 				await r2Service.putObj(c, mboxKey, entries['emails.mbox'], { contentType: 'application/mbox' });
 				sourceKeys[cur.fileIndex] = mboxKey;
-				await this.patchTask(c, taskId, { sourceKeys: JSON.stringify(sourceKeys) });
+				try { await r2Service.delete(c, key); } catch (_) {}
+				await this.patchTask(c, taskId, { sourceKeys: JSON.stringify(sourceKeys), cursor: 0 });
 			} else {
+				try { await r2Service.delete(c, key); } catch (_) {}
 				await this.patchTask(c, taskId, { fileIndex: cur.fileIndex + 1, cursor: 0 });
 			}
 			return await this.getTask(c, taskId);
 		}
 
-		const text = new TextDecoder().decode(bytes);
+		let text = new TextDecoder().decode(bytes);
+		if (text.startsWith('From ')) text = '\n' + text;
 		const { r2Domain } = await settingService.query(c);
 
 		let isBackupConfig = false;
@@ -242,7 +294,7 @@ const backupService = {
 		}
 		if (isBackupConfig) {
 			try {
-				await this.restoreConfig(c, JSON.parse(text));
+				await this.restoreConfig(c, JSON.parse(text), taskId);
 			} catch (e) {
 				await this.pushDetail(c, taskId, { file: key, reason: 'config restore: ' + e.message });
 			}
@@ -285,6 +337,28 @@ const backupService = {
 		}
 		await this.patchTask(c, taskId, patch);
 		return await this.getTask(c, taskId);
+	},
+
+	// W3 任务完成时清理 restore/* 源对象
+	async _completeRestore(c, taskId, sourceKeys) {
+		for (const k of sourceKeys || []) {
+			try { await r2Service.delete(c, k); } catch (_) {}
+		}
+		await this.patchTask(c, taskId, { status: 'completed', expireTime: new Date().toISOString() });
+	},
+
+	// W3 清扫过期任务（由 scheduled 调用）
+	async purgeExpired(c) {
+		const now = new Date().toISOString();
+		const tasks = await orm(c).select().from(backupTask).where(lt(backupTask.expireTime, now)).limit(20).all();
+		for (const task of tasks) {
+			if (task.resultKey) {
+				for (const name of ['manifest.json', 'emails.mbox', 'config.json']) {
+					try { await r2Service.delete(c, task.resultKey + name); } catch (_) {}
+				}
+			}
+			try { await orm(c).delete(backupTask).where(eq(backupTask.taskId, task.taskId)).run(); } catch (_) {}
+		}
 	}
 };
 

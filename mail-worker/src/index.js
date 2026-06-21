@@ -49,5 +49,10 @@ export default {
 		} catch (e) {
 			console.error('scheduled backup failed:', e);
 		}
+		try {
+			await backupService.purgeExpired({ env });
+		} catch (e) {
+			console.error('purge expired failed:', e);
+		}
 	},
 };

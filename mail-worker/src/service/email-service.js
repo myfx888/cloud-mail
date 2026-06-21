@@ -1084,15 +1084,22 @@ const emailService = {
 	},
 
 	async importSingleEmail(c, parsed, opts = {}) {
-		const toAddress = opts.toAddress || (parsed.to[0] && parsed.to[0].address) || '';
-
+		let toAddress = '';
 		let accountId = 0, userId = 0, status = emailConst.status.NOONE;
-		if (toAddress) {
-			const acc = await accountService.selectByEmailIncludeDel(c, toAddress);
-			if (acc && acc.isDel === isDel.NORMAL) {
-				accountId = acc.accountId;
-				userId = acc.userId;
-				status = emailConst.status.RECEIVE;
+		if (opts.forceAccount && opts.accountId) {
+			accountId = opts.accountId;
+			userId = opts.userId;
+			status = emailConst.status.RECEIVE;
+			toAddress = (parsed.to[0] && parsed.to[0].address) || '';
+		} else {
+			toAddress = opts.toAddress || (parsed.to[0] && parsed.to[0].address) || '';
+			if (toAddress) {
+				const acc = await accountService.selectByEmailIncludeDel(c, toAddress);
+				if (acc && acc.isDel === isDel.NORMAL) {
+					accountId = acc.accountId;
+					userId = acc.userId;
+					status = emailConst.status.RECEIVE;
+				}
 			}
 		}
 
@@ -1179,9 +1186,14 @@ const emailService = {
 		return !!row;
 	},
 
-	async importEmail(c, emlContent) {
+	async importEmail(c, emlContent, userId, accountId) {
+		const accountRow = await accountService.selectById(c, accountId);
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
+		}
+		await memberService.assertMember(c, accountId, userId);
 		const parsed = await parseEmailRaw(emlContent);
-		return await this.importSingleEmail(c, parsed, {});
+		return await this.importSingleEmail(c, parsed, { userId, accountId, forceAccount: true });
 	},
 
 	parseEmailRaw,

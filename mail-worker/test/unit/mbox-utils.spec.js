@@ -37,4 +37,13 @@ describe('mbox-utils', () => {
 		mbox = mboxUtils.appendEntry(mbox, 'b');
 		expect(mboxUtils.countEntries(mbox)).toBe(2);
 	});
+
+	it('标准 mbox（规范化 \\n 前缀）首封不丢失', () => {
+		const raw = 'From sender Mon Jan 1\nSubject: 1\n\nbody1\nFrom sender Mon Jan 2\nSubject: 2\n\nbody2';
+		const mbox = '\n' + raw;
+		const r = mboxUtils.splitNextBatch(mbox, 0, 10);
+		expect(r.messages.length).toBe(2);
+		expect(r.messages[0]).toContain('Subject: 1');
+		expect(r.messages[1]).toContain('Subject: 2');
+	});
 });
