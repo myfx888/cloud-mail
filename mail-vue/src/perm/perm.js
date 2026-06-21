@@ -26,10 +26,10 @@ export function hasPerm(permKey) {
 }
 
 
-export function permsToRouter(permKeys) {
+export function permsToRouter(permKeys, isAdmin = false) {
     const routerList = []
     Object.keys(routers).forEach(perm => {
-        if (permKeys.includes(perm) || permKeys.includes('*')) {
+        if (isAdmin || permKeys.includes(perm) || permKeys.includes('*')) {
             routerList.push(...routers[perm])
         }
     })

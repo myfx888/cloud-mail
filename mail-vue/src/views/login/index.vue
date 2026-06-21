@@ -395,7 +395,7 @@ async function saveToken(token) {
   accountStore.currentAccountId = user.account.accountId;
   accountStore.currentAccount = user.account;
   userStore.user = user;
-  const routers = permsToRouter(user.permKeys);
+  const routers = permsToRouter(user.permKeys, user.type === 0);
   routers.forEach(routerData => {
     router.addRoute('layout', routerData);
   });

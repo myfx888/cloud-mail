@@ -36,7 +36,7 @@
           <Icon icon="fluent:mail-24-regular" width="20" height="20" />
           <span class="menu-name" style="margin-left: 21px">{{$t('emailAccounts')}}</span>
         </el-menu-item>
-        <div class="manage-title" v-perm="['all-email:query','user:query','role:query','setting:query','analysis:query','reg-key:query']">
+        <div class="manage-title" v-perm="['all-email:query','user:query','role:query','setting:query','analysis:query','reg-key:query','backup:query']">
           <div>{{$t('manage')}}</div>
         </div>
         <el-menu-item @click="router.push({name: 'analysis'})" index="analysis" v-perm="'analysis:query'"
@@ -66,8 +66,13 @@
         </el-menu-item>
         <el-menu-item @click="router.push({name: 'sys-setting'})" index="sys-setting" v-perm="'setting:query'"
                       :class="route.meta.name === 'sys-setting' ? 'choose-item' : ''">
-          <Icon icon="eos-icons:system-ok-outlined" width="18" height="18" style="margin-left: 2px" />
+          <Icon icon="eosicons:system-ok-outlined" width="18" height="18" style="margin-left: 2px" />
           <span class="menu-name" style="margin-left: 22px">{{$t('SystemSettings')}}</span>
+        </el-menu-item>
+        <el-menu-item v-if="userStore.user.type === 0" @click="router.push({name: 'backup'})" index="backup"
+                      :class="route.meta.name === 'backup' ? 'choose-item' : ''">
+          <Icon icon="mdi:backup-restore" width="20" height="20" />
+          <span class="menu-name" style="margin-left: 21px">{{$t('backupRestore')}}</span>
         </el-menu-item>
       </el-menu>
     </div>
@@ -79,8 +84,10 @@ import router from "@/router/index.js";
 import { useRoute } from "vue-router";
 import {Icon} from "@iconify/vue";
 import {useSettingStore} from "@/store/setting.js";
+import {useUserStore} from "@/store/user.js";
 
 const settingStore = useSettingStore();
+const userStore = useUserStore();
 const route = useRoute();
 
 </script>
