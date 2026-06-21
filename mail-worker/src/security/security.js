@@ -60,7 +60,9 @@ const requirePerms = [
 	'/smtp/account-config',
 	'/smtp/verify-account',
 	'/smtp/provision-mailcow',
-	'/ai/test-connection'
+	'/ai/test-connection',
+	'/mailbox/',
+	'/email/restore'
 ];
 
 const premKey = {
@@ -92,6 +94,7 @@ const premKey = {
 	'smtp:query': ['/smtp/account-config'],
 	'smtp:set': ['/smtp/account-config', '/smtp/verify-account'],
 	'smtp:provision': ['/smtp/provision-mailcow'],
+	'mailbox:share': ['/account/add', '/mailbox/'],
 };
 
 app.use('*', async (c, next) => {
