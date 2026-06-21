@@ -76,7 +76,12 @@
                   clearable
                   v-if="signatures.length > 0"
               >
-                <el-option v-for="signature in signatures" :key="signature.id" :label="signature.isDefault ? signature.name + ' ★' : signature.name" :value="signature.id"/>
+                <el-option-group v-if="sharedSignatures.length" :label="$t('sharedSignatures')">
+                  <el-option v-for="signature in sharedSignatures" :key="signature.id" :label="signature.isDefault ? signature.name + ' ★' : signature.name" :value="signature.id"/>
+                </el-option-group>
+                <el-option-group v-if="personalSignatures.length" :label="$t('mySignatures')">
+                  <el-option v-for="signature in personalSignatures" :key="signature.id" :label="signature.isDefault ? signature.name + ' ★' : signature.name" :value="signature.id"/>
+                </el-option-group>
               </el-select>
               <el-radio-group v-model="form.sendMethod" size="small" v-if="sendEmailAvailable || resendEnabled">
                 <el-radio-button value="cloudflare" v-if="sendEmailAvailable">Cloudflare</el-radio-button>
@@ -130,6 +135,7 @@ import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
 import {getSmtpAccountConfig, getSignatures} from "@/request/setting.js";
+import {getPersonalSignatures, setSignatureChoice, resolveSignature} from "@/request/account.js";
 import {smtpAccountList} from "@/request/smtp.js";
 import {isEmail} from "@/utils/verify-utils.js";
 import {useAccountStore} from "@/store/account.js";
@@ -177,6 +183,9 @@ let selectStatus = false
 // 签名相关状态
 const signatures = ref([])
 const selectedSignatureId = ref('')
+const currentSigScope = ref('shared')
+const sharedSignatures = computed(() => signatures.value.filter(s => s.scope === 'shared'))
+const personalSignatures = computed(() => signatures.value.filter(s => s.scope === 'personal'))
 
 // SMTP账户相关状态
 const smtpAccounts = ref([])
@@ -676,15 +685,33 @@ async function open() {
   if (form.accountId > 0) {
     // 签名和SMTP独立加载，互不影响
     try {
-      const signatureList = await getSignatures(form.accountId);
-      signatures.value = signatureList;
-      const defaultSignature = signatureList.find(sig => sig.isDefault);
-      if (defaultSignature) {
-        selectedSignatureId.value = defaultSignature.id;
+      const sharedList = (await getSignatures(form.accountId)).map(s => ({ ...s, scope: 'shared' }));
+      let personalList = [];
+      try {
+        personalList = (await getPersonalSignatures(form.accountId)).map(s => ({ ...s, scope: 'personal' }));
+      } catch (e) { personalList = []; }
+      signatures.value = [...sharedList, ...personalList];
+
+      // 优先用后端记忆的上次选择；失败则兜底：个人默认 > 共享默认
+      let chosen = null;
+      try {
+        const resolved = await resolveSignature(form.accountId);
+        if (resolved && resolved.signature) {
+          chosen = { ...resolved.signature, scope: resolved.scope };
+        }
+      } catch (e) { /* 兜底 */ }
+      if (!chosen) {
+        chosen = personalList.find(s => s.isDefault) || sharedList.find(s => s.isDefault) || null;
+      }
+
+      if (chosen) {
+        selectedSignatureId.value = chosen.id;
+        currentSigScope.value = chosen.scope;
         setTimeout(() => {
           const content = editor.value.getContent();
-          editor.value.setContent(insertSignatureIntoContent(content, defaultSignature));
+          editor.value.setContent(insertSignatureIntoContent(content, chosen));
         }, 100);
+        setSignatureChoice(form.accountId, chosen.scope, chosen.id).catch(() => {});
       } else {
         selectedSignatureId.value = '';
       }
@@ -760,11 +787,14 @@ function handleSignatureChange(signatureId) {
   const content = editor.value.getContent()
   if (!signatureId) {
     editor.value.setContent(removeSignatureFromContent(content))
+    setSignatureChoice(form.accountId, '', '').catch(() => {})
     return
   }
   const selectedSignature = signatures.value.find(sig => sig.id === signatureId)
   if (!selectedSignature) return
+  currentSigScope.value = selectedSignature.scope || 'shared'
   editor.value.setContent(insertSignatureIntoContent(content, selectedSignature))
+  setSignatureChoice(form.accountId, currentSigScope.value, signatureId).catch(() => {})
 }
 
 // 处理SMTP账户选择变化
