@@ -17,6 +17,7 @@ import smtpAccountService from './smtp-account-service';
 import user from '../entity/user';
 import smtpAccount from '../entity/smtp-account';
 import accountMember from '../entity/account-member';
+import accountMemberSignature from '../entity/account-member-signature';
 import memberService from './member-service';
 
 const accountService = {
@@ -719,6 +720,91 @@ const accountService = {
 			.set({ signatures: JSON.stringify(signatures) })
 			.where(eq(account.accountId, accountId))
 			.run();
+	},
+
+	// ===== 个人签名 =====
+	async getPersonalSignatures(c, accountId, userId) {
+		await memberService.assertMember(c, accountId, userId);
+		return await orm(c).select({
+			id: accountMemberSignature.sigUid,
+			name: accountMemberSignature.name,
+			content: accountMemberSignature.content,
+			isDefault: accountMemberSignature.isDefault
+		}).from(accountMemberSignature)
+			.where(and(eq(accountMemberSignature.accountId, accountId), eq(accountMemberSignature.userId, userId))).all();
+	},
+
+	async addPersonalSignature(c, accountId, data, userId) {
+		await memberService.assertMember(c, accountId, userId);
+		if (data.isDefault) {
+			await orm(c).update(accountMemberSignature).set({ isDefault: 0 })
+				.where(and(eq(accountMemberSignature.accountId, accountId), eq(accountMemberSignature.userId, userId))).run();
+		}
+		const sigUid = `sig_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+		const row = await orm(c).insert(accountMemberSignature).values({
+			accountId, userId, sigUid,
+			name: data.name || '新签名',
+			content: data.content || '',
+			isDefault: data.isDefault ? 1 : 0
+		}).returning().get();
+		return { id: row.sigUid, name: row.name, content: row.content, isDefault: row.isDefault };
+	},
+
+	async updatePersonalSignature(c, accountId, sigUid, data, userId) {
+		await memberService.assertMember(c, accountId, userId);
+		if (data.isDefault) {
+			await orm(c).update(accountMemberSignature).set({ isDefault: 0 })
+				.where(and(eq(accountMemberSignature.accountId, accountId), eq(accountMemberSignature.userId, userId))).run();
+		}
+		const set = { name: data.name, content: data.content };
+		if (data.isDefault !== undefined) set.isDefault = data.isDefault ? 1 : 0;
+		await orm(c).update(accountMemberSignature).set(set).where(and(
+			eq(accountMemberSignature.accountId, accountId),
+			eq(accountMemberSignature.userId, userId),
+			eq(accountMemberSignature.sigUid, sigUid)
+		)).run();
+	},
+
+	async deletePersonalSignature(c, accountId, sigUid, userId) {
+		await memberService.assertMember(c, accountId, userId);
+		await orm(c).delete(accountMemberSignature).where(and(
+			eq(accountMemberSignature.accountId, accountId),
+			eq(accountMemberSignature.userId, userId),
+			eq(accountMemberSignature.sigUid, sigUid)
+		)).run();
+	},
+
+	async setDefaultPersonalSignature(c, accountId, sigUid, userId) {
+		await memberService.assertMember(c, accountId, userId);
+		await orm(c).update(accountMemberSignature).set({ isDefault: 0 })
+			.where(and(eq(accountMemberSignature.accountId, accountId), eq(accountMemberSignature.userId, userId))).run();
+		await orm(c).update(accountMemberSignature).set({ isDefault: 1 }).where(and(
+			eq(accountMemberSignature.accountId, accountId),
+			eq(accountMemberSignature.userId, userId),
+			eq(accountMemberSignature.sigUid, sigUid)
+		)).run();
+	},
+
+	// 解析发送签名：上次选择 > 共享默认 > 无
+	async resolveSignature(c, accountId, userId) {
+		const member = await memberService.assertMember(c, accountId, userId);
+		const accountRow = await this.selectById(c, accountId);
+		const shared = JSON.parse(accountRow?.signatures || '[]');
+		if (member.lastSigId) {
+			if (member.lastSigScope === 'shared') {
+				const hit = shared.find(s => s.id === member.lastSigId);
+				if (hit) return { scope: 'shared', signature: hit };
+			} else if (member.lastSigScope === 'personal') {
+				const row = await orm(c).select().from(accountMemberSignature).where(and(
+					eq(accountMemberSignature.accountId, accountId),
+					eq(accountMemberSignature.userId, userId),
+					eq(accountMemberSignature.sigUid, member.lastSigId)
+				)).get();
+				if (row) return { scope: 'personal', signature: { id: row.sigUid, name: row.name, content: row.content, isDefault: row.isDefault } };
+			}
+		}
+		const def = shared.find(s => s.isDefault) || null;
+		return def ? { scope: 'shared', signature: def } : { scope: null, signature: null };
 	},
 
 	async migrateAccounts(c, sourceServerId, targetServerId) {
