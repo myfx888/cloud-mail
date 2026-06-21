@@ -1143,14 +1143,14 @@ const emailService = {
 
 		const atts = [];
 		for (const a of parsed.attachments) {
-			const content = a.content instanceof Uint8Array ? a.content : new TextEncoder().encode(a.content || '');
+			const content = a.content;
 			const hash = await fileUtils.getBuffHash(content);
 			const ext = fileUtils.getExtFileName(a.filename || '');
 			atts.push({
 				key: constant.ATTACHMENT_PREFIX + hash + ext,
 				filename: a.filename || 'attachment',
 				mimeType: a.mimeType || 'application/octet-stream',
-				size: content.length,
+				size: content?.length ?? content?.byteLength ?? 0,
 				contentId: a.contentId || null,
 				disposition: a.disposition || (a.contentId ? 'inline' : 'attachment'),
 				related: a.related || null,
