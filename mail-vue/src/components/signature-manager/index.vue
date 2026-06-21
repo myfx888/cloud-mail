@@ -9,6 +9,10 @@
             {{ $t('addSignature') }}
           </el-button>
         </div>
+        <el-radio-group v-model="sigScope" size="small" class="sig-scope-switch" @change="switchScope(sigScope)">
+          <el-radio-button value="shared">{{ $t('sharedSignatures') }}</el-radio-button>
+          <el-radio-button value="personal">{{ $t('mySignatures') }}</el-radio-button>
+        </el-radio-group>
         <el-scrollbar class="signature-list-body" :max-height="isMobile ? '180px' : '400px'">
           <div
             v-for="sig in signatureList"
@@ -49,6 +53,7 @@
 import { ref, watch, nextTick, onBeforeUnmount, shallowRef, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getSignatures, addSignature, updateSignature, deleteSignature, setDefaultSignature } from '@/request/setting.js'
+import { getPersonalSignatures, addPersonalSignature, updatePersonalSignature, deletePersonalSignature, setDefaultPersonalSignature } from '@/request/account.js'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '@/store/ui.js'
 
@@ -66,6 +71,7 @@ const emit = defineEmits(['update:modelValue', 'updated'])
 
 const visible = ref(false)
 const signatureList = ref([])
+const sigScope = ref('shared')
 const currentSignature = ref(null)
 const saving = ref(false)
 const editor = shallowRef(null)
@@ -86,11 +92,20 @@ function onClosed() {
 async function loadSignatures() {
   if (!props.accountId) return
   try {
-    signatureList.value = await getSignatures(props.accountId)
+    signatureList.value = sigScope.value === 'shared'
+      ? await getSignatures(props.accountId)
+      : await getPersonalSignatures(props.accountId)
   } catch (e) {
     console.error('Failed to load signatures:', e)
     signatureList.value = []
   }
+}
+
+function switchScope(scope) {
+  sigScope.value = scope
+  currentSignature.value = null
+  destroyEditor()
+  loadSignatures()
 }
 
 function selectSignature(sig) {
@@ -124,17 +139,28 @@ async function save() {
 
   try {
     if (currentSignature.value.id) {
-      await updateSignature(props.accountId, currentSignature.value.id, {
-        name: currentSignature.value.name,
-        content: currentSignature.value.content,
-        isDefault: currentSignature.value.isDefault
-      })
+      if (sigScope.value === 'shared') {
+        await updateSignature(props.accountId, currentSignature.value.id, {
+          name: currentSignature.value.name,
+          content: currentSignature.value.content,
+          isDefault: currentSignature.value.isDefault
+        })
+      } else {
+        await updatePersonalSignature(props.accountId, currentSignature.value.id, {
+          name: currentSignature.value.name,
+          content: currentSignature.value.content,
+          isDefault: currentSignature.value.isDefault
+        })
+      }
     } else {
-      const newSig = await addSignature(props.accountId, {
+      const payload = {
         name: currentSignature.value.name,
         content: currentSignature.value.content,
         isDefault: currentSignature.value.isDefault
-      })
+      }
+      const newSig = sigScope.value === 'shared'
+        ? await addSignature(props.accountId, payload)
+        : await addPersonalSignature(props.accountId, payload)
       currentSignature.value.id = newSig.id
     }
     ElMessage({ message: t('signatureSaveSuccess'), type: 'success', plain: true })
@@ -159,7 +185,11 @@ async function remove(sig) {
       cancelButtonText: t('cancel'),
       type: 'warning'
     })
-    await deleteSignature(props.accountId, sig.id)
+    if (sigScope.value === 'shared') {
+      await deleteSignature(props.accountId, sig.id)
+    } else {
+      await deletePersonalSignature(props.accountId, sig.id)
+    }
     ElMessage({ message: t('signatureDeleteSuccess'), type: 'success', plain: true })
     if (currentSignature.value?.id === sig.id) {
       currentSignature.value = null
@@ -174,7 +204,11 @@ async function remove(sig) {
 
 async function setDefault(sig) {
   try {
-    await setDefaultSignature(props.accountId, sig.id)
+    if (sigScope.value === 'shared') {
+      await setDefaultSignature(props.accountId, sig.id)
+    } else {
+      await setDefaultPersonalSignature(props.accountId, sig.id)
+    }
     ElMessage({ message: t('signatureSetDefaultSuccess'), type: 'success', plain: true })
     await loadSignatures()
     emit('updated')
@@ -294,6 +328,10 @@ defineExpose({ open })
     align-items: center;
     margin-bottom: 10px;
     font-weight: 600;
+  }
+
+  .sig-scope-switch {
+    margin-bottom: 10px;
   }
 }
 
