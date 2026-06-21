@@ -19,8 +19,12 @@ export function backupDelete(taskId) {
 	return http.delete(`/admin/backup/${taskId}`)
 }
 
-export function restoreUpload(formData) {
-	return http.post('/admin/restore/upload', formData)
+export function restoreUpload(formData, onProgress) {
+	return http.post('/admin/restore/upload', formData, {
+		onUploadProgress: (e) => {
+			if (e.total && onProgress) onProgress(e.loaded / e.total)
+		}
+	})
 }
 export function restoreCreate(sourceKeys, mode, dedup) {
 	return http.post('/admin/restore/create', { sourceKeys, mode, dedup })
