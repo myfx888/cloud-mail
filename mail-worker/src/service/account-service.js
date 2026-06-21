@@ -286,13 +286,10 @@ const accountService = {
 			throw new BizError(t('delMyAccount'));
 		}
 
-		if (accountRow.userId !== user.userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await this.assertCanManage(c, accountId, userId);
 
 		await orm(c).update(account).set({ isDel: isDel.DELETE }).where(
-			and(eq(account.userId, userId),
-				eq(account.accountId, accountId)))
+			eq(account.accountId, accountId))
 			.run();
 
 		// Reset email ownership to NOONE when account is deleted
@@ -340,6 +337,14 @@ const accountService = {
 		accountId = Number(accountId);
 		if (!accountId) return null;
 		return orm(c).select().from(account).where(eq(account.accountId, accountId)).get();
+	},
+
+	async assertCanManage(c, accountId, userId, isAdmin = false) {
+		await memberService.assertMember(c, accountId, userId);
+		if (isAdmin) return;
+		if (!(await memberService.isCreator(c, accountId, userId))) {
+			throw new BizError(t('noUserAccount'));
+		}
 	},
 
 	async insert(c, params) {
@@ -399,7 +404,8 @@ const accountService = {
 		if (name.length > 30) {
 			throw new BizError(t('usernameLengthLimit'));
 		}
-		await orm(c).update(account).set({name}).where(and(eq(account.userId, userId),eq(account.accountId, accountId))).run();
+		await this.assertCanManage(c, accountId, userId);
+		await orm(c).update(account).set({name}).where(eq(account.accountId, accountId)).run();
 	},
 
 	async allAccount(c, params) {
@@ -435,11 +441,19 @@ const accountService = {
 		let a = null
 		const { accountId } = params;
 		const accountRow = await this.selectById(c, accountId);
-		if (accountRow.userId !== userId) {
-			return;
-		}
+		await this.assertCanManage(c, accountId, userId);
 		await orm(c).update(account).set({ allReceive: accountConst.allReceive.CLOSE }).where(eq(account.userId, userId)).run();
 		await orm(c).update(account).set({ allReceive: accountRow.allReceive ? 0 : 1 }).where(eq(account.accountId, accountId)).run();
+	},
+
+	async setAsTop(c, params, userId) {
+		const { accountId } = params;
+		await this.assertCanManage(c, accountId, userId);
+		const userRow = await userService.selectById(c, userId);
+		const mainAccountRow = await accountService.selectByEmailIncludeDel(c, userRow.email);
+		let main_sort = mainAccountRow.sort === 0 ? 2 : mainAccountRow.sort + 1;
+		await orm(c).update(account).set({ sort: main_sort }).where(eq(account.email, userRow.email )).run();
+		await orm(c).update(account).set({ sort: main_sort - 1 }).where(eq(account.accountId, accountId)).run();
 	},
 
 	async setAsTop(c, params, userId) {
@@ -482,9 +496,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await this.assertCanManage(c, accountId, userId);
 
 		const settings = await settingService.query(c);
 		if (!settings.mailcowEnabled) {
@@ -504,9 +516,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (!isAdmin && accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await this.assertCanManage(c, accountId, userId, isAdmin);
 
 		const targetServer = await mailcowService.getServerById(c, mailcowServerId);
 		const exists = await mailcowService.accountExists(c, accountRow.email, targetServer);
@@ -544,9 +554,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await this.assertCanManage(c, accountId, userId);
 
 		const settings = await settingService.query(c);
 		const smtpServers = Array.isArray(settings.smtpServers) ? settings.smtpServers : [];
