@@ -25,6 +25,9 @@ import telegramService from './telegram-service';
 import smtpService from './smtp-service';
 import cfSendService from './cf-send-service';
 import { parseEmailRaw } from '../utils/eml-utils';
+import r2Service from './r2-service';
+import constant from '../const/constant';
+import fileUtils from '../utils/file-utils';
 
 const emailService = {
 
@@ -1004,141 +1007,181 @@ const emailService = {
 	async generateEml(emailRow, attList, c) {
 		const { r2Domain } = await settingService.query(c);
 
-		// 构建邮件头
 		const headers = [
-			`From: ${emailRow.name} <${emailRow.sendEmail}>`,
-			`To: ${emailRow.toName} <${emailRow.toEmail}>`,
-			`Subject: ${emailRow.subject}`,
-			`Date: ${new Date(emailRow.createTime).toUTCString()}`,
-			`Message-ID: ${emailRow.messageId || `<${Date.now()}.${Math.random().toString(36).substr(2, 9)}@cloud-mail>`}`,
+			`From: ${emailRow.name ? emailRow.name + ' ' : ''}<${emailRow.sendEmail}>`,
+			`To: ${emailRow.toName ? emailRow.toName + ' ' : ''}<${emailRow.toEmail}>`,
+			`Subject: ${this._encodeHeader(emailRow.subject || '')}`,
+			`Date: ${emailRow.createTime ? new Date(emailRow.createTime).toUTCString() : new Date().toUTCString()}`,
+			`Message-ID: ${emailRow.messageId || `<${Date.now()}.${Math.random().toString(36).slice(2)}@cloud-mail>`}`,
 			`MIME-Version: 1.0`
 		];
 
-		// 处理抄送和密送
 		if (emailRow.cc && emailRow.cc !== '[]') {
-			const ccList = JSON.parse(emailRow.cc);
-			if (ccList.length > 0) {
-				headers.push(`Cc: ${ccList.map(item => `${item.name} <${item.address}>`).join(', ')}`);
-			}
+			try {
+				const ccList = JSON.parse(emailRow.cc);
+				if (ccList.length) {
+					headers.push(`Cc: ${ccList.map(i => `${i.name ? i.name + ' ' : ''}<${i.address}>`).join(', ')}`);
+				}
+			} catch (_) {}
 		}
-
-		if (emailRow.bcc && emailRow.bcc !== '[]') {
-			const bccList = JSON.parse(emailRow.bcc);
-			if (bccList.length > 0) {
-				headers.push(`Bcc: ${bccList.map(item => `${item.name} <${item.address}>`).join(', ')}`);
-			}
-		}
-
-		// 处理回复相关头
 		if (emailRow.inReplyTo) {
 			headers.push(`In-Reply-To: ${emailRow.inReplyTo}`);
 		}
-
 		if (emailRow.relation) {
 			headers.push(`References: ${emailRow.relation}`);
 		}
 
-		// 生成边界
-		const boundary = `----=_NextPart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+		const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+		headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`, '');
 
-		// 添加内容类型头
-		headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
-		headers.push(''); // 空行分隔头和正文
-
-		// 构建邮件正文
-		const bodyParts = [];
-
-		// 文本部分
-		bodyParts.push(`--${boundary}`);
-		bodyParts.push('Content-Type: text/plain; charset="UTF-8"');
-		bodyParts.push('Content-Transfer-Encoding: 7bit');
-		bodyParts.push('');
-		bodyParts.push(emailRow.text || '');
-
-		// HTML部分
+		const parts = [];
+		parts.push(`--${boundary}`, 'Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', this._b64(emailRow.text || ''));
 		if (emailRow.content) {
-			bodyParts.push(`--${boundary}`);
-			bodyParts.push('Content-Type: text/html; charset="UTF-8"');
-			bodyParts.push('Content-Transfer-Encoding: 7bit');
-			bodyParts.push('');
-			// 替换图片URL
-			let htmlContent = emailRow.content;
+			let html = emailRow.content;
 			if (r2Domain) {
-				htmlContent = htmlContent.replace(/{{domain}}/g, domainUtils.toOssDomain(r2Domain) + '/');
+				html = html.replace(/\{\{domain\}\}/g, domainUtils.toOssDomain(r2Domain) + '/');
 			}
-			bodyParts.push(htmlContent);
+			parts.push(`--${boundary}`, 'Content-Type: text/html; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', this._b64(html));
 		}
-
-		// 处理附件
-		for (const attItem of attList) {
-			bodyParts.push(`--${boundary}`);
-			bodyParts.push(`Content-Type: ${attItem.type || 'application/octet-stream'}`);
-			bodyParts.push(`Content-Disposition: attachment; filename="${attItem.filename}"`);
-			bodyParts.push('Content-Transfer-Encoding: base64');
-			bodyParts.push('');
-			// 注意：这里应该使用实际的文件内容进行base64编码
-			// 但由于在Cloudflare Worker环境中，我们无法直接读取文件内容
-			// 这里使用占位符，实际实现需要根据存储方式获取文件内容
-			bodyParts.push('SGVsbG8gV29ybGQ='); // 示例base64编码的"Hello World"
+		for (const a of attList) {
+			const obj = await r2Service.getObj(c, a.key);
+			let bytes;
+			if (obj) {
+				const ab = await obj.arrayBuffer();
+				bytes = new Uint8Array(ab);
+			} else {
+				bytes = new Uint8Array(0);
+			}
+			const disposition = a.contentId ? 'inline' : 'attachment';
+			const ct = a.mimeType || 'application/octet-stream';
+			const partHead = [`--${boundary}`, `Content-Type: ${ct}`, `Content-Disposition: ${disposition}; filename="${this._encodeHeader(a.filename || 'attachment')}"`, 'Content-Transfer-Encoding: base64'];
+			if (a.contentId) {
+				partHead.push(`Content-ID: <${a.contentId.replace(/^<|>$/g, '')}>`);
+			}
+			parts.push(...partHead, '', this._b64Bytes(bytes));
 		}
-
-		// 结束边界
-		bodyParts.push(`--${boundary}--`);
-
-		// 组合所有部分
-		const emlContent = [...headers, ...bodyParts].join('\r\n');
-
-		return emlContent;
+		parts.push(`--${boundary}--`, '');
+		return [...headers, ...parts].join('\r\n');
 	},
 
-	async importEmail(c, emlContent, userId, accountId) {
-		// 解析 .eml 文件内容
-		const emailData = await this.parseEml(emlContent);
+	_encodeHeader(s) {
+		if (!s) return '';
+		if (!/[^\x00-\x7F]/.test(s)) return s;
+		return '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(s))) + '?=';
+	},
 
-		// 验证账户存在且当前用户为成员
-		const accountRow = await accountService.selectById(c, accountId);
-		if (!accountRow) {
-			throw new BizError(t('accountNotExist'));
+	_b64(str) {
+		return btoa(unescape(encodeURIComponent(str || '')));
+	},
+
+	_b64Bytes(bytes) {
+		let bin = '';
+		const chunk = 0x8000;
+		for (let i = 0; i < bytes.length; i += chunk) {
+			bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
 		}
-		await memberService.assertMember(c, accountId, userId);
+		return btoa(bin).replace(/(.{76})/g, '$1\r\n');
+	},
 
-		// 构建邮件数据
+	async importSingleEmail(c, parsed, opts = {}) {
+		const toAddress = opts.toAddress || (parsed.to[0] && parsed.to[0].address) || '';
+
+		let accountId = 0, userId = 0, status = emailConst.status.NOONE;
+		if (toAddress) {
+			const acc = await accountService.selectByEmailIncludeDel(c, toAddress);
+			if (acc && acc.isDel === isDel.NORMAL) {
+				accountId = acc.accountId;
+				userId = acc.userId;
+				status = emailConst.status.RECEIVE;
+			}
+		}
+
+		const dup = await this.dedupExists(c, {
+			messageId: parsed.messageId,
+			sendEmail: parsed.from.address,
+			toEmail: toAddress,
+			subject: parsed.subject,
+			accountId
+		});
+		if (dup) {
+			return { action: 'skipped' };
+		}
+
+		const cidAttachments = parsed.attachments.filter(a => a.contentId);
 		const emailValues = {
-			sendEmail: emailData.from.email,
-			name: emailData.from.name,
-			accountId: accountId,
-			userId: userId,
-			subject: emailData.subject,
-			text: emailData.text,
-			content: emailData.html,
-			cc: JSON.stringify(emailData.cc),
-			bcc: JSON.stringify(emailData.bcc),
-			recipient: JSON.stringify(emailData.to),
-			toEmail: emailData.to.map(item => item.address).join(', '),
-			toName: emailData.to.map(item => item.name).join(', '),
-			inReplyTo: emailData.inReplyTo || '',
-			relation: emailData.references || '',
-			messageId: emailData.messageId || '',
+			sendEmail: parsed.from.address,
+			name: parsed.from.name || emailUtils.getName(parsed.from.address),
+			accountId, userId,
+			subject: parsed.subject,
+			text: parsed.text,
+			content: this.imgReplace(parsed.html || '', cidAttachments, opts.r2Domain),
+			cc: JSON.stringify(parsed.cc || []),
+			bcc: JSON.stringify(parsed.bcc || []),
+			recipient: JSON.stringify(parsed.to.length ? parsed.to : (toAddress ? [{ address: toAddress, name: '' }] : [])),
+			toEmail: toAddress,
+			toName: (parsed.to[0] && parsed.to[0].name) || '',
+			inReplyTo: parsed.inReplyTo || '',
+			relation: parsed.references || '',
+			messageId: parsed.messageId || '',
 			type: emailConst.type.RECEIVE,
-			status: emailConst.status.RECEIVE,
+			status,
 			unread: emailConst.unread.UNREAD,
 			sendMethod: emailConst.sendMethod.IMPORTED
 		};
-
-		// 保存邮件到数据库
-		const emailResult = await orm(c).insert(email).values(emailValues).returning().get();
-
-		// 处理附件
-		if (emailData.attachments && emailData.attachments.length > 0) {
-			for (const attachment of emailData.attachments) {
-				// 保存附件到存储
-				// 注意：这里需要根据实际的存储方式实现附件保存
-				// 由于在Cloudflare Worker环境中，我们无法直接写入文件
-				// 这里使用占位符，实际实现需要根据存储方式保存附件
-			}
+		if (parsed.date) {
+			emailValues.createTime = parsed.date;
 		}
 
-		return emailResult;
+		const emailRow = await orm(c).insert(email).values(emailValues).returning().get();
+
+		const atts = [];
+		for (const a of parsed.attachments) {
+			const content = a.content instanceof Uint8Array ? a.content : new TextEncoder().encode(a.content || '');
+			const hash = await fileUtils.getBuffHash(content);
+			const ext = fileUtils.getExtFileName(a.filename || '');
+			atts.push({
+				key: constant.ATTACHMENT_PREFIX + hash + ext,
+				filename: a.filename || 'attachment',
+				mimeType: a.mimeType || 'application/octet-stream',
+				size: content.length,
+				contentId: a.contentId || null,
+				disposition: a.disposition || (a.contentId ? 'inline' : 'attachment'),
+				related: a.related || null,
+				encoding: a.encoding || null,
+				userId, accountId, emailId: emailRow.emailId,
+				status: 0,
+				type: a.contentId ? attConst.type.EMBED : attConst.type.ATT,
+				_content: content
+			});
+		}
+		if (atts.length > 0) {
+			await attService.addAtt(c, atts.map(({ _content, ...rest }) => ({ ...rest, content: _content })));
+		}
+		return { action: 'imported', emailId: emailRow.emailId };
+	},
+
+	async dedupExists(c, { messageId, sendEmail, toEmail, subject, accountId }) {
+		if (messageId) {
+			if (accountId > 0) {
+				const row = await orm(c).select({ id: email.emailId }).from(email)
+					.where(and(eq(email.accountId, accountId), eq(email.messageId, messageId))).get();
+				return !!row;
+			}
+			const row = await orm(c).select({ id: email.emailId }).from(email)
+				.where(and(eq(email.toEmail, toEmail), eq(email.messageId, messageId))).get();
+			return !!row;
+		}
+		const row = await orm(c).select({ id: email.emailId }).from(email).where(and(
+			eq(email.sendEmail, sendEmail || ''),
+			eq(email.toEmail, toEmail || ''),
+			eq(email.subject, subject || '')
+		)).get();
+		return !!row;
+	},
+
+	async importEmail(c, emlContent) {
+		const parsed = await parseEmailRaw(emlContent);
+		return await this.importSingleEmail(c, parsed, {});
 	},
 
 	parseEmailRaw,
