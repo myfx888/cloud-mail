@@ -5,6 +5,7 @@ import { and, desc, eq, gt, inArray, lt, count, asc, sql, ne, or, like, lte, gte
 import { star } from '../entity/star';
 import settingService from './setting-service';
 import accountService from './account-service';
+import memberService from './member-service';
 import BizError from '../error/biz-error';
 import emailUtils from '../utils/email-utils';
 import { Resend } from 'resend';
@@ -55,6 +56,15 @@ const emailService = {
 			allReceive = accountRow.allReceive;
 		}
 
+		// 共享邮箱：访问控制按成员身份
+		let visible = [];
+		if (allReceive) {
+			visible = await memberService.getVisibleAccountIds(c, userId);
+		} else {
+			await memberService.assertMember(c, accountId, userId);
+		}
+		const accountCond = allReceive ? inArray(email.accountId, visible) : eq(email.accountId, accountId);
+
 		const query = orm(c)
 			.select({
 				...email,
@@ -63,18 +73,14 @@ const emailService = {
 			.from(email)
 			.leftJoin(
 				star,
-				and(
-					eq(star.emailId, email.emailId),
-					eq(star.userId, userId)
-				)
+				eq(star.emailId, email.emailId)
 			).leftJoin(
 				account,
 				eq(account.accountId, email.accountId)
 			)
 			.where(
 				and(
-					allReceive ? eq(1,1) : eq(email.accountId, accountId),
-					eq(email.userId, userId),
+					accountCond,
 					timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId),
 					eq(email.type, type),
 					eq(email.isDel, isDel.NORMAL),
@@ -97,8 +103,7 @@ const emailService = {
 			)
 			.where(
 				and(
-					allReceive ? eq(1,1) : eq(email.accountId, accountId),
-					eq(email.userId, userId),
+					accountCond,
 					eq(email.type, type),
 					eq(email.isDel, isDel.NORMAL),
 					eq(account.isDel, isDel.NORMAL)
@@ -112,8 +117,7 @@ const emailService = {
 			)
 			.where(
 			and(
-				allReceive ? eq(1,1) : eq(email.accountId, accountId),
-				eq(email.userId, userId),
+				accountCond,
 				eq(email.type, type),
 				eq(email.isDel, isDel.NORMAL),
 				eq(account.isDel, isDel.NORMAL)
