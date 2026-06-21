@@ -1,5 +1,6 @@
 import app from '../hono/hono';
 import accountService from '../service/account-service';
+import memberService from '../service/member-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 
@@ -90,4 +91,63 @@ app.put('/account/:accountId/signatures/:signatureId/setDefault', async (c) => {
 	const signatureId = c.req.param('signatureId');
 	await accountService.setDefaultSignature(c, accountId, signatureId, userContext.getUserId(c));
 	return c.json(result.ok());
+});
+
+// ===== 共享邮箱成员 =====
+app.get('/mailbox/:accountId/members', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const userId = userContext.getUserId(c);
+	await memberService.assertMember(c, accountId, userId);
+	return c.json(result.ok(await memberService.listMembers(c, accountId)));
+});
+
+app.post('/mailbox/:accountId/leave', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	await memberService.leave(c, accountId, userContext.getUserId(c));
+	return c.json(result.ok());
+});
+
+app.put('/mailbox/:accountId/signature-choice', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const { scope, sigId } = await c.req.json();
+	await memberService.setLastSignature(c, accountId, userContext.getUserId(c), scope, sigId);
+	return c.json(result.ok());
+});
+
+// ===== 个人签名 =====
+app.get('/account/:accountId/signatures/personal', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const list = await accountService.getPersonalSignatures(c, accountId, userContext.getUserId(c));
+	return c.json(result.ok(list));
+});
+
+app.post('/account/:accountId/signatures/personal', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const sig = await accountService.addPersonalSignature(c, accountId, await c.req.json(), userContext.getUserId(c));
+	return c.json(result.ok(sig));
+});
+
+app.put('/account/:accountId/signatures/personal/:signatureId', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const sig = await accountService.updatePersonalSignature(c, accountId, c.req.param('signatureId'), await c.req.json(), userContext.getUserId(c));
+	return c.json(result.ok(sig));
+});
+
+app.delete('/account/:accountId/signatures/personal/:signatureId', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	await accountService.deletePersonalSignature(c, accountId, c.req.param('signatureId'), userContext.getUserId(c));
+	return c.json(result.ok());
+});
+
+app.put('/account/:accountId/signatures/personal/:signatureId/setDefault', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	await accountService.setDefaultPersonalSignature(c, accountId, c.req.param('signatureId'), userContext.getUserId(c));
+	return c.json(result.ok());
+});
+
+// 发送签名解析（上次选择 > 共享默认 > 无）
+app.get('/account/:accountId/signatures/resolve', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const data = await accountService.resolveSignature(c, accountId, userContext.getUserId(c));
+	return c.json(result.ok(data));
 });
