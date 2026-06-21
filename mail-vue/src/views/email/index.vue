@@ -4,6 +4,8 @@
                :star-success="addStar"
                :getEmailList="getEmailList"
                :emailDelete="emailDelete"
+               :email-restore="emailRestore"
+               :trash="trashMode"
                :star-add="starAdd"
                :star-cancel="starCancel"
                :time-sort="params.timeSort"
@@ -17,6 +19,9 @@
             v-if="params.timeSort === 0" width="28" height="28"/>
       <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-up-outline" v-else
             width="28" height="28"/>
+      <Icon class="icon" :style="trashMode ? 'color: var(--el-color-danger)' : ''"
+            icon="material-symbols-light:delete-outline-rounded" width="22" height="22"
+            :title="$t('recycleBin')" @click="toggleTrash"/>
     </template>
 
   </emailScroll>
@@ -27,9 +32,9 @@ import {useAccountStore} from "@/store/account.js";
 import {useEmailStore} from "@/store/email.js";
 import {useSettingStore} from "@/store/setting.js";
 import emailScroll from "@/components/email-scroll/index.vue"
-import {emailList, emailDelete, emailLatest, emailRead} from "@/request/email.js";
+import {emailList, emailDelete, emailRestore, emailLatest, emailRead} from "@/request/email.js";
 import {starAdd, starCancel} from "@/request/star.js";
-import {defineOptions, h, onMounted, reactive, ref, watch} from "vue";
+import {defineOptions, h, onMounted, reactive, ref, watch, nextTick} from "vue";
 import {sleep} from "@/utils/time-utils.js";
 import router from "@/router/index.js";
 import {Icon} from "@iconify/vue";
@@ -141,11 +146,19 @@ function cancelStar(email) {
 function getEmailList(emailId, size, signal) {
   const accountId =  accountStore.currentAccountId;
   const allReceive = accountStore.currentAccount.allReceive;
-  return emailList(accountId, allReceive, emailId, params.timeSort, size, 0, signal).then(data => {
+  return emailList(accountId, allReceive, emailId, params.timeSort, size, 0, signal, trashMode.value ? 1 : 0).then(data => {
     data.latestEmail.reqAccountId = accountId;
     data.latestEmail.allReceive = allReceive;
     return data;
   })
+}
+
+const trashMode = ref(false);
+function toggleTrash() {
+  trashMode.value = !trashMode.value;
+  nextTick(() => {
+    scroll.value?.refreshList?.();
+  });
 }
 
 </script>

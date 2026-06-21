@@ -12,8 +12,10 @@
 
         <slot name="first"></slot>
         <Icon class="icon reload" icon="ion:reload" width="18" height="18" @click="refresh"/>
-        <Icon v-perm="'email:delete'" class="icon delete" icon="uiw:delete" width="16" height="16"
-              v-if="getSelectedMailsIds().length > 0"
+        <Icon v-if="trash && getSelectedMailsIds().length > 0" class="icon" icon="material-symbols-light:restore-from-trash-rounded" width="20" height="20"
+              @click="handleRestore"/>
+        <Icon v-perm="'email:delete'" v-if="!trash" class="icon delete" icon="uiw:delete" width="16" height="16"
+              v-show="getSelectedMailsIds().length > 0"
               @click="handleDelete"/>
         <Icon v-perm="'email:delete'" class="icon delete" icon="fluent:mail-read-20-regular" width="21" height="21"
               v-if="getSelectedMailsIds().length > 0 && showUnread"
@@ -246,7 +248,9 @@ import { useScroll } from '@vueuse/core'
 const props = defineProps({
   getEmailList: Function,
   emailDelete: Function,
+  emailRestore: Function,
   emailRead: Function,
+  trash: { type: Boolean, default: false },
   starAdd: Function,
   starCancel: Function,
   cancelSuccess: Function,
@@ -686,6 +690,17 @@ function handleDelete() {
       })
       emailStore.deleteIds = emailIds;
     })
+  })
+}
+
+function handleRestore() {
+  const emailIds = getSelectedMailsIds();
+  if (!emailIds || emailIds.length === 0) return;
+  if (!props.emailRestore) return;
+  props.emailRestore(emailIds).then(() => {
+    ElMessage({ message: t('restore'), type: 'success', plain: true })
+    emailStore.deleteIds = emailIds;
+    refresh();
   })
 }
 
