@@ -23,4 +23,5 @@ import '../api/oauth-api'
 import '../api/admin-api'
 import '../api/ai-api'
 import '../api/mcp-api'
+import '../api/backup-api'
 export default app;
