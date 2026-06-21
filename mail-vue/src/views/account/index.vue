@@ -21,10 +21,13 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" :label="$t('createTime')" width="180"/>
-                <el-table-column :label="$t('action')" width="220" fixed="right">
+                <el-table-column :label="$t('action')" width="320" fixed="right">
                   <template #default="scope">
                     <el-button size="small" type="primary" @click="openSmtpAccountManager(scope.row)" v-perm="'smtp:set'">
                       {{ $t('smtpSetting') }}
+                    </el-button>
+                    <el-button size="small" @click="openMembers(scope.row)">
+                      {{ $t('mailboxMembers') }}
                     </el-button>
                     <el-button
                       size="small"
@@ -144,6 +147,7 @@
     </el-dialog>
     
     <smtpAccountManager ref="smtpAccountManagerRef" :account-id="smtpManagerAccountId" />
+    <mailboxMembers ref="mailboxMembersRef" :account-id="membersAccountId" @left="onMemberLeft" />
   </div>
 </template>
 <script setup>
@@ -155,6 +159,7 @@ import {useUserStore} from "@/store/user.js"
 import {Icon} from "@iconify/vue"
 import LoadingComponent from "@/components/loading/index.vue"
 import smtpAccountManager from "@/components/smtp-account-manager/index.vue"
+import mailboxMembers from "@/components/mailbox-members/index.vue"
 import {settingQuery} from "@/request/setting.js"
 import {adminAccountList} from "@/request/admin.js"
 import {userDeleteAccount} from "@/request/user.js"
@@ -172,6 +177,8 @@ const addLoading = ref(false)
 const mailcowEnabled = ref(false)
 const retryingAccountId = ref(0)
 const smtpAccountManagerRef = ref()
+const mailboxMembersRef = ref()
+const membersAccountId = ref(0)
 const smtpManagerAccountId = ref(0)
 
 const addForm = reactive({
@@ -280,6 +287,17 @@ function openSmtpAccountManager(account) {
   nextTick(() => {
     smtpAccountManagerRef.value.open()
   })
+}
+
+function openMembers(account) {
+  membersAccountId.value = account.accountId
+  nextTick(() => {
+    mailboxMembersRef.value.open()
+  })
+}
+
+function onMemberLeft() {
+  loadAccounts()
 }
 
 // ---- Global Accounts (admin only) ----
