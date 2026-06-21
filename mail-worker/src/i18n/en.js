@@ -10,6 +10,11 @@ const en = {
 	accountLimit: 'Email address limit reached',
 	delMyAccount: 'Cannot delete your own email',
 	noUserAccount: 'This email does not belong to the current user',
+	mailboxNotShareable: 'Primary mailbox (login identity) cannot be shared',
+	mailboxShareNoPerm: 'No permission to use shared mailbox',
+	alreadyMember: 'Already a member of this mailbox',
+	lastMemberCannotLeave: 'At least one member (owner) must remain',
+	cannotKickCreator: 'Cannot remove the mailbox owner',
 	usernameLengthLimit: 'Username length exceeds the limit',
 	noOsSendPic: 'Cannot send body images: object storage not configured',
 	noOsDomainSendAtt: 'Cannot send attachments: object storage domain not configured',
@@ -116,7 +121,8 @@ const en = {
 		"SMTP设置": "SMTP Settings",
 		"SMTP配置查看": "View SMTP Config",
 		"SMTP配置修改": "Edit SMTP Config",
-		"SMTP一键开通": "One-Click SMTP Provision"
+		"SMTP一键开通": "One-Click SMTP Provision",
+		"共享邮箱": "Shared Mailbox"
 	}
 };
 

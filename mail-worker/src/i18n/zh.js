@@ -10,6 +10,11 @@ const zh = {
 	accountLimit: '添加邮箱数量到达限制',
 	delMyAccount: '不可以删除自己的邮箱',
 	noUserAccount: '该邮箱不属于当前用户',
+	mailboxNotShareable: '主邮箱（登录身份）不可共享',
+	mailboxShareNoPerm: '无共享邮箱权限',
+	alreadyMember: '已是该邮箱成员',
+	lastMemberCannotLeave: '至少保留一名成员（所有者）',
+	cannotKickCreator: '不能移除邮箱所有者',
 	usernameLengthLimit: '用户名长度超出限制',
 	noOsSendPic: '对象存储未配置不能发送正文图片',
 	noOsDomainSendAtt: '对象存储域名未配置不能发送附件',
@@ -121,6 +126,7 @@ const zh = {
 		"SMTP配置查看": "SMTP配置查看",
 		"SMTP配置修改": "SMTP配置修改",
 		"SMTP一键开通": "SMTP一键开通",
+		"共享邮箱": "共享邮箱",
 		'发件重置': '发件重置'
 	}
 }
