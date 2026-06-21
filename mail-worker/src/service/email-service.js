@@ -29,13 +29,14 @@ const emailService = {
 
 	async list(c, params, userId) {
 
-		let { emailId, type, accountId, size, timeSort, allReceive } = params;
+		let { emailId, type, accountId, size, timeSort, allReceive, deleted } = params;
 
 		size = Number(size);
 		emailId = Number(emailId);
 		timeSort = Number(timeSort);
 		accountId = Number(accountId);
 		allReceive = Number(allReceive);
+		deleted = Number(deleted);
 
 		if (size > 50) {
 			size = 50;
@@ -64,6 +65,7 @@ const emailService = {
 			await memberService.assertMember(c, accountId, userId);
 		}
 		const accountCond = allReceive ? inArray(email.accountId, visible) : eq(email.accountId, accountId);
+		const delCond = eq(email.isDel, deleted ? isDel.DELETE : isDel.NORMAL);
 
 		const query = orm(c)
 			.select({
@@ -78,15 +80,15 @@ const emailService = {
 				account,
 				eq(account.accountId, email.accountId)
 			)
-			.where(
-				and(
-					accountCond,
-					timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId),
-					eq(email.type, type),
-					eq(email.isDel, isDel.NORMAL),
-					eq(account.isDel, isDel.NORMAL)
-				)
-			);
+		.where(
+			and(
+				accountCond,
+				timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId),
+				eq(email.type, type),
+				delCond,
+				eq(account.isDel, isDel.NORMAL)
+			)
+		);
 
 		if (timeSort) {
 			query.orderBy(asc(email.emailId));
@@ -105,7 +107,7 @@ const emailService = {
 				and(
 					accountCond,
 					eq(email.type, type),
-					eq(email.isDel, isDel.NORMAL),
+					delCond,
 					eq(account.isDel, isDel.NORMAL)
 				)
 		).get();
@@ -119,7 +121,7 @@ const emailService = {
 			and(
 				accountCond,
 				eq(email.type, type),
-				eq(email.isDel, isDel.NORMAL),
+				delCond,
 				eq(account.isDel, isDel.NORMAL)
 			))
 			.orderBy(desc(email.emailId)).limit(1).get();
@@ -923,6 +925,15 @@ const emailService = {
 		const { emailIds } = params;
 		const visible = await memberService.getVisibleAccountIds(c, userId);
 		await orm(c).update(email).set({ unread: emailConst.unread.READ }).where(and(inArray(email.accountId, visible), inArray(email.emailId, emailIds)));
+	},
+
+	async restore(c, params, userId) {
+		const { emailIds } = params;
+		const emailIdList = String(emailIds).split(',').map(Number);
+		const visible = await memberService.getVisibleAccountIds(c, userId);
+		await orm(c).update(email).set({ isDel: isDel.NORMAL }).where(
+			and(inArray(email.emailId, emailIdList), inArray(email.accountId, visible))
+		).run();
 	},
 
 	async claimHistoricalMails(c, emailAddress, userId, accountId) {

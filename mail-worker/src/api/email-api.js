@@ -34,6 +34,11 @@ app.put('/email/read', async (c) => {
 	return c.json(result.ok());
 })
 
+app.put('/email/restore', async (c) => {
+	await emailService.restore(c, await c.req.json(), userContext.getUserId(c));
+	return c.json(result.ok());
+})
+
 app.get('/email/export', async (c) => {
 	const { emailId } = c.req.query();
 	const emlContent = await emailService.exportEmail(c, Number(emailId), userContext.getUserId(c));
