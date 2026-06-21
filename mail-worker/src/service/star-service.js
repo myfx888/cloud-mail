@@ -6,6 +6,7 @@ import { and, desc, eq, lt, sql, inArray } from 'drizzle-orm';
 import email from '../entity/email';
 import { isDel } from '../const/entity-const';
 import attService from "./att-service";
+import memberService from "./member-service";
 import { t } from '../i18n/i18n'
 const starService = {
 
@@ -15,14 +16,8 @@ const starService = {
 		if (!email) {
 			throw new BizError(t('starNotExistEmail'));
 		}
-		if (!email.userId === userId) {
-			throw new BizError(t('starNotExistEmail'));
-		}
-		const exist = await orm(c).select().from(star).where(
-			and(
-				eq(star.userId, userId),
-				eq(star.emailId, emailId)))
-			.get()
+		await memberService.assertMember(c, email.accountId, userId);
+		const exist = await orm(c).select().from(star).where(eq(star.emailId, emailId)).get();
 
 		if (exist) {
 			return
@@ -33,11 +28,11 @@ const starService = {
 
 	async cancel(c, params, userId) {
 		const { emailId } = params;
-		await orm(c).delete(star).where(
-			and(
-				eq(star.userId, userId),
-				eq(star.emailId, emailId)))
-			.run();
+		const emailRow = await emailService.selectById(c, emailId);
+		if (emailRow) {
+			await memberService.assertMember(c, emailRow.accountId, userId);
+		}
+		await orm(c).delete(star).where(eq(star.emailId, emailId)).run();
 	},
 
 	async list(c, params, userId) {
@@ -49,6 +44,8 @@ const starService = {
 			emailId = 9999999999;
 		}
 
+		const visible = await memberService.getVisibleAccountIds(c, userId);
+
 		const list = await orm(c).select({
 			isStar: sql`1`.as('isStar'),
 			starId: star.starId
@@ -57,7 +54,7 @@ const starService = {
 			.leftJoin(email, eq(email.emailId, star.emailId))
 			.where(
 				and(
-					eq(star.userId, userId),
+					inArray(email.accountId, visible),
 					eq(email.isDel, isDel.NORMAL),
 					lt(star.emailId, emailId)))
 			.orderBy(desc(star.emailId))
