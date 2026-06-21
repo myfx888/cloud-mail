@@ -898,10 +898,11 @@ const accountService = {
 				userEmail: user.email,
 				status: account.status,
 				createTime: account.createTime,
-				smtpOverride: account.smtpOverride,
-				mailcowServerId: account.mailcowServerId,
-				smtpAccountCount: smtpCountSub
-			})
+			smtpOverride: account.smtpOverride,
+			mailcowServerId: account.mailcowServerId,
+			smtpAccountCount: smtpCountSub,
+			memberCount: sql`(SELECT COUNT(*) FROM account_member WHERE account_member.account_id = ${account.accountId})`.as('memberCount')
+		})
 			.from(account)
 			.innerJoin(user, eq(account.userId, user.userId))
 			.where(whereClause)
