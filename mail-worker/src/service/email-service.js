@@ -231,9 +231,7 @@ const emailService = {
 			throw new BizError(t('senderAccountNotExist'));
 		}
 
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('sendEmailNotCurUser'));
-		}
+		await memberService.assertMember(c, accountRow.accountId, userId);
 
 		if (c.env.admin !== userRow.email) {
 			//用户没有这个域名的使用权限
@@ -637,6 +635,14 @@ const emailService = {
 			allReceive = accountRow.allReceive;
 		}
 
+		let visible = [];
+		if (allReceive) {
+			visible = await memberService.getVisibleAccountIds(c, userId);
+		} else {
+			await memberService.assertMember(c, accountId, userId);
+		}
+		const accountCond = allReceive ? inArray(email.accountId, visible) : eq(email.accountId, accountId);
+
 		let list = await orm(c).select({...email}).from(email)
 			.leftJoin(
 				account,
@@ -645,10 +651,9 @@ const emailService = {
 			.where(
 				and(
 					gt(email.emailId, emailId),
-					eq(email.userId, userId),
+					accountCond,
 					eq(email.isDel, isDel.NORMAL),
 					eq(account.isDel, isDel.NORMAL),
-					allReceive ? eq(1,1) : eq(email.accountId, accountId),
 					eq(email.type, emailConst.type.RECEIVE)
 				))
 			.orderBy(desc(email.emailId))
@@ -972,10 +977,8 @@ const emailService = {
 			throw new BizError(t('notExistEmail'));
 		}
 
-		// 验证邮件属于当前用户
-		if (emailRow.userId !== userId) {
-			throw new BizError(t('noPermission'));
-		}
+		// 验证当前用户为该邮箱成员
+		await memberService.assertMember(c, emailRow.accountId, userId);
 
 		// 获取附件信息
 		const attList = await attService.selectByEmailIds(c, [emailId]);
@@ -1080,11 +1083,12 @@ const emailService = {
 		// 解析 .eml 文件内容
 		const emailData = await this.parseEml(emlContent);
 
-		// 验证账户属于当前用户
+		// 验证账户存在且当前用户为成员
 		const accountRow = await accountService.selectById(c, accountId);
-		if (!accountRow || accountRow.userId !== userId) {
-			throw new BizError(t('noPermission'));
+		if (!accountRow) {
+			throw new BizError(t('accountNotExist'));
 		}
+		await memberService.assertMember(c, accountId, userId);
 
 		// 构建邮件数据
 		const emailValues = {
