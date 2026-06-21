@@ -65,7 +65,7 @@
             :http-request="customUpload"
             :show-file-list="false"
             accept=".eml,.mbox">
-            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <Icon icon="material-symbols:upload" width="40" height="40" style="color: var(--el-text-color-secondary)" />
             <div class="el-upload__text">{{ $t('uploadFiles') }}</div>
             <template #tip>
               <div class="el-upload__tip">{{ $t('uploadHint') }}</div>
@@ -111,7 +111,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import {
   backupCreate, backupProcess, fetchBackupList, backupDownload, backupDelete,
