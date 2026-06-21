@@ -585,9 +585,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await memberService.assertMember(c, accountId, userId);
 		
 		try {
 			return JSON.parse(accountRow.signatures || '[]');
@@ -601,9 +599,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await memberService.assertMember(c, accountId, userId);
 		
 		const signatures = JSON.parse(accountRow.signatures || '[]');
 		
@@ -639,9 +635,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await memberService.assertMember(c, accountId, userId);
 		
 		const signatures = JSON.parse(accountRow.signatures || '[]');
 		const signatureIndex = signatures.findIndex(sig => sig.id === signatureId);
@@ -678,9 +672,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await memberService.assertMember(c, accountId, userId);
 		
 		const signatures = JSON.parse(accountRow.signatures || '[]');
 		const signatureIndex = signatures.findIndex(sig => sig.id === signatureId);
@@ -708,9 +700,7 @@ const accountService = {
 		if (!accountRow) {
 			throw new BizError(t('accountNotExist'));
 		}
-		if (accountRow.userId !== userId) {
-			throw new BizError(t('noUserAccount'));
-		}
+		await memberService.assertMember(c, accountId, userId);
 		
 		const signatures = JSON.parse(accountRow.signatures || '[]');
 		const signatureIndex = signatures.findIndex(sig => sig.id === signatureId);
