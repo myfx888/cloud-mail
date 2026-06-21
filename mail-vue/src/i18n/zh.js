@@ -343,6 +343,7 @@ const zh = {
     remove: '移除',
     assignMember: '指派',
     enterUserId: '输入用户 ID',
+    selectUser: '搜索并选择用户',
     smtpEnabled: '启用 SMTP',
     smtpHost: 'SMTP 服务器',
     smtpPort: 'SMTP 端口',

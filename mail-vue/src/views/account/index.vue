@@ -173,8 +173,20 @@
         </el-table-column>
       </el-table>
       <div class="admin-assign-row">
-        <el-input v-model="adminAssignUserId" :placeholder="$t('enterUserId')" size="small" />
-        <el-button type="primary" size="small" @click="adminAssign">{{ $t('assignMember') }}</el-button>
+        <el-select
+          v-model="adminAssignUserId"
+          filterable
+          remote
+          clearable
+          :remote-method="searchUsers"
+          :loading="userSearching"
+          :placeholder="$t('selectUser')"
+          size="small"
+          class="admin-assign-select"
+        >
+          <el-option v-for="u in userOptions" :key="u.userId" :label="u.email" :value="u.userId" />
+        </el-select>
+        <el-button type="primary" size="small" :disabled="!adminAssignUserId" @click="adminAssign">{{ $t('assignMember') }}</el-button>
       </div>
     </el-drawer>
   </div>
@@ -183,6 +195,7 @@
 import {reactive, ref, computed, onMounted, nextTick} from 'vue'
 import {accountAdd, accountDelete, accountList as fetchAccountList, accountRetryMailcow, accountProvisionSmtpByMailcowServer} from "@/request/account.js"
 import {adminMailboxMembers, adminAssignMember, adminKickMember} from "@/request/admin.js"
+import {userList} from "@/request/user.js"
 import {useAccountStore} from "@/store/account.js"
 import {useUserStore} from "@/store/user.js"
 
@@ -393,11 +406,15 @@ const adminMemberDrawer = ref(false)
 const adminMembers = ref([])
 const adminMemberLoading = ref(false)
 const adminAssignUserId = ref('')
+const userOptions = ref([])
+const userSearching = ref(false)
 const adminMemberAccountId = ref(0)
 
 async function openAdminMembers(account) {
   adminMemberAccountId.value = account.accountId
   adminMemberDrawer.value = true
+  adminAssignUserId.value = ''
+  userOptions.value = []
   await loadAdminMembers()
 }
 async function loadAdminMembers() {
@@ -408,6 +425,18 @@ async function loadAdminMembers() {
     adminMemberLoading.value = false
   }
 }
+async function searchUsers(query) {
+  if (!query) { userOptions.value = []; return }
+  userSearching.value = true
+  try {
+    const data = await userList({ email: query, num: 1, size: 20, isDel: 0 })
+    userOptions.value = data.list || []
+  } catch (e) {
+    userOptions.value = []
+  } finally {
+    userSearching.value = false
+  }
+}
 async function adminKick(userId) {
   await adminKickMember(adminMemberAccountId.value, userId)
   await loadAdminMembers()
@@ -415,8 +444,9 @@ async function adminKick(userId) {
 }
 async function adminAssign() {
   if (!adminAssignUserId.value) return
-  await adminAssignMember(adminMemberAccountId.value, Number(adminAssignUserId.value))
+  await adminAssignMember(adminMemberAccountId.value, adminAssignUserId.value)
   adminAssignUserId.value = ''
+  userOptions.value = []
   await loadAdminMembers()
   await loadGlobalAccounts()
 }
@@ -535,5 +565,8 @@ async function deleteGlobalAccount(account) {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+}
+.admin-assign-select {
+  flex: 1;
 }
 </style>

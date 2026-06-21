@@ -343,6 +343,7 @@ const en = {
     remove: 'Remove',
     assignMember: 'Assign',
     enterUserId: 'Enter user ID',
+    selectUser: 'Search and select a user',
     smtpEnabled: 'Enable SMTP',
     smtpHost: 'SMTP Server',
     smtpPort: 'SMTP Port',
