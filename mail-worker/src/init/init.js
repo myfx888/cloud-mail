@@ -50,6 +50,7 @@ const dbInit = {
 			await this.v4_1DB(c);
 		await this.v4_2DB(c);
 		await this.v4_3DB(c);
+		await this.v4_4DB(c);
 		await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -396,6 +397,39 @@ const dbInit = {
 			}
 		} catch (e) {
 			console.warn('v4_3DB 迁移失败：', e.message);
+		}
+	},
+
+	async v4_4DB(c) {
+		try {
+			await c.env.db.prepare(`
+				CREATE TABLE IF NOT EXISTS backup_task (
+					task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					type TEXT NOT NULL,
+					status TEXT NOT NULL DEFAULT 'pending',
+					source_keys TEXT NOT NULL DEFAULT '[]',
+					result_key TEXT,
+					file_index INTEGER NOT NULL DEFAULT 0,
+					cursor INTEGER NOT NULL DEFAULT 0,
+					total INTEGER NOT NULL DEFAULT 0,
+					processed INTEGER NOT NULL DEFAULT 0,
+					skipped INTEGER NOT NULL DEFAULT 0,
+					failed INTEGER NOT NULL DEFAULT 0,
+					params TEXT NOT NULL DEFAULT '{}',
+					detail_log TEXT NOT NULL DEFAULT '[]',
+					create_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					update_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					expire_time TEXT
+				)
+			`).run();
+			await c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_backup_task_type_status ON backup_task(type, status)`).run();
+		} catch (e) {
+			console.warn(`backup_task 表：${e.message}`);
+		}
+		try {
+			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN backup_cron INTEGER NOT NULL DEFAULT 0;`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
 		}
 	},
 
