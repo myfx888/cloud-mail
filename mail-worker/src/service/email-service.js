@@ -148,10 +148,9 @@ const emailService = {
 	async delete(c, params, userId) {
 		const { emailIds } = params;
 		const emailIdList = emailIds.split(',').map(Number);
+		const visible = await memberService.getVisibleAccountIds(c, userId);
 		await orm(c).update(email).set({ isDel: isDel.DELETE }).where(
-			and(
-				eq(email.userId, userId),
-				inArray(email.emailId, emailIdList)))
+			and(inArray(email.emailId, emailIdList), inArray(email.accountId, visible)))
 			.run();
 	},
 
@@ -917,7 +916,8 @@ const emailService = {
 
 	async read(c, params, userId) {
 		const { emailIds } = params;
-		await orm(c).update(email).set({ unread: emailConst.unread.READ }).where(and(eq(email.userId, userId), inArray(email.emailId, emailIds)));
+		const visible = await memberService.getVisibleAccountIds(c, userId);
+		await orm(c).update(email).set({ unread: emailConst.unread.READ }).where(and(inArray(email.accountId, visible), inArray(email.emailId, emailIds)));
 	},
 
 	async claimHistoricalMails(c, emailAddress, userId, accountId) {
