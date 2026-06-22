@@ -1092,14 +1092,26 @@ const emailService = {
 			status = emailConst.status.RECEIVE;
 			toAddress = (parsed.to[0] && parsed.to[0].address) || '';
 		} else {
-			toAddress = opts.toAddress || (parsed.to[0] && parsed.to[0].address) || '';
-			if (toAddress) {
-				const acc = await accountService.selectByEmailIncludeDel(c, toAddress);
+			const recipients = [
+				...(opts.toAddress ? [{ address: opts.toAddress }] : []),
+				...(parsed.to || []),
+				...(parsed.cc || []),
+				...(parsed.bcc || [])
+			].map(r => r && r.address).filter(Boolean);
+			let matched = false;
+			for (const addr of recipients) {
+				const acc = await accountService.selectByEmailIncludeDel(c, addr);
 				if (acc && acc.isDel === isDel.NORMAL) {
 					accountId = acc.accountId;
 					userId = acc.userId;
 					status = emailConst.status.RECEIVE;
+					toAddress = addr;
+					matched = true;
+					break;
 				}
+			}
+			if (!matched) {
+				toAddress = recipients[0] || '';
 			}
 		}
 
