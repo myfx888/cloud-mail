@@ -343,7 +343,11 @@ const accountService = {
 	},
 
 	async insert(c, params) {
-		await orm(c).insert(account).values({ ...params }).returning();
+		const accountRow = await orm(c).insert(account).values({ ...params }).returning().get();
+		if (accountRow && params.userId) {
+			await orm(c).insert(accountMember).values({ accountId: accountRow.accountId, userId: params.userId }).run();
+		}
+		return accountRow;
 	},
 
 	async insertList(c, list) {

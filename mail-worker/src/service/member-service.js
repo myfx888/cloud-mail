@@ -28,9 +28,16 @@ const memberService = {
 	},
 
 	async getVisibleAccountIds(c, userId) {
-		const rows = await orm(c).select({ accountId: accountMember.accountId }).from(accountMember)
-			.where(eq(accountMember.userId, userId)).all();
-		return rows.map(r => r.accountId);
+		const [memberRows, ownedRows] = await Promise.all([
+			orm(c).select({ accountId: accountMember.accountId }).from(accountMember)
+				.where(eq(accountMember.userId, userId)).all(),
+			orm(c).select({ accountId: account.accountId }).from(account)
+				.where(and(eq(account.userId, userId), eq(account.isDel, isDel.NORMAL))).all()
+		]);
+		const idSet = new Set();
+		memberRows.forEach(r => idSet.add(r.accountId));
+		ownedRows.forEach(r => idSet.add(r.accountId));
+		return [...idSet];
 	},
 
 	async countUserMailboxes(c, userId) {
