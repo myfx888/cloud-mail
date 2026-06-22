@@ -943,13 +943,17 @@ const emailService = {
 	async claimHistoricalMails(c, emailAddress, userId, accountId) {
 		try {
 			// Find match NOONE emails
+			const addrPattern = `%"address":"${emailAddress}"%`;
 			const matchedEmails = await orm(c).select({ emailId: email.emailId })
 				.from(email)
 				.where(and(
 					eq(email.status, emailConst.status.NOONE),
 					eq(email.userId, 0),
 					eq(email.accountId, 0),
-					sql`LOWER(${email.toEmail}) = LOWER(${emailAddress})`
+					or(
+						sql`LOWER(${email.toEmail}) = LOWER(${emailAddress})`,
+						sql`LOWER(${email.recipient}) LIKE LOWER(${addrPattern})`
+					)
 				))
 				.all();
 
@@ -1084,48 +1088,51 @@ const emailService = {
 	},
 
 	async importSingleEmail(c, parsed, opts = {}) {
-		let toAddress = '';
-		let accountId = 0, userId = 0, status = emailConst.status.NOONE;
 		if (opts.forceAccount && opts.accountId) {
-			accountId = opts.accountId;
-			userId = opts.userId;
-			status = emailConst.status.RECEIVE;
-			toAddress = (parsed.to[0] && parsed.to[0].address) || '';
-		} else {
-			const recipients = [
-				...(opts.toAddress ? [{ address: opts.toAddress }] : []),
-				...(parsed.to || []),
-				...(parsed.cc || []),
-				...(parsed.bcc || [])
-			].map(r => r && r.address).filter(Boolean);
-			let matched = false;
-			for (const addr of recipients) {
-				const acc = await accountService.selectByEmailIncludeDel(c, addr);
-				if (acc && acc.isDel === isDel.NORMAL) {
-					accountId = acc.accountId;
-					userId = acc.userId;
-					status = emailConst.status.RECEIVE;
-					toAddress = addr;
-					matched = true;
-					break;
-				}
-			}
-			if (!matched) {
-				toAddress = recipients[0] || '';
+			const toAddress = (parsed.to[0] && parsed.to[0].address) || '';
+			const dup = await this.dedupExists(c, { messageId: parsed.messageId, sendEmail: parsed.from.address, toEmail: toAddress, subject: parsed.subject, accountId: opts.accountId });
+			if (dup) return { action: 'skipped', imported: 0, skipped: 1 };
+			await this._insertEmailCopy(c, parsed, { accountId: opts.accountId, userId: opts.userId, status: emailConst.status.RECEIVE, toAddress }, opts);
+			return { action: 'imported', imported: 1, skipped: 0 };
+		}
+
+		const recipients = [
+			...(opts.toAddress ? [{ address: opts.toAddress }] : []),
+			...(parsed.to || []),
+			...(parsed.cc || []),
+			...(parsed.bcc || [])
+		].map(r => r && r.address).filter(Boolean);
+
+		const systemAccounts = [];
+		const seen = new Set();
+		for (const addr of recipients) {
+			const acc = await accountService.selectByEmailIncludeDel(c, addr);
+			if (acc && acc.isDel === isDel.NORMAL && !seen.has(acc.accountId)) {
+				seen.add(acc.accountId);
+				systemAccounts.push({ accountId: acc.accountId, userId: acc.userId, toAddress: addr });
 			}
 		}
 
-		const dup = await this.dedupExists(c, {
-			messageId: parsed.messageId,
-			sendEmail: parsed.from.address,
-			toEmail: toAddress,
-			subject: parsed.subject,
-			accountId
-		});
-		if (dup) {
-			return { action: 'skipped' };
+		if (systemAccounts.length === 0) {
+			const toAddress = recipients[0] || '';
+			const dup = await this.dedupExists(c, { messageId: parsed.messageId, sendEmail: parsed.from.address, toEmail: toAddress, subject: parsed.subject, accountId: 0 });
+			if (dup) return { action: 'skipped', imported: 0, skipped: 1 };
+			await this._insertEmailCopy(c, parsed, { accountId: 0, userId: 0, status: emailConst.status.NOONE, toAddress }, opts);
+			return { action: 'imported', imported: 1, skipped: 0 };
 		}
 
+		let imported = 0, skipped = 0;
+		for (const sa of systemAccounts) {
+			const dup = await this.dedupExists(c, { messageId: parsed.messageId, sendEmail: parsed.from.address, toEmail: sa.toAddress, subject: parsed.subject, accountId: sa.accountId });
+			if (dup) { skipped++; continue; }
+			await this._insertEmailCopy(c, parsed, { accountId: sa.accountId, userId: sa.userId, status: emailConst.status.RECEIVE, toAddress: sa.toAddress }, opts);
+			imported++;
+		}
+		return { action: imported > 0 ? 'imported' : 'skipped', imported, skipped };
+	},
+
+	async _insertEmailCopy(c, parsed, routing, opts) {
+		const { accountId, userId, status, toAddress } = routing;
 		const cidAttachments = parsed.attachments.filter(a => a.contentId);
 		const emailValues = {
 			sendEmail: parsed.from.address,
@@ -1176,7 +1183,7 @@ const emailService = {
 		if (atts.length > 0) {
 			await attService.addAtt(c, atts.map(({ _content, ...rest }) => ({ ...rest, content: _content })));
 		}
-		return { action: 'imported', emailId: emailRow.emailId };
+		return emailRow.emailId;
 	},
 
 	async dedupExists(c, { messageId, sendEmail, toEmail, subject, accountId }) {

@@ -314,7 +314,7 @@ const backupService = {
 					raw = raw.replace(/^>From /gm, 'From ').replace(/\n>From /g, '\nFrom ');
 					const parsed = await parseEmailRaw(raw);
 					const res = await emailService.importSingleEmail(c, parsed, { r2Domain });
-					if (res.action === 'skipped') skipped++; else processed++;
+					processed += res.imported || 0; skipped += res.skipped || 0;
 				} catch (e) {
 					failed++;
 					await this.pushDetail(c, taskId, { file: key, reason: e.message });
@@ -334,7 +334,7 @@ const backupService = {
 				? await parseEmailRaw(emlObj.body)
 				: await parseEmailRaw(new Uint8Array(await emlObj.arrayBuffer()));
 			const res = await emailService.importSingleEmail(c, parsed, { r2Domain });
-			if (res.action === 'skipped') skipped++; else processed++;
+			processed += res.imported || 0; skipped += res.skipped || 0;
 		} catch (e) {
 			failed++;
 			await this.pushDetail(c, taskId, { file: key, reason: e.message });
