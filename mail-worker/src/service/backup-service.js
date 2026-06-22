@@ -253,17 +253,25 @@ const backupService = {
 			return await this.getTask(c, taskId);
 		}
 		const key = sourceKeys[cur.fileIndex];
-		const obj = await r2Service.getObj(c, key);
-		if (!obj) {
+		const { r2Domain } = await settingService.query(c);
+
+		// 读首块 512 字节检测类型（不全量读）
+		const headObj = await r2Service.getObjRange(c, key, 0, 512);
+		if (!headObj) {
 			await this.patchTask(c, taskId, { fileIndex: cur.fileIndex + 1, cursor: 0 });
 			return await this.getTask(c, taskId);
 		}
-		const ab = await obj.arrayBuffer();
-		const bytes = new Uint8Array(ab);
+		const headBytes = new Uint8Array(await headObj.arrayBuffer());
+		const headText = new TextDecoder().decode(headBytes);
+		const isTar = headBytes.length > 265 && new TextDecoder().decode(headBytes.slice(257, 262)) === 'ustar';
+		const isMbox = headText.startsWith('From ') || headText.includes('\nFrom ');
+		const isConfig = cur.cursor === 0 && headText.trim().startsWith('{') && headText.includes('"users"');
 
-		const isTar = bytes.length > 265 && new TextDecoder().decode(bytes.slice(257, 262)) === 'ustar';
+		let processed = cur.processed, skipped = cur.skipped, failed = cur.failed;
+
 		if (isTar) {
-			const entries = tarUtils.unpack(bytes);
+			const fullObj = await r2Service.getObj(c, key);
+			const entries = tarUtils.unpack(new Uint8Array(await fullObj.arrayBuffer()));
 			if (entries['config.json']) {
 				try { await this.restoreConfig(c, JSON.parse(entries['config.json']), taskId); }
 				catch (e) { await this.pushDetail(c, taskId, { file: key, reason: 'config: ' + e.message }); }
@@ -281,61 +289,58 @@ const backupService = {
 			return await this.getTask(c, taskId);
 		}
 
-		let text = new TextDecoder().decode(bytes);
-		if (text.startsWith('From ')) text = '\n' + text;
-		const { r2Domain } = await settingService.query(c);
-
-		let isBackupConfig = false;
-		if (cur.cursor === 0) {
-			const trimmed = text.trim();
-			if (trimmed.startsWith('{') && trimmed.includes('"users"') && trimmed.includes('"accounts"')) {
-				isBackupConfig = true;
-			}
-		}
-		if (isBackupConfig) {
-			try {
-				await this.restoreConfig(c, JSON.parse(text), taskId);
-			} catch (e) {
-				await this.pushDetail(c, taskId, { file: key, reason: 'config restore: ' + e.message });
-			}
+		if (isConfig) {
+			const fullObj = await r2Service.getObj(c, key);
+			try { await this.restoreConfig(c, JSON.parse(await fullObj.text()), taskId); }
+			catch (e) { await this.pushDetail(c, taskId, { file: key, reason: 'config restore: ' + e.message }); }
 			await this.patchTask(c, taskId, { cursor: 1 });
 			return await this.getTask(c, taskId);
 		}
 
-		let messages = [];
-		let nextCursor = 0;
-		let advanceFile = false;
-
-		if (text.includes('\nFrom ') || text.startsWith('From ')) {
-			const r = mboxUtils.splitNextBatch(text, cur.cursor, this.IMPORT_BATCH);
-			messages = r.messages;
-			nextCursor = r.nextCursor;
-			advanceFile = r.done;
-		} else {
-			messages = [text];
-			advanceFile = true;
-		}
-
-		let processed = cur.processed, skipped = cur.skipped, failed = cur.failed;
-		for (const raw of messages) {
-			try {
-				const parsed = await parseEmailRaw(raw);
-				const res = await emailService.importSingleEmail(c, parsed, { r2Domain });
-				if (res.action === 'skipped') skipped++; else processed++;
-			} catch (e) {
-				failed++;
-				await this.pushDetail(c, taskId, { file: key, reason: e.message });
+		if (isMbox) {
+			// 流式：每次 range 读 4MB chunk，字节级切分，不全量入内存
+			const READ_SIZE = 4 * 1024 * 1024;
+			const rangeObj = await r2Service.getObjRange(c, key, cur.cursor, READ_SIZE);
+			if (!rangeObj) {
+				await this.patchTask(c, taskId, { fileIndex: cur.fileIndex + 1, cursor: 0 });
+				return await this.getTask(c, taskId);
 			}
+			const chunk = new Uint8Array(await rangeObj.arrayBuffer());
+			const isEof = chunk.length < READ_SIZE;
+			const r = mboxUtils.findMessagesInBytes(chunk, cur.cursor, this.IMPORT_BATCH, isEof);
+			for (const msgBytes of r.messages) {
+				try {
+					let raw = new TextDecoder().decode(msgBytes);
+					raw = raw.replace(/^>From /gm, 'From ').replace(/\n>From /g, '\nFrom ');
+					const parsed = await parseEmailRaw(raw);
+					const res = await emailService.importSingleEmail(c, parsed, { r2Domain });
+					if (res.action === 'skipped') skipped++; else processed++;
+				} catch (e) {
+					failed++;
+					await this.pushDetail(c, taskId, { file: key, reason: e.message });
+				}
+			}
+			const patch = { processed, skipped, failed };
+			if (r.done) { patch.fileIndex = cur.fileIndex + 1; patch.cursor = 0; }
+			else { patch.cursor = r.nextCursor; }
+			await this.patchTask(c, taskId, patch);
+			return await this.getTask(c, taskId);
 		}
 
-		const patch = { processed, skipped, failed };
-		if (advanceFile) {
-			patch.fileIndex = cur.fileIndex + 1;
-			patch.cursor = 0;
-		} else {
-			patch.cursor = nextCursor;
+		// EML 单封：R2 走 postal-mime 流式（obj.body），S3/KV 全量读
+		const emlObj = await r2Service.getObj(c, key);
+		try {
+			const parsed = emlObj.body
+				? await parseEmailRaw(emlObj.body)
+				: await parseEmailRaw(new Uint8Array(await emlObj.arrayBuffer()));
+			const res = await emailService.importSingleEmail(c, parsed, { r2Domain });
+			if (res.action === 'skipped') skipped++; else processed++;
+		} catch (e) {
+			failed++;
+			await this.pushDetail(c, taskId, { file: key, reason: e.message });
 		}
-		await this.patchTask(c, taskId, patch);
+		try { await r2Service.delete(c, key); } catch (_) {}
+		await this.patchTask(c, taskId, { fileIndex: cur.fileIndex + 1, cursor: 0, processed, skipped, failed });
 		return await this.getTask(c, taskId);
 	},
 

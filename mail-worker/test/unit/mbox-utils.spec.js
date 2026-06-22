@@ -46,4 +46,28 @@ describe('mbox-utils', () => {
 		expect(r.messages[0]).toContain('Subject: 1');
 		expect(r.messages[1]).toContain('Subject: 2');
 	});
+
+	it('findMessagesInBytes 切出邮件并推进字节游标（eof）', () => {
+		let mbox = mboxUtils.appendEntry('', 'Subject: 1\n\nbody1');
+		mbox = mboxUtils.appendEntry(mbox, 'Subject: 2\n\nbody2');
+		const bytes = new TextEncoder().encode(mbox);
+		const r = mboxUtils.findMessagesInBytes(bytes, 0, 10, true);
+		expect(r.messages.length).toBe(2);
+		expect(new TextDecoder().decode(r.messages[0])).toContain('Subject: 1');
+		expect(new TextDecoder().decode(r.messages[1])).toContain('Subject: 2');
+		expect(r.done).toBe(true);
+	});
+
+	it('findMessagesInBytes 非 eof 时最后一封留游标（跨块累积）', () => {
+		let mbox = mboxUtils.appendEntry('', 'Subject: 1\n\nbody1');
+		mbox = mboxUtils.appendEntry(mbox, 'Subject: 2\n\nbody2');
+		const bytes = new TextEncoder().encode(mbox);
+		const r = mboxUtils.findMessagesInBytes(bytes, 0, 10, false);
+		expect(r.messages.length).toBe(1);
+		expect(r.done).toBe(false);
+		expect(r.nextCursor).toBeGreaterThan(0);
+		const r2 = mboxUtils.findMessagesInBytes(bytes.slice(r.nextCursor), r.nextCursor, 10, true);
+		expect(r2.messages.length).toBe(1);
+		expect(new TextDecoder().decode(r2.messages[0])).toContain('Subject: 2');
+	});
 });

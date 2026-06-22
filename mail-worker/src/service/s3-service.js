@@ -88,6 +88,19 @@ const s3Service = {
 		};
 	},
 
+	async getObjRange(c, key, offset, length) {
+		const client = await this.client(c);
+		const { bucket } = await settingService.query(c);
+		const end = offset + length - 1;
+		const resp = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=${offset}-${end}` }));
+		if (!resp || !resp.Body) return null;
+		const buf = await resp.Body.transformToByteArray();
+		return {
+			arrayBuffer: async () => buf,
+			text: async () => new TextDecoder().decode(buf)
+		};
+	},
+
 	async client(c) {
 		const { region, endpoint, s3AccessKey, s3SecretKey, forcePathStyle } = await settingService.query(c);
 		return new S3Client({

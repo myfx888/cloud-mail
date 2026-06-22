@@ -43,6 +43,34 @@ const mboxUtils = {
 			from = idx + 1;
 		}
 		return count;
+	},
+
+	findMessagesInBytes(bytes, startOffset, maxCount, isEof) {
+		const SEP = [0x0a, 0x46, 0x72, 0x6f, 0x6d, 0x20];
+		const positions = [];
+		for (let i = 0; i <= bytes.length - SEP.length; i++) {
+			let m = true;
+			for (let j = 0; j < SEP.length; j++) {
+				if (bytes[i + j] !== SEP[j]) { m = false; break; }
+			}
+			if (m) positions.push(i);
+		}
+		const messages = [];
+		if (positions.length === 0) {
+			return { messages, nextCursor: startOffset + bytes.length, done: isEof };
+		}
+		for (let i = 0; i < positions.length - 1 && messages.length < maxCount; i++) {
+			messages.push(bytes.slice(positions[i] + 1, positions[i + 1]));
+		}
+		const lastPos = positions[positions.length - 1];
+		if (isEof) {
+			if (messages.length < maxCount) {
+				const last = bytes.slice(lastPos + 1);
+				if (last.length > 0) messages.push(last);
+			}
+			return { messages, nextCursor: startOffset + bytes.length, done: true };
+		}
+		return { messages, nextCursor: startOffset + lastPos, done: false };
 	}
 };
 

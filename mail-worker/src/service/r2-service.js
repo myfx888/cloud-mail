@@ -51,6 +51,17 @@ const r2Service = {
 		return await c.env.r2.get(key);
 	},
 
+	async getObjRange(c, key, offset, length) {
+		const storageType = await this.storageType(c);
+		if (storageType === 'R2') {
+			return await c.env.r2.get(key, { range: { offset, length } });
+		}
+		if (storageType === 'S3') {
+			return await s3Service.getObjRange(c, key, offset, length);
+		}
+		return await kvObjService.getObj(c, key);
+	},
+
 	async delete(c, key) {
 
 		const storageType = await this.storageType(c);
