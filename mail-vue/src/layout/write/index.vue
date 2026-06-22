@@ -605,7 +605,7 @@ function openForward(email) {
       <br>
       ${formatImage(email.content) || `<pre style="font-family: inherit;word-break: break-word;white-space: pre-wrap;margin: 0">${email.text}</pre>`}
     `
-    await open()
+    await open(resolveFromAccount(email))
 
     nextTick(() => {
       backReply.content = editor.value.getContent()
@@ -647,7 +647,7 @@ function openReply(email, preContent) {
           ${formatImage(email.content) || `<pre style="font-family: inherit;word-break: break-word;white-space: pre-wrap;margin: 0">${email.text}</pre>`}
       </article>
     </blockquote>`
-    await open()
+    await open(resolveFromAccount(email))
 
     nextTick(() => {
       backReply.content = editor.value.getContent()
@@ -669,16 +669,34 @@ function formatImage(content) {
   return content.replace(/{{domain}}/g, toOssDomain(domain) + '/');
 }
 
-async function open() {
-  if (!accountStore.currentAccount.email) {
-    form.sendEmail = userStore.user.email;
-    form.accountId = userStore.user.account.accountId;
-    form.name = userStore.user.name;
-  } else {
-    form.sendEmail = accountStore.currentAccount.email;
-    form.accountId = accountStore.currentAccount.accountId;
-    form.name = accountStore.currentAccount.name;
+function resolveFromAccount(email) {
+  if (!email || !email.accountId) return null
+  const matched = accountStore.accounts.find(a => a.accountId === email.accountId)
+  if (matched?.email) {
+    return { email: matched.email, accountId: matched.accountId, name: matched.name }
   }
+  if (email.toEmail) {
+    return { email: email.toEmail, accountId: email.accountId, name: email.toName || email.toEmail }
+  }
+  return null
+}
+
+async function open(fromAccount) {
+  let senderAccount = fromAccount
+  if (!senderAccount) {
+    if (!accountStore.currentAccount.email) {
+      senderAccount = {
+        email: userStore.user.email,
+        accountId: userStore.user.account.accountId,
+        name: userStore.user.name
+      }
+    } else {
+      senderAccount = accountStore.currentAccount
+    }
+  }
+  form.sendEmail = senderAccount.email;
+  form.accountId = senderAccount.accountId;
+  form.name = senderAccount.name;
   show.value = true;
   
   // 获取当前账户的签名列表和SMTP账户列表
