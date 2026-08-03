@@ -29,8 +29,9 @@ import r2Service from './r2-service';
 import constant from '../const/constant';
 import fileUtils from '../utils/file-utils';
 
-// 列表接口专用字段集：排除沉重的 content 和 text（移至 /email/content/:id 单独取）
-const { content: _c, text: _t, ...emailListFields } = email;
+// 列表接口专用字段集：排除沉重的 content（HTML 正文移至 /email/content/:id 单独取）
+// 保留 text（纯文本，体积小，列表摘要预览需要）
+const { content: _c, ...emailListFields } = email;
 
 const emailService = {
 
