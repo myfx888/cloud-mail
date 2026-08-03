@@ -249,6 +249,9 @@ const accountService = {
 			lastSort = 9999999999;
 		}
 
+		// 主邮箱（account.email === 登录用户邮箱）永远排第一，置顶 sort 也无法超越
+		const isPrimary = sql`CASE WHEN ${account.email} = ${userContext.getUser(c).email} THEN 1 ELSE 0 END`;
+
 		const rows = await orm(c).select({ account: account })
 			.from(account)
 			.innerJoin(accountMember, eq(accountMember.accountId, account.accountId))
@@ -264,7 +267,7 @@ const accountService = {
 						)
 					))
 				)
-			.orderBy(desc(account.sort), asc(account.accountId))
+			.orderBy(desc(isPrimary), desc(account.sort), asc(account.accountId))
 			.limit(size)
 			.all();
 		return rows.map(row => row.account);
