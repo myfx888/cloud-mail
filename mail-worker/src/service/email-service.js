@@ -673,6 +673,27 @@ const emailService = {
 		return list;
 	},
 
+	// 获取单封邮件正文（content + text），用于列表/正文分离后的按需加载
+	// 正文不可变，调用方负责设长缓存头
+	async getContent(c, emailId, userId) {
+		const row = await orm(c).select({
+			content: email.content,
+			text: email.text,
+			accountId: email.accountId,
+			isDel: email.isDel
+		}).from(email).where(eq(email.emailId, emailId)).get();
+
+		// 不存在或逻辑删除 → 对前端等同于不存在
+		if (!row || row.isDel === isDel.DELETE) {
+			throw new BizError(t('notExistEmail'), 404);
+		}
+
+		// 鉴权：校验该用户有权访问此邮件所属邮箱（覆盖个人邮箱 + 共享邮箱）
+		await memberService.assertMember(c, row.accountId, userId);
+
+		return { content: row.content || '', text: row.text || '' };
+	},
+
 	async physicsDelete(c, params) {
 		let { emailIds } = params;
 		emailIds = emailIds.split(',').map(Number);
