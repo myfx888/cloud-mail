@@ -505,6 +505,12 @@ const zh = {
     confirmDeleteBackup: '确定删除该备份？',
     backupFileCount: '文件数',
     createdAt: '生成时间',
-    ops: '操作'
+    ops: '操作',
+    rawDataTitle: '邮件原始数据',
+    rawMetadata: '元数据',
+    rawBodySource: '正文源码',
+    copyAll: '复制全部',
+    copySuccess: '已复制到剪贴板',
+    copyFailed: '复制失败'
 }
 export default zh

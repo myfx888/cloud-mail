@@ -504,6 +504,12 @@ const en = {
     confirmDeleteBackup: 'Delete this backup?',
     backupFileCount: 'Files',
     createdAt: 'Created',
-    ops: 'Actions'
+    ops: 'Actions',
+    rawDataTitle: 'Raw Email Data',
+    rawMetadata: 'Metadata',
+    rawBodySource: 'Body Source',
+    copyAll: 'Copy All',
+    copySuccess: 'Copied to clipboard',
+    copyFailed: 'Copy failed'
 }
 export default en
