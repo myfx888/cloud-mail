@@ -53,9 +53,15 @@
             <el-alert v-if="email.status === 5" :closable="false" :title="$t('delayed')" class="email-msg" type="warning" show-icon />
           </div>
           <el-scrollbar class="htm-scrollbar" :class="attList.length === 0 ? 'bottom-distance' : ''">
-            <ShadowHtml class="shadow-html" :html="formatImage(email.content)" v-if="hasDisplayableHtml(email.content)" />
-            <pre v-else-if="email.text" class="email-text" >{{email.text}}</pre>
-            <div v-else class="no-content">{{ $t('noContent') }}</div>
+            <div v-if="bodyLoading" class="no-content">{{ $t('loading') }}</div>
+            <div v-else-if="bodyError" class="no-content" @click="loadEmailBody" style="cursor:pointer">
+              {{ $t('loadFailed') }}
+            </div>
+            <template v-else>
+              <ShadowHtml class="shadow-html" :html="formatImage(emailBody.content)" v-if="hasDisplayableHtml(emailBody.content)" />
+              <pre v-else-if="emailBody.text" class="email-text" >{{emailBody.text}}</pre>
+              <div v-else class="no-content">{{ $t('noContent') }}</div>
+            </template>
           </el-scrollbar>
           <div class="att" v-if="attList.length > 0">
             <div class="att-title">
@@ -124,6 +130,30 @@ const email = emailStore.contentData.email
 const attList = computed(() => email.attList || [])
 const showPreview = ref(false)
 const srcList = reactive([])
+
+// 正文按需加载：email 对象不再含 content/text，从 store 按需取
+const emailBody = ref({ content: '', text: '' });
+const bodyLoading = ref(false);
+const bodyError = ref(false);
+
+async function loadEmailBody() {
+  if (!email?.emailId) return;
+  bodyLoading.value = true;
+  bodyError.value = false;
+  try {
+    emailBody.value = await emailStore.loadContent(email.emailId);
+  } catch (e) {
+    console.error('load email body failed:', e);
+    bodyError.value = true;
+  } finally {
+    bodyLoading.value = false;
+  }
+}
+
+// email 变化时重新加载（从不同邮件跳转过来时）
+watch(() => emailStore.contentData.email?.emailId, () => {
+  loadEmailBody();
+}, { immediate: true });
 
 const { t } = useI18n()
 watch(() => accountStore.currentAccountId, () => {
