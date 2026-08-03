@@ -10,6 +10,7 @@
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openReply" icon="la:reply" width="21" height="21" />
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openForward" icon="iconoir:arrow-up-right" width="20" height="20" />
       <Icon class="icon" @click="exportEmail" icon="material-symbols-light:download" width="20" height="20" />
+      <Icon class="icon" @click="showRawDialog = true" icon="mdi:code-tags" width="20" height="20" :title="$t('rawDataTitle')" />
       <template v-if="settingStore.settings.aiEnabled">
         <span class="ai-divider"></span>
         <Icon class="icon ai-icon" icon="mdi:text-box-search-outline" width="18" height="18" @click="quickSummary" :title="$t('aiQuickSummary')" />
@@ -96,6 +97,20 @@
         show-progress
         @close="showPreview = false"
     />
+    <el-dialog v-model="showRawDialog" :title="$t('rawDataTitle')" width="min(800px, 90vw)" class="raw-dialog">
+      <div class="raw-toolbar">
+        <el-button size="small" @click="copyRawAll">{{ $t('copyAll') }}</el-button>
+      </div>
+      <el-tabs>
+        <el-tab-pane :label="$t('rawMetadata')">
+          <pre class="raw-pre">{{ JSON.stringify(email, null, 2) }}</pre>
+        </el-tab-pane>
+        <el-tab-pane :label="$t('rawBodySource')">
+          <div v-if="bodyLoading" class="no-content">{{ $t('loading') }}</div>
+          <pre v-else class="raw-pre">{{ emailBody.content }}</pre>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </div>
 </template>
 <script setup>
@@ -128,6 +143,7 @@ const router = useRouter()
 const aiStore = useAiStore()
 const email = emailStore.contentData.email
 const attList = computed(() => email.attList || [])
+const showRawDialog = ref(false)
 const showPreview = ref(false)
 const srcList = reactive([])
 
@@ -306,6 +322,16 @@ const handleDelete = () => {
 const exportEmail = () => {
   // 调用导出 API，下载 .eml 文件
   window.location.href = `/api/email/export?emailId=${email.emailId}`
+}
+
+async function copyRawAll() {
+  const payload = JSON.stringify({ metadata: email, body: emailBody.value }, null, 2)
+  try {
+    await navigator.clipboard.writeText(payload)
+    ElMessage.success(t('copySuccess'))
+  } catch (e) {
+    ElMessage.error(t('copyFailed'))
+  }
 }
 </script>
 <style scoped lang="scss">
@@ -550,6 +576,26 @@ const exportEmail = () => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+:deep(.raw-dialog) {
+  .raw-toolbar {
+    margin-bottom: 12px;
+  }
+  .raw-pre {
+    background: var(--el-fill-color-dark);
+    color: var(--el-color-success);
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    max-height: 60vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+  }
 }
 
 </style>
