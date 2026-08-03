@@ -19,6 +19,7 @@ import smtpAccount from '../entity/smtp-account';
 import accountMember from '../entity/account-member';
 import accountMemberSignature from '../entity/account-member-signature';
 import memberService from './member-service';
+import userContext from '../security/user-context';
 
 const accountService = {
 
@@ -139,7 +140,8 @@ const accountService = {
 
 		if (accountRow) {
 			// 邮箱已存在 → create-or-share 的「共享」分支
-			return await memberService.join(c, accountRow.accountId, userId);
+			// admin 加入已存在邮箱时跳过 mailbox:share 权限校验，与 /admin/mailbox 路由一致
+			return await memberService.join(c, accountRow.accountId, userId, userContext.isAdmin(c));
 		}
 
 		const userRow = await userService.selectById(c, userId);

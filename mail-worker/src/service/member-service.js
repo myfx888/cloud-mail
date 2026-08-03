@@ -7,6 +7,7 @@ import BizError from '../error/biz-error';
 import { t } from '../i18n/i18n';
 import { isDel } from '../const/entity-const';
 import permService from './perm-service';
+import userContext from '../security/user-context';
 
 const memberService = {
 
@@ -40,6 +41,10 @@ const memberService = {
 	},
 
 	async hasPerm(c, userId, permKey) {
+		// admin 全权：与 security.js 中间件豁免、loginUserInfo 返回 ['*'] 保持一致
+		if (userContext.isAdmin(c)) {
+			return true;
+		}
 		const keys = await permService.userPermKeys(c, userId);
 		return keys.includes(permKey);
 	},
