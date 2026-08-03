@@ -34,6 +34,15 @@ const memberService = {
 		return rows.map(r => r.accountId);
 	},
 
+	// allReceive 聚合视图专用：只返回该用户作为「创建者」的邮箱（account.userId），
+	// 不含仅以「成员」身份加入的共享邮箱。否则管理员加入大量共享邮箱后开启聚合，
+	// 会看到别人邮箱地址的邮件。
+	async getOwnedAccountIds(c, userId) {
+		const rows = await orm(c).select({ accountId: account.accountId }).from(account)
+			.where(and(eq(account.userId, userId), eq(account.isDel, isDel.NORMAL))).all();
+		return rows.map(r => r.accountId);
+	},
+
 	async countUserMailboxes(c, userId) {
 		const { num } = await orm(c).select({ num: count() }).from(accountMember)
 			.where(eq(accountMember.userId, userId)).get();

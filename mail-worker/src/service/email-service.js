@@ -68,7 +68,8 @@ const emailService = {
 		// 共享邮箱：访问控制按成员身份
 		let visible = [];
 		if (allReceive) {
-			visible = await memberService.getVisibleAccountIds(c, userId);
+			// 聚合视图只含该用户创建的邮箱，不含仅作为成员加入的共享邮箱
+			visible = await memberService.getOwnedAccountIds(c, userId);
 		} else {
 			await memberService.assertMember(c, accountId, userId);
 		}
@@ -647,7 +648,8 @@ const emailService = {
 
 		let visible = [];
 		if (allReceive) {
-			visible = await memberService.getVisibleAccountIds(c, userId);
+			// 聚合视图只含该用户创建的邮箱，不含仅作为成员加入的共享邮箱
+			visible = await memberService.getOwnedAccountIds(c, userId);
 		} else {
 			await memberService.assertMember(c, accountId, userId);
 		}
