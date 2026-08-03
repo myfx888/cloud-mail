@@ -32,7 +32,8 @@ export const useEmailStore = defineStore('email', {
             }
             // 发起请求并存 Promise，完成后替换为实际数据
             const promise = emailContent(id).then(res => {
-                const data = res?.data || { content: '', text: '' };
+                // axios 拦截器已解包：res 即 { content, text }，无需再取 .data
+                const data = res || { content: '', text: '' };
                 this.contentMap[id] = data;
                 return data;
             }).catch(e => {
