@@ -29,6 +29,9 @@ import r2Service from './r2-service';
 import constant from '../const/constant';
 import fileUtils from '../utils/file-utils';
 
+// 列表接口专用字段集：排除沉重的 content 和 text（移至 /email/content/:id 单独取）
+const { content: _c, text: _t, ...emailListFields } = email;
+
 const emailService = {
 
 	async list(c, params, userId) {
@@ -73,7 +76,7 @@ const emailService = {
 
 		const query = orm(c)
 			.select({
-				...email,
+				...emailListFields,
 				starId: star.starId
 			})
 			.from(email)
@@ -116,7 +119,7 @@ const emailService = {
 				)
 		).get();
 
-		const latestEmailQuery = orm(c).select({...email}).from(email)
+		const latestEmailQuery = orm(c).select({...emailListFields}).from(email)
 			.leftJoin(
 				account,
 				eq(account.accountId, email.accountId)
@@ -649,7 +652,7 @@ const emailService = {
 		}
 		const accountCond = allReceive ? inArray(email.accountId, visible) : eq(email.accountId, accountId);
 
-		let list = await orm(c).select({...email}).from(email)
+		let list = await orm(c).select({...emailListFields}).from(email)
 			.leftJoin(
 				account,
 				eq(account.accountId, email.accountId)
@@ -780,7 +783,7 @@ const emailService = {
 			conditions.unshift(lt(email.emailId, emailId));
 		}
 
-		const query = orm(c).select({ ...email, userEmail: user.email })
+		const query = orm(c).select({ ...emailListFields, userEmail: user.email })
 			.from(email)
 			.leftJoin(user, eq(email.userId, user.userId))
 			.where(and(...conditions));
@@ -824,7 +827,7 @@ const emailService = {
 
 		const { emailId } = params;
 
-		let list = await orm(c).select({...email, userEmail: user.email}).from(email)
+		let list = await orm(c).select({...emailListFields, userEmail: user.email}).from(email)
 			.leftJoin(user, eq(email.userId, user.userId))
 			.leftJoin(account, eq(email.accountId, account.accountId))
 			.where(
