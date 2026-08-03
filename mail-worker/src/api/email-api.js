@@ -3,6 +3,7 @@ import emailService from '../service/email-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 import attService from '../service/att-service';
+import { longCacheHeaders, noStoreHeaders } from '../middleware/cache-headers';
 
 app.get('/email/list', async (c) => {
 	const data = await emailService.list(c, c.req.query(), userContext.getUserId(c));
@@ -51,5 +52,21 @@ app.post('/email/import', async (c) => {
 	const { emlContent, accountId } = await c.req.json();
 	const email = await emailService.importEmail(c, emlContent, userContext.getUserId(c), Number(accountId));
 	return c.json(result.ok(email));
+})
+
+// 单封邮件正文（content + text），长缓存（7天 immutable）
+// noCache 中间件已对 /email/content/ 放行，此处自行设长缓存头
+app.get('/email/content/:emailId', async (c) => {
+	const emailId = Number(c.req.param('emailId'));
+	const userId = userContext.getUserId(c);
+	try {
+		const data = await emailService.getContent(c, emailId, userId);
+		longCacheHeaders(c);
+		return c.json(result.ok(data));
+	} catch (e) {
+		// 404/403 错误不缓存（避免错误响应被边缘缓存）
+		noStoreHeaders(c);
+		throw e;
+	}
 })
 
