@@ -36,7 +36,7 @@ const kvObjService = {
 			headers: {
 				'Content-Type': obj.metadata?.contentType || 'application/octet-stream',
 				'Content-Disposition': obj.metadata?.contentDisposition || null,
-				'Cache-Control': obj.metadata?.cacheControl || null
+				'Cache-Control': obj.metadata?.cacheControl || 'public, max-age=604800, immutable'
 			}
 		});
 

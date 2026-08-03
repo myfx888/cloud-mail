@@ -1,9 +1,11 @@
 import r2Service from '../service/r2-service';
 import app from '../hono/hono';
+import { longCacheHeaders } from '../middleware/cache-headers';
 
 app.get('/oss/*', async (c) => {
 	const key = c.req.path.split('/oss/')[1];
 	const obj = await r2Service.getObj(c, key);
+	longCacheHeaders(c);
 	return new Response(obj.body, {
 		headers: {
 			'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream',
