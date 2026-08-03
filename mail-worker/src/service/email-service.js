@@ -10,6 +10,7 @@ import BizError from '../error/biz-error';
 import emailUtils from '../utils/email-utils';
 import { Resend } from 'resend';
 import attService from './att-service';
+import userContext from '../security/user-context';
 import { parseHTML } from 'linkedom';
 import userService from './user-service';
 import roleService from './role-service';
@@ -34,6 +35,14 @@ import fileUtils from '../utils/file-utils';
 const { content: _c, ...emailListFields } = email;
 
 const emailService = {
+
+	// 判断 accountId 是否为当前登录用户的主邮箱（account.email === 用户注册邮箱）
+	// allReceive 聚合只允许在主邮箱生效，避免在共享/副邮箱上误触发聚合
+	async isPrimaryAccount(c, accountId) {
+		const accountRow = await accountService.selectById(c, accountId);
+		if (!accountRow) return false;
+		return accountRow.email === userContext.getUser(c).email;
+	},
 
 	async list(c, params, userId) {
 
@@ -63,6 +72,11 @@ const emailService = {
 		if (isNaN(allReceive)) {
 			let accountRow = await accountService.selectById(c, accountId);
 			allReceive = accountRow.allReceive;
+		}
+		// allReceive 聚合只允许在主邮箱（account.email === 登录用户邮箱）生效；
+		// 共享邮箱/副邮箱即便 all_receive=1 也只显示自身邮件
+		if (allReceive && !await this.isPrimaryAccount(c, accountId)) {
+			allReceive = 0;
 		}
 
 		// 共享邮箱：访问控制按成员身份
@@ -644,6 +658,10 @@ const emailService = {
 		if (isNaN(allReceive)) {
 			let accountRow = await accountService.selectById(c, accountId);
 			allReceive = accountRow.allReceive;
+		}
+		// allReceive 聚合只允许在主邮箱生效（见 list 同名约束）
+		if (allReceive && !await this.isPrimaryAccount(c, accountId)) {
+			allReceive = 0;
 		}
 
 		let visible = [];
