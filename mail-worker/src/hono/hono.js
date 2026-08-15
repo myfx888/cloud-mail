@@ -7,15 +7,11 @@ import { noCacheHeaders } from '../middleware/cache-headers';
 
 app.use('*', cors());
 
-// 动态 email 路由永不缓存（浏览器 + EdgeOne 双头）
-// 正文路由 /email/content/ 走长缓存，在路由内自行设头并豁免此处
-app.use('/email/*', async (c, next) => {
-	if (c.req.path.startsWith('/email/content/')) {
-		return next();
-	}
-	return noCacheHeaders(c, next);
-});
-app.use('/allEmail/*', noCacheHeaders);
+// 所有 API 响应默认不缓存（浏览器 + EdgeOne 双头），覆盖全部动态接口
+// （email/allEmail/setting/account/user/star/analysis/role 等 23 个前缀）
+// 需要缓存的路由（/email/content/*、/oss/*、telegram 头像）在 handler 内
+// 用 longCacheHeaders/c.header 覆盖这两个头（Hono 后设的头覆盖先设的）
+app.use('*', noCacheHeaders);
 
 app.onError((err, c) => {
 	if (err.name === 'BizError') {

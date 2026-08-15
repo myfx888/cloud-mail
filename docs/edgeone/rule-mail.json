@@ -34,7 +34,7 @@
             {
               "Branches": [
                 {
-                  "Condition": "${http.request.uri.path} matches '^/email/content/'",
+                  "Condition": "${http.request.uri.path} matches '^/api/email/content/'",
                   "Actions": [
                     {
                       "Name": "Cache",
@@ -49,7 +49,7 @@
                   ]
                 },
                 {
-                  "Condition": "${http.request.uri.path} matches '^/(static|attachments|oss)/'",
+                  "Condition": "${http.request.uri.path} matches '^/(static/|attachments/|api/oss/)'",
                   "Actions": [
                     {
                       "Name": "Cache",
@@ -64,7 +64,50 @@
                   ]
                 },
                 {
-                  "Condition": "${http.request.uri.path} matches '^/(email|allEmail)/'",
+                  "Condition": "${http.request.uri.path} matches '^/assets/'",
+                  "Actions": [
+                    {
+                      "Name": "Cache",
+                      "CacheParameters": {
+                        "CustomTime": {
+                          "Switch": "on",
+                          "IgnoreCacheControl": "off",
+                          "CacheTime": 31556952
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "Condition": "${http.request.uri.path} matches '^/(tinymce|image)/'",
+                  "Actions": [
+                    {
+                      "Name": "Cache",
+                      "CacheParameters": {
+                        "CustomTime": {
+                          "Switch": "on",
+                          "IgnoreCacheControl": "off",
+                          "CacheTime": 604800
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "Condition": "${http.request.uri.path} matches '^/(|index.html|sw.js|manifest.webmanifest)$'",
+                  "Actions": [
+                    {
+                      "Name": "Cache",
+                      "CacheParameters": {
+                        "NoCache": {
+                          "Switch": "on"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "Condition": "${http.request.uri.path} matches '^/api/'",
                   "Actions": [
                     {
                       "Name": "Cache",
@@ -80,17 +123,22 @@
                 }
               ],
               "Description": [
-                "正文 /email/content/ 缓存7天; 附件 static/attachments/oss 缓存7天; 动态 email/allEmail 接口不缓存(每次回源)"
+                "正文 /api/email/content/ 缓存7天; 附件 static|attachments|api/oss 缓存7天;",
+                "hash静态资源 /assets/ 缓存1年; tinymce/image 缓存7天;",
+                "入口HTML/SW/manifest 不缓存(发版即生效); 其余 /api/* 动态接口每次回源保实时"
               ]
             }
           ]
         }
       ],
       "Description": [
-        "邮件系统缓存规则(参照 portal rule-compass.json 格式,2026-08-03)",
+        "邮件系统缓存规则 v2(2026-08-15 复查修订)",
+        "【重要】v1 的路径规则 ^/email/content/ 是错的——EdgeOne 在 CDN 层看到的是浏览器原始 URL，",
+        "axios baseURL='/api'，真实路径带 /api 前缀(如 /api/email/content/1)，Worker 内部才剥前缀。",
+        "v2 全部改为带 /api 的真实路径，并补齐静态资源与入口页规则。",
         "【部署前必做】将 mail.example.com 替换为线上真实访问域名",
-        "原理: 正文/附件是不可变内容(内容寻址),边缘长缓存7天; 列表/最新邮件是动态数据,每次回源保实时",
-        "源站配合: Worker 已对动态路由发 Cache-Control:no-store + cdn-cache-control:no-store 双头,本规则是CDN层双保险",
+        "原理: 正文/附件是不可变内容(内容寻址),边缘长缓存; 动态API每次回源保实时; HTML/SW不缓存防发版白屏",
+        "源站配合: Worker 已全局对 API 注入 Cache-Control:no-store + cdn-cache-control:no-store 双头,本规则是CDN层双保险",
         "CacheKey: 忽略 QueryString(正文/附件按路径缓存),全URL缓存,忽略大小写",
         "实测方法: curl -I <域名>/api/email/content/1 -H 'token: <JWT>' 观察响应头 EO-Cache-Status(首次MISS,二次HIT)"
       ]
