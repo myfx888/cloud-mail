@@ -4,6 +4,7 @@ const app = new Hono();
 import result from '../model/result';
 import { cors } from 'hono/cors';
 import { noCacheHeaders } from '../middleware/cache-headers';
+import { mapRuntimeError } from '../utils/error-mapper';
 
 app.use('*', cors());
 
@@ -20,16 +21,11 @@ app.onError((err, c) => {
 		console.error(err);
 	}
 
-	if (err.message === `Cannot read properties of undefined (reading 'get')`) {
-		return c.json(result.fail('KV数据库未绑定 KV database not bound',502));
-	}
-
-	if (err.message === `Cannot read properties of undefined (reading 'put')`) {
-		return c.json(result.fail('KV数据库未绑定 KV database not bound',502));
-	}
-
-	if (err.message === `Cannot read properties of undefined (reading 'prepare')`) {
-		return c.json(result.fail('D1数据库未绑定 D1 database not bound',502));
+	// TypeError（读 undefined 属性等）：如实报告原始错误 + 实际缺失的绑定清单，
+	// 不再猜测归属（详见 utils/error-mapper.js 注释）
+	const runtime = mapRuntimeError(err, c.env);
+	if (runtime) {
+		return c.json(result.fail(runtime.message, runtime.code));
 	}
 
 	return c.json(result.fail(err.message, err.code));
