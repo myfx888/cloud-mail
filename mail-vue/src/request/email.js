@@ -32,3 +32,7 @@ export function emailSend(form,progress) {
 export function emailContent(emailId) {
     return http.get(`/email/content/${emailId}`)
 }
+
+export function emailExport(emailId) {
+    return http.get('/email/export', {params: {emailId}, responseType: 'blob'})
+}

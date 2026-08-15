@@ -118,7 +118,7 @@ import ShadowHtml from '@/components/shadow-html/index.vue'
 import {computed, reactive, ref, watch, onMounted, onUnmounted} from "vue";
 import {useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
-import {emailDelete, emailRead} from "@/request/email.js";
+import {emailDelete, emailRead, emailExport} from "@/request/email.js";
 import {Icon} from "@iconify/vue";
 import {useEmailStore} from "@/store/email.js";
 import {useAccountStore} from "@/store/account.js";
@@ -319,9 +319,26 @@ const handleDelete = () => {
   })
 }
 
-const exportEmail = () => {
-  // 调用导出 API，下载 .eml 文件
-  window.location.href = `/api/email/export?emailId=${email.emailId}`
+const exportEmail = async () => {
+    // 经 axios 携带 Authorization 头取回 .eml blob 再触发下载；
+    // 此前用 location.href 跳转不带令牌，被认证中间件 401 拒绝
+    try {
+        const blob = await emailExport(email.emailId)
+        if (blob.type.includes('application/json')) {
+            // 业务错误以 JSON blob 返回（HTTP 200 + code != 200）
+            const err = JSON.parse(await blob.text())
+            ElMessage.error(err.message || t('reqFailErrorMsg'))
+            return
+        }
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `email-${email.emailId}.eml`
+        a.click()
+        URL.revokeObjectURL(url)
+    } catch (e) {
+        ElMessage.error(t('reqFailErrorMsg'))
+    }
 }
 
 async function copyRawAll() {
