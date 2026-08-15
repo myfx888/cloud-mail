@@ -710,7 +710,10 @@ const emailService = {
 		}
 
 		// 鉴权：校验该用户有权访问此邮件所属邮箱（覆盖个人邮箱 + 共享邮箱）
-		await memberService.assertMember(c, row.accountId, userId);
+		// admin 全权旁路：管理员从「所有邮件」页查看任意用户邮件正文（同 hasPerm/security 的 admin 豁免）
+		if (!userContext.isAdmin(c)) {
+			await memberService.assertMember(c, row.accountId, userId);
+		}
 
 		return { content: row.content || '', text: row.text || '' };
 	},
@@ -1037,8 +1040,10 @@ const emailService = {
 			throw new BizError(t('notExistEmail'));
 		}
 
-		// 验证当前用户为该邮箱成员
-		await memberService.assertMember(c, emailRow.accountId, userId);
+		// 验证当前用户为该邮箱成员（admin 全权旁路，同 getContent）
+		if (!userContext.isAdmin(c)) {
+			await memberService.assertMember(c, emailRow.accountId, userId);
+		}
 
 		// 获取附件信息
 		const attList = await attService.selectByEmailIds(c, [emailId]);
