@@ -1,0 +1,20 @@
+/* Inter 字体本地托管（CDN 依赖治理 2026-08-15）
+   原引用 https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap
+   国内访问 googleapis 受限拖慢首屏；字体文件取自 npm @fontsource/inter 5.3.0
+   （latin 子集，仅 400/600 两个字重，与原 Google Fonts 请求一致）。 */
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400;
+    src: url('inter-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 600;
+    src: url('inter-latin-600-normal.woff2') format('woff2');
+}

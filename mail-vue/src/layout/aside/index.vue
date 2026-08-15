@@ -66,7 +66,7 @@
         </el-menu-item>
         <el-menu-item @click="router.push({name: 'sys-setting'})" index="sys-setting" v-perm="'setting:query'"
                       :class="route.meta.name === 'sys-setting' ? 'choose-item' : ''">
-          <Icon icon="eosicons:system-ok-outlined" width="18" height="18" style="margin-left: 2px" />
+          <Icon icon="eos-icons:system-ok-outlined" width="18" height="18" style="margin-left: 2px" />
           <span class="menu-name" style="margin-left: 22px">{{$t('SystemSettings')}}</span>
         </el-menu-item>
         <el-menu-item v-if="userStore.user.type === 0" @click="router.push({name: 'backup'})" index="backup"

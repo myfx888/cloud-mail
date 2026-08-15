@@ -247,6 +247,9 @@ function createEditor(content) {
     toolbar_mode: 'scrolling',
     font_size_formats: '8px 10px 12px 14px 16px 18px 24px 36px',
     emoticons_search: false,
+    // 锁定 unicode 表情数据库：默认即 emojis（插入字符而非图片），
+    // 显式声明防止误开 emojiimages 图片版（那会请求 twemoji CDN）
+    emoticons_database: 'emojis',
     menubar: false,
     license_key: 'gpl',
     branding: false,
