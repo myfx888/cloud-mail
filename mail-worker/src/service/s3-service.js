@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import settingService from './setting-service';
 import domainUtils from '../utils/domain-uitls';
 import { settingConst } from '../const/entity-const';
@@ -27,6 +27,28 @@ const s3Service = {
 		}
 
 		await client.send(new PutObjectCommand(obj))
+	},
+
+	// 读取对象，包装成 R2ObjectBody 形状（body/arrayBuffer/text/httpMetadata），
+	// 与 r2Service.getObj 的 KV 兜底包装保持一致，消费方无感切换
+	async getObj(c, key) {
+		const client = await this.client(c);
+		const { bucket } = await settingService.query(c);
+
+		const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+		if (!res.Body) {
+			return null;
+		}
+		const buf = await new Response(res.Body).arrayBuffer();
+		return {
+			body: buf,
+			arrayBuffer: async () => buf,
+			text: async () => new TextDecoder().decode(buf),
+			httpMetadata: {
+				contentType: res.ContentType,
+				contentDisposition: res.ContentDisposition,
+			},
+		};
 	},
 
 	async deleteObj(c, keys) {
