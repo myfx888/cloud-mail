@@ -1012,7 +1012,6 @@ function close() {
             grid-column: 1 / -1;
             grid-row: 1;
             justify-content: flex-start;
-            flex-wrap: wrap;
             margin-bottom: 6px;
           }
         }
@@ -1021,20 +1020,31 @@ function close() {
           display: inline-flex;
           align-items: center;
           gap: 10px;
+          flex-wrap: wrap;
+          // el-radio-group 默认 flex-wrap: wrap，宽度受压时按钮会竖向堆叠而非整体换行
+          :deep(.el-radio-group) {
+            flex-wrap: nowrap;
+            flex-shrink: 0;
+          }
           @media (max-width: 767px) {
             gap: 6px;
           }
         }
 
+        // el-select 默认 width:100%，在可换行的 flex 里会独占一整行，改回内容宽度
         .signature-select {
+          width: auto;
           min-width: 140px;
+          max-width: 240px;
           @media (max-width: 767px) {
             min-width: 110px;
           }
         }
 
         .smtp-account-select {
+          width: auto;
           min-width: 170px;
+          max-width: 300px;
           @media (max-width: 767px) {
             min-width: 130px;
           }
