@@ -98,9 +98,9 @@
               >
                 <el-option v-for="account in smtpAccounts" :key="account.smtpAccountId" :label="account.name" :value="account.smtpAccountId"/>
               </el-select>
-              <el-button type="primary" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
-              <el-button type="primary" @click="sendEmail" v-else-if="form.sendType === 'forward'">{{ $t('forward') }}</el-button>
-              <el-button type="primary" @click="sendEmail" v-else>{{ $t('send') }}</el-button>
+              <el-button type="primary" size="small" @click="sendEmail" v-if="form.sendType === 'reply'">{{ $t('reply') }}</el-button>
+              <el-button type="primary" size="small" @click="sendEmail" v-else-if="form.sendType === 'forward'">{{ $t('forward') }}</el-button>
+              <el-button type="primary" size="small" @click="sendEmail" v-else>{{ $t('send') }}</el-button>
             </div>
         </div>
       </div>
@@ -218,15 +218,8 @@ const selectRecipientList = ref([])
 const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
 const resendEnabled = computed(() => Number(settingStore.settings?.resendEnabled ?? 1) === 1)
 const sendEmailAvailable = computed(() => !!settingStore.settings?.sendEmailAvailable)
-const showSmtpSelector = computed(() => {
-  if (form.sendType === 'reply') {
-    return smtpAccounts.value.length > 0
-  }
-  if (!resendEnabled.value && !sendEmailAvailable.value) {
-    return smtpAccounts.value.length > 0
-  }
-  return form.sendMethod === 'smtp' && smtpAccounts.value.length > 0
-})
+// 只要当前邮箱配置了 SMTP 账户就始终显示，不再随发送方式切换隐藏
+const showSmtpSelector = computed(() => smtpAccounts.value.length > 0)
 
 watch(resendEnabled, (enabled) => {
   if (!enabled && !sendEmailAvailable.value) {
