@@ -58,6 +58,13 @@ const memberService = {
 		return keys.includes(permKey);
 	},
 
+	// 配置类接口（SMTP 等）的访问校验：admin、邮箱创建者、共享成员三者之一放行
+	async canAccessAccount(c, accountId, userId, isAdmin = false) {
+		if (isAdmin) return true;
+		if (await this.isCreator(c, accountId, userId)) return true;
+		return !!(await this.isMember(c, accountId, userId));
+	},
+
 	async listMembers(c, accountId) {
 		return await orm(c).select({
 			memberId: accountMember.memberId,

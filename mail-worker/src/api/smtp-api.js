@@ -2,6 +2,7 @@ import app from '../hono/hono';
 import smtpService from '../service/smtp-service';
 import smtpAccountService from '../service/smtp-account-service';
 import accountService from '../service/account-service';
+import memberService from '../service/member-service';
 import settingService from '../service/setting-service';
 import mailcowService from '../service/mailcow-service';
 import result from '../model/result';
@@ -51,7 +52,7 @@ app.post('/smtp/verify-account', async (c) => {
 	const smtpSecure = Number(params.smtpSecure ?? 0);
 	
 	const accountRow = await accountService.selectByIdAny(c, params.accountId);
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, params.accountId, userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 	
@@ -85,7 +86,7 @@ app.get('/smtp/account-config', async (c) => {
 	}
 	
 	const accountRow = await accountService.selectByIdAny(c, numericAccountId);
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, numericAccountId, userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 	
@@ -110,7 +111,7 @@ app.post('/smtp/account-config', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	const accountRow = await accountService.selectByIdAny(c, params.accountId);
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, params.accountId, userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -137,7 +138,7 @@ app.post('/smtp/accounts', async (c) => {
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectByIdAny(c, params.accountId);
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, params.accountId, userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -165,7 +166,7 @@ app.put('/smtp/accounts/:smtpAccountId', async (c) => {
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectByIdAny(c, params.accountId);
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, params.accountId, userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -193,7 +194,7 @@ app.delete('/smtp/accounts/:smtpAccountId', async (c) => {
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, parseInt(accountId, 10), userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -211,7 +212,7 @@ app.get('/smtp/accounts', async (c) => {
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, parseInt(accountId, 10), userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -230,7 +231,7 @@ app.get('/smtp/accounts/:smtpAccountId', async (c) => {
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, parseInt(accountId, 10), userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -248,7 +249,7 @@ app.post('/smtp/accounts/verify', async (c) => {
 
 	// 验证账户所有权
 	const accountRow = await accountService.selectByIdAny(c, params.accountId);
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, params.accountId, userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -272,7 +273,7 @@ app.post('/smtp/provision-mailcow', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, parseInt(accountId, 10), userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 
@@ -293,7 +294,7 @@ app.post('/smtp/delete-mailcow-account', async (c) => {
 	const isAdmin = userContext.isAdmin(c);
 
 	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
-	if (!accountRow || (!isAdmin && accountRow.userId !== userId)) {
+	if (!accountRow || !(await memberService.canAccessAccount(c, parseInt(accountId, 10), userId, isAdmin))) {
 		throw new BizError(t('accountNotExist'));
 	}
 

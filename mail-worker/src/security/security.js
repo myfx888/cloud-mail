@@ -61,7 +61,6 @@ const requirePerms = [
 	'/smtp/verify-account',
 	'/smtp/provision-mailcow',
 	'/ai/test-connection',
-	'/mailbox/',
 	'/email/restore'
 ];
 
@@ -94,7 +93,10 @@ const premKey = {
 	'smtp:query': ['/smtp/account-config'],
 	'smtp:set': ['/smtp/account-config', '/smtp/verify-account'],
 	'smtp:provision': ['/smtp/provision-mailcow'],
-	'mailbox:share': ['/account/add', '/mailbox/'],
+	// mailbox:share 只保护“加入共享邮箱”入口（/account/add + member-service.join 兜底）；
+	// /mailbox/ 下的 members/leave/signature-choice 是成员自助操作，由各 handler 的
+	// assertMember/isMember/按自身 userId 更新做成员级校验，不按权限 key 拦截
+	'mailbox:share': ['/account/add'],
 };
 
 app.use('*', async (c, next) => {
