@@ -51,6 +51,16 @@ const routes = [
                     menu: true
                 }
             },
+            {
+                path: '/trash',
+                name: 'trash',
+                component: () => import('@/views/email/index.vue'),
+                meta: {
+                    title: 'recycleBin',
+                    name: 'trash',
+                    menu: true
+                }
+            },
         ]
 
     },
@@ -153,7 +163,7 @@ router.afterEach((to) => {
 
     const uiStore = useUiStore()
     if (to.meta.menu) {
-        if (['content', 'email', 'send'].includes(to.meta.name)) {
+        if (['content', 'email', 'send', 'trash'].includes(to.meta.name)) {
             uiStore.accountShow = window.innerWidth > 767;
         } else {
             uiStore.accountShow = false

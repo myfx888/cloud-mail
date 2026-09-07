@@ -27,7 +27,7 @@ let  innerWidth =  window.innerWidth
 let elNotification = null
 
 const accountShow = computed(() => {
-  return uiStore.accountShow && settingStore.settings.manyEmail === 0 && ['content','email','send'].includes(route.meta?.name)
+  return uiStore.accountShow && settingStore.settings.manyEmail === 0 && ['content','email','send','trash'].includes(route.meta?.name)
 })
 
 watch(() => uiStore.changeNotice, () => {
@@ -93,7 +93,7 @@ onBeforeUnmount(() => {
 })
 
 const handleResize = () => {
-  if (['content','email','send'].includes(route.meta.name)) {
+  if (['content','email','send','trash'].includes(route.meta.name)) {
     if (innerWidth !==  window.innerWidth) {
       innerWidth = window.innerWidth;
       uiStore.accountShow = window.innerWidth >= 767;

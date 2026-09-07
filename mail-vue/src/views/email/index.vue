@@ -19,9 +19,6 @@
             v-if="params.timeSort === 0" width="28" height="28"/>
       <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-up-outline" v-else
             width="28" height="28"/>
-      <Icon class="icon" :style="trashMode ? 'color: var(--el-color-danger)' : ''"
-            icon="material-symbols-light:delete-outline-rounded" width="22" height="22"
-            :title="$t('recycleBin')" @click="toggleTrash"/>
     </template>
 
   </emailScroll>
@@ -34,7 +31,7 @@ import {useSettingStore} from "@/store/setting.js";
 import emailScroll from "@/components/email-scroll/index.vue"
 import {emailList, emailDelete, emailRestore, emailLatest, emailRead} from "@/request/email.js";
 import {starAdd, starCancel} from "@/request/star.js";
-import {defineOptions, h, onMounted, reactive, ref, watch, nextTick} from "vue";
+import {defineOptions, h, onMounted, reactive, ref, watch} from "vue";
 import {sleep} from "@/utils/time-utils.js";
 import router from "@/router/index.js";
 import {Icon} from "@iconify/vue";
@@ -54,7 +51,9 @@ const params = reactive({
 })
 
 onMounted(() => {
-  emailStore.emailScroll = scroll;
+  if (route.name === 'email') {
+    emailStore.emailScroll = scroll;
+  }
   latest()
 })
 
@@ -85,7 +84,7 @@ async function latest() {
     let autoRefresh = settingStore.settings.autoRefresh;
     await sleep(autoRefresh > 1 ? autoRefresh * 1000 : 3000);
 
-    if (route.name !== 'email') {
+    if (trashMode.value) {
       continue;
     }
 
@@ -153,13 +152,7 @@ function getEmailList(emailId, size, signal) {
   })
 }
 
-const trashMode = ref(false);
-function toggleTrash() {
-  trashMode.value = !trashMode.value;
-  nextTick(() => {
-    scroll.value?.refreshList?.();
-  });
-}
+const trashMode = ref(route.name === 'trash');
 
 </script>
 <style>
