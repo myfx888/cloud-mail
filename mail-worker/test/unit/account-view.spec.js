@@ -26,6 +26,15 @@ vi.mock('../../src/service/user-service', () => ({
 	default: { selectById: vi.fn(async () => ({ email: 'me@example.com' })) },
 }));
 
+// delete 新语义依赖 assertMember，mock 验证调用契约
+vi.mock('../../src/service/member-service', () => ({
+	default: {
+		assertMember: vi.fn(async () => ({})),
+		isMember: vi.fn(),
+		isCreator: vi.fn(),
+	},
+}));
+
 // 链式 drizzle stub：终结方法按调用队列返回
 function dbStub({ selectAll = [] } = {}) {
 	const selectChain = {
@@ -177,5 +186,48 @@ describe('accountService.saveView', () => {
 
 		const result = await accountService.saveView({}, { groups: [], items: [] }, 9);
 		expect(result).toEqual(finalGroups);
+	});
+});
+
+describe('accountService.delete（仅移出自己）', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	function deleteMocks({ accountRow, memberCount }) {
+		const stub = fullDbStub({ getQueue: [] });
+		// select 链 get 队列：第1次 = selectById 账户行，第2次 = 剩余成员计数
+		stub._chains.selectChain.get
+			.mockResolvedValueOnce(accountRow)
+			.mockResolvedValueOnce({ num: memberCount });
+		orm.mockImplementation(() => stub);
+		return stub;
+	}
+
+	it('删除主邮箱被拒绝', async () => {
+		const stub = fullDbStub({});
+		orm.mockImplementation(() => stub);
+		// selectById 返回主邮箱（email 与登录用户一致）
+		stub._chains.selectChain.get.mockResolvedValueOnce({ accountId: 1, email: 'me@example.com' });
+
+		await expect(accountService.delete({}, { accountId: 1 }, 9)).rejects.toThrow();
+		expect(stub._chains.deleteChain.where).not.toHaveBeenCalled();
+	});
+
+	it('普通成员删除只移除自己的 member 行，不真删', async () => {
+		const stub = deleteMocks({ accountRow: { accountId: 5, email: 'a@example.com' }, memberCount: 2 });
+
+		await accountService.delete({}, { accountId: 5 }, 9);
+
+		expect(stub._chains.deleteChain.run).toHaveBeenCalledTimes(1); // 仅删 member 行
+		expect(stub._chains.updateChain.set).not.toHaveBeenCalled();   // 不触发 isDel 更新
+	});
+
+	it('最后一个成员删除触发真删（isDel + 邮件/附件释放）', async () => {
+		const stub = deleteMocks({ accountRow: { accountId: 5, email: 'a@example.com' }, memberCount: 0 });
+
+		await accountService.delete({}, { accountId: 5 }, 9);
+
+		expect(stub._chains.deleteChain.run).toHaveBeenCalledTimes(1);
+		// account isDel 更新 + email 释放 + att 释放 = 3 次 update().set()
+		expect(stub._chains.updateChain.set).toHaveBeenCalledTimes(3);
 	});
 });

@@ -6,7 +6,7 @@ import emailService from './email-service';
 import orm from '../entity/orm';
 import account from '../entity/account';
 import { and, asc, eq, gt, inArray, count, sql, ne, or, lt, desc, like } from 'drizzle-orm';
-import {accountConst, isDel, settingConst} from '../const/entity-const';
+import {accountConst, emailConst, isDel, settingConst} from '../const/entity-const';
 import settingService from './setting-service';
 import turnstileService from './turnstile-service';
 import roleService from './role-service';
@@ -16,6 +16,8 @@ import mailcowService from './mailcow-service';
 import smtpAccountService from './smtp-account-service';
 import user from '../entity/user';
 import smtpAccount from '../entity/smtp-account';
+import email from '../entity/email';
+import att from '../entity/att';
 import accountMember from '../entity/account-member';
 import accountGroup from '../entity/account-group';
 import accountMemberSignature from '../entity/account-member-signature';
@@ -359,31 +361,31 @@ const accountService = {
 			throw new BizError(t('delMyAccount'));
 		}
 
-		await this.assertCanManage(c, accountId, userId);
+		// 新语义：删除 = 仅移出自己的列表，其他成员不受影响
+		await memberService.assertMember(c, accountId, userId);
+		await orm(c).delete(accountMember)
+			.where(and(eq(accountMember.accountId, accountId), eq(accountMember.userId, userId)))
+			.run();
+
+		// 已无剩余成员：沿用原真删流程（邮件/附件释放回 NOONE 可再认领）
+		const { num } = await orm(c).select({ num: count() }).from(accountMember)
+			.where(eq(accountMember.accountId, accountId)).get();
+		if (Number(num) > 0) {
+			return;
+		}
 
 		await orm(c).update(account).set({ isDel: isDel.DELETE }).where(
 			eq(account.accountId, accountId))
 			.run();
 
-		// Reset email ownership to NOONE when account is deleted
-		// This makes emails invisible to the user but they can be claimed back if recreated
 		try {
-			// Update emails (by mailbox, covers all members' emails)
 			await orm(c).update(email)
-				.set({
-					userId: 0,
-					accountId: 0,
-					status: emailConst.status.NOONE
-				})
+				.set({ userId: 0, accountId: 0, status: emailConst.status.NOONE })
 				.where(eq(email.accountId, accountId))
 				.run();
 
-			// Update attachments
 			await orm(c).update(att)
-				.set({
-					userId: 0,
-					accountId: 0
-				})
+				.set({ userId: 0, accountId: 0 })
 				.where(eq(att.accountId, accountId))
 				.run();
 		} catch (error) {
@@ -517,25 +519,7 @@ const accountService = {
 		await orm(c).update(account).set({ allReceive: accountRow.allReceive ? 0 : 1 }).where(eq(account.accountId, accountId)).run();
 	},
 
-	async setAsTop(c, params, userId) {
-		const { accountId } = params;
-		await this.assertCanManage(c, accountId, userId);
-		const userRow = await userService.selectById(c, userId);
-		const mainAccountRow = await accountService.selectByEmailIncludeDel(c, userRow.email);
-		let main_sort = mainAccountRow.sort === 0 ? 2 : mainAccountRow.sort + 1;
-		await orm(c).update(account).set({ sort: main_sort }).where(eq(account.email, userRow.email )).run();
-		await orm(c).update(account).set({ sort: main_sort - 1 }).where(eq(account.accountId, accountId)).run();
-	},
 
-	async setAsTop(c, params, userId) {
-		const { accountId } = params;
-		console.log(accountId);
-		const userRow = await userService.selectById(c, userId);
-		const mainAccountRow = await accountService.selectByEmailIncludeDel(c, userRow.email);
-		let mainSort = mainAccountRow.sort === 0 ? 2 : mainAccountRow.sort + 1;
-		await orm(c).update(account).set({ sort: mainSort }).where(eq(account.email, userRow.email )).run();
-		await orm(c).update(account).set({ sort: mainSort - 1 }).where(and(eq(account.accountId, accountId),eq(account.userId,userId))).run();
-	},
 
 	async updateSmtpConfig(c, accountId, config) {
 		const updateData = {
