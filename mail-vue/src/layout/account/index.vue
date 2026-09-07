@@ -2,6 +2,7 @@
   <div class="account-box">
     <div class="head-opt">
       <Icon v-perm="'account:add'" class="icon add" icon="ion:add-outline" width="23" height="23" @click="add"/>
+      <Icon class="icon group-add" icon="ion:folder-open-outline" width="20" height="20" :title="$t('newGroup')" @click="openGroupDialog(null)"/>
       <Icon class="icon refresh" icon="ion:reload" width="18" height="18" @click="refresh"/>
     </div>
     <el-scrollbar class="scrollbar" ref="scrollbarRef">
@@ -39,6 +40,10 @@
               <Icon class="fold" :icon="group.collapsed ? 'mingcute:right-line' : 'mingcute:down-line'"
                     width="16" height="16" @click="toggleCollapse(group)"/>
               <span class="group-name" @click="toggleCollapse(group)">{{ group.name }}</span>
+              <span class="group-opt" @click.stop>
+                <Icon icon="fluent:edit-24-regular" width="14" height="14" @click.stop="openGroupDialog(group)"/>
+                <Icon icon="fluent:delete-24-regular" width="14" height="14" @click.stop="removeGroup(group)"/>
+              </span>
             </div>
             <div class="group-body account-drag-area" v-show="!group.collapsed" :data-group-id="group.id">
               <el-card v-for="item in group.accounts" :key="item.accountId"
@@ -164,6 +169,13 @@
   </div>
   <signatureManager ref="signatureManagerRef" :account-id="signatureAccountId" @updated="onSignatureUpdated" />
   <smtpAccountManager ref="smtpAccountManagerRef" :account-id="smtpManagerAccountId" />
+  <el-dialog v-model="groupDialogShow" :title="groupEditTarget ? $t('renameGroup') : $t('newGroup')" width="400px">
+    <el-input v-model="groupNameInput" :placeholder="$t('groupName')" maxlength="30" autocomplete="off" @keyup.enter="saveGroupDialog"/>
+    <template #footer>
+      <el-button @click="groupDialogShow = false">{{ $t('cancel') }}</el-button>
+      <el-button type="primary" @click="saveGroupDialog">{{ $t('confirm') }}</el-button>
+    </template>
+  </el-dialog>
 </template>
 <script setup>
 import {Icon} from "@iconify/vue";
@@ -173,11 +185,13 @@ import {nextTick, reactive, ref, watch} from "vue";
 import {
   accountList,
   accountGroups,
+  accountSaveView,
   accountAdd,
   accountDelete,
   accountSetName,
   accountSetAllReceive
 } from "@/request/account.js";
+import Sortable from 'sortablejs';
 import {sleep} from "@/utils/time-utils.js"
 import {isEmail} from "@/utils/verify-utils.js";
 import {useSettingStore} from "@/store/setting.js";
@@ -225,6 +239,15 @@ const smtpAccountManagerRef = ref()
 const smtpManagerAccountId = ref(0)
 
 const isMobile = () => window.innerWidth < 768
+
+// ===== 拖动与组管理状态 =====
+let nextTempGroupId = -1
+let accountSortables = []
+let groupSortable = null
+let justDragged = false
+const groupDialogShow = ref(false)
+const groupNameInput = ref('')
+const groupEditTarget = ref(null)
 
 if (hasPerm('account:query')) {
   loadAll()
@@ -276,6 +299,8 @@ async function loadAll() {
     if (!accountStore.currentAccountId && accounts.value.length > 0) {
       changeAccount(accounts.value[0])
     }
+    await nextTick()
+    initSortables()
   } finally {
     loading.value = false
   }
@@ -305,7 +330,154 @@ function toggleCollapse(group) {
 }
 
 function cardClick(item) {
+  if (justDragged) return
   changeAccount(item)
+}
+
+// ===== 视图保存（乐观更新 + 失败回滚） =====
+function buildViewPayload() {
+  return {
+    groups: view.groups.map((g, idx) => ({ id: g.id, name: g.name, sort: view.groups.length - idx })),
+    items: [
+      ...view.groups.flatMap(g => g.accounts.map((a, idx) => ({ accountId: a.accountId, viewGroup: g.id, viewSort: g.accounts.length - idx }))),
+      ...view.ungrouped.map((a, idx) => ({ accountId: a.accountId, viewGroup: 0, viewSort: view.ungrouped.length - idx }))
+    ]
+  }
+}
+
+function snapshotView() {
+  return JSON.stringify({ groups: view.groups, ungrouped: view.ungrouped })
+}
+
+function restoreView(snapshot) {
+  const s = JSON.parse(snapshot)
+  view.groups = s.groups
+  view.ungrouped = s.ungrouped
+}
+
+function syncGroupIds(serverGroups) {
+  // 后端按提交顺序返回（sort DESC == 提交时数组顺序），按下标回填真实 id
+  view.groups.forEach((g, idx) => {
+    const sg = serverGroups[idx]
+    if (!sg) return
+    if (sg.groupId !== g.id) {
+      if (collapsedMap[g.id] !== undefined) {
+        collapsedMap[sg.groupId] = collapsedMap[g.id]
+        delete collapsedMap[g.id]
+      }
+      g.id = sg.groupId
+    }
+    g.sort = sg.sort
+  })
+  localStorage.setItem('account-group-collapsed', JSON.stringify(collapsedMap))
+}
+
+async function persistView() {
+  const snapshot = snapshotView()
+  try {
+    const serverGroups = await accountSaveView(buildViewPayload())
+    syncGroupIds(serverGroups || [])
+  } catch (e) {
+    restoreView(snapshot)
+    ElMessage({ message: t('saveViewFailMsg'), type: 'error', plain: true })
+  } finally {
+    nextTick(initSortables)
+  }
+}
+
+// ===== 组管理 =====
+function openGroupDialog(group) {
+  groupEditTarget.value = group
+  groupNameInput.value = group ? group.name : ''
+  groupDialogShow.value = true
+}
+
+async function saveGroupDialog() {
+  const name = groupNameInput.value.trim()
+  if (!name) return
+  if (groupEditTarget.value) {
+    groupEditTarget.value.name = name
+  } else {
+    view.groups.push({ id: nextTempGroupId--, name, sort: 0, collapsed: false, accounts: [] })
+  }
+  groupDialogShow.value = false
+  await persistView()
+}
+
+function removeGroup(group) {
+  ElMessageBox.confirm(t('deleteGroupConfirm'), {
+    confirmButtonText: t('confirm'),
+    cancelButtonText: t('cancel'),
+    type: 'warning'
+  }).then(async () => {
+    view.ungrouped.push(...group.accounts)
+    view.groups.splice(view.groups.indexOf(group), 1)
+    await persistView()
+  })
+}
+
+// ===== 拖动（sortablejs 多容器） =====
+function destroySortables() {
+  accountSortables.forEach(s => s.destroy())
+  accountSortables = []
+  if (groupSortable) {
+    groupSortable.destroy()
+    groupSortable = null
+  }
+}
+
+function initSortables() {
+  destroySortables()
+  if (groupsRef.value) {
+    groupSortable = new Sortable(groupsRef.value, {
+      group: 'groups', handle: '.group-head', animation: 150,
+      onEnd: onGroupDrop
+    })
+  }
+  document.querySelectorAll('.account-drag-area').forEach(el => {
+    accountSortables.push(new Sortable(el, {
+      group: 'accounts', animation: 150,
+      delay: isMobile() ? 200 : 0, delayOnTouchOnly: true,
+      onEnd: onAccountDrop
+    }))
+  })
+}
+
+// sortable 已物理移动 DOM，先还原再改响应式数据，避免与 Vue patch 冲突
+function revertDom(evt) {
+  const { item, from, oldIndex } = evt
+  if (from.children[oldIndex] === item) return
+  from.insertBefore(item, from.children[oldIndex] || null)
+}
+
+function listByGroupId(groupId) {
+  if (Number(groupId) === 0) return view.ungrouped
+  return view.groups.find(g => g.id === Number(groupId))?.accounts
+}
+
+function onAccountDrop(evt) {
+  revertDom(evt)
+  justDragged = true
+  setTimeout(() => { justDragged = false }, 300)
+  const { from, to, oldIndex, newIndex } = evt
+  const accountId = Number(evt.item.dataset.accountId)
+  const fromList = listByGroupId(from.dataset.groupId)
+  const toList = listByGroupId(to.dataset.groupId)
+  if (!fromList || !toList) return
+  const [acc] = fromList.splice(fromList.findIndex(a => a.accountId === accountId), 1)
+  toList.splice(newIndex, 0, acc)
+  persistView()
+}
+
+function onGroupDrop(evt) {
+  revertDom(evt)
+  justDragged = true
+  setTimeout(() => { justDragged = false }, 300)
+  const { oldIndex, newIndex } = evt
+  if (oldIndex === newIndex) return
+  const [g] = view.groups.splice(oldIndex, 1)
+  view.groups.splice(newIndex, 0, g)
+  persistView()
 }
 
 function setName() {
@@ -383,7 +555,7 @@ function itemBg(accountId) {
 
 
 function remove(accountItem) {
-  ElMessageBox.confirm(t('delConfirm', {msg: accountItem.email}), {
+  ElMessageBox.confirm(t('removeAccountConfirm', {msg: accountItem.email}), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
@@ -566,6 +738,10 @@ path[fill="#ffdda1"] {
       margin-left: 10px;
     }
 
+    .group-add {
+      margin-left: 8px;
+    }
+
     .add {
       margin-left: 2px;
     }
@@ -620,6 +796,24 @@ path[fill="#ffdda1"] {
 
     .fold {
       flex-shrink: 0;
+    }
+
+    .group-opt {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transition: opacity 0.15s;
+
+      svg {
+        cursor: pointer;
+        color: var(--secondary-text-color);
+      }
+    }
+
+    &:hover .group-opt {
+      opacity: 1;
     }
   }
 
