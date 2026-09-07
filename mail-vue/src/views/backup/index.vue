@@ -72,9 +72,20 @@
             </template>
           </el-upload>
 
-          <div v-if="sourceKeys.length" class="mt">
-            {{ $t('backupFileCount') }}：{{ sourceKeys.length }}
-            <el-button link @click="sourceKeys = []">{{ $t('clear') }}</el-button>
+          <div v-if="uploadFiles.length" class="upload-list mt">
+            <div v-for="(f, i) in uploadFiles" :key="i" class="upload-item">
+              <div class="upload-item-head">
+                <span class="upload-name" :title="f.name">{{ f.name }}</span>
+                <span class="upload-size">{{ formatSize(f.size) }}</span>
+                <Icon v-if="f.status === 'success'" icon="material-symbols:check-circle-rounded" class="upload-ok" width="16" height="16" />
+                <Icon v-if="f.status === 'error'" icon="material-symbols:error" class="upload-err" width="16" height="16" />
+              </div>
+              <el-progress :percentage="f.progress" :status="f.status === 'error' ? 'exception' : (f.status === 'success' ? 'success' : '')" :stroke-width="6" />
+            </div>
+            <div class="upload-summary">
+              {{ $t('backupFileCount') }}：{{ sourceKeys.length }}
+              <el-button link @click="clearUploads">{{ $t('clear') }}</el-button>
+            </div>
           </div>
 
           <el-form inline class="mt">
@@ -109,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
@@ -179,6 +190,7 @@ async function onDelete(taskId) {
 }
 
 const sourceKeys = ref([])
+const uploadFiles = ref([])
 const restoreMode = ref('import')
 const restoreTask = ref(null)
 const restoreRunning = computed(() => restoreTask.value?.status === 'processing')
@@ -192,13 +204,33 @@ const restorePercent = computed(() => {
 let restoreTimer = null
 
 async function customUpload({ file, onSuccess, onError }) {
+  const item = reactive({ name: file.name, size: file.size, progress: 0, status: 'uploading', sourceKey: null })
+  uploadFiles.value.push(item)
   try {
     const fd = new FormData()
     fd.append('files', file, file.name)
-    const res = await restoreUpload(fd)
-    sourceKeys.value.push(...(res.sourceKeys || []))
+    const res = await restoreUpload(fd, (p) => { item.progress = Math.round(p * 100) })
+    item.sourceKey = (res.sourceKeys || [])[0] || null
+    item.status = 'success'
+    item.progress = 100
+    if (item.sourceKey) sourceKeys.value.push(item.sourceKey)
     if (onSuccess) onSuccess(res)
-  } catch (e) { if (onError) onError(e) }
+  } catch (e) {
+    item.status = 'error'
+    if (onError) onError(e)
+  }
+}
+
+function clearUploads() {
+  uploadFiles.value = []
+  sourceKeys.value = []
+}
+
+function formatSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
 async function onStartRestore() {
@@ -240,4 +272,12 @@ onUnmounted(() => { stopBackupPolling(); stopRestorePolling() })
 .backup-tabs { max-width: 1000px; }
 .mt { margin-top: 16px; }
 .progress-text { margin-left: 12px; font-size: 13px; color: var(--el-text-color-secondary); }
+.upload-list { display: flex; flex-direction: column; gap: 10px; }
+.upload-item { border: 1px solid var(--el-border-color-lighter); border-radius: 6px; padding: 8px 12px; }
+.upload-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.upload-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.upload-size { font-size: 12px; color: var(--el-text-color-secondary); }
+.upload-ok { color: var(--el-color-success); }
+.upload-err { color: var(--el-color-danger); }
+.upload-summary { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 4px; }
 </style>

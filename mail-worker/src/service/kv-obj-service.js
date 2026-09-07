@@ -1,11 +1,29 @@
+import BizError from '../error/biz-error';
+
 const kvObjService = {
 
 	async putObj(c, key, content, metadata) {
 		if (c.env.kv && c.env.kv.put) {
 			await c.env.kv.put(key, content, { metadata: metadata });
 		} else {
-			throw new BizError('KV storage not available');
+			throw new BizError('KV database not bound');
 		}
+	},
+
+	async getObj(c, key) {
+		if (!c.env.kv || !c.env.kv.getWithMetadata) {
+			throw new BizError('KV database not bound');
+		}
+		// getWithMetadata 而非裸 get：/oss 下载、eml 导出需要 httpMetadata 还原 Content-Type 等响应头
+		const obj = await c.env.kv.getWithMetadata(key, { type: 'arrayBuffer' });
+		if (!obj || obj.value == null) return null;
+		const buf = obj.value;
+		return {
+			body: buf,
+			arrayBuffer: async () => buf,
+			text: async () => new TextDecoder().decode(buf),
+			httpMetadata: obj.metadata || {}
+		};
 	},
 
 	async deleteObj(c, keys) {
@@ -21,7 +39,7 @@ const kvObjService = {
 		if (c.env.kv && c.env.kv.delete) {
 			await Promise.all(keys.map( key => c.env.kv.delete(key)));
 		} else {
-			throw new BizError('KV storage not available');
+			throw new BizError('KV database not bound');
 		}
 	},
 

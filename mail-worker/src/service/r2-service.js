@@ -42,31 +42,24 @@ const r2Service = {
 
 	async getObj(c, key) {
 		const storageType = await this.storageType(c);
-
 		if (storageType === 'KV') {
-			// KV 兜底存储：包装成 R2ObjectBody 形状（body/arrayBuffer/text/httpMetadata），
-			// 供 /oss 下载、eml 导出、备份读取统一消费。此前此处硬编码 c.env.r2.get，
-			// 在未绑定 R2 的部署上直接 TypeError（被 onError 误报为 KV 未绑定）
-			const obj = await c.env.kv.getWithMetadata(key, { type: 'arrayBuffer' });
-			if (!obj || obj.value == null) {
-				return null;
-			}
-			const buf = obj.value;
-			return {
-				body: buf,
-				arrayBuffer: async () => buf,
-				text: async () => new TextDecoder().decode(buf),
-				httpMetadata: obj.metadata || {},
-			};
+			return await kvObjService.getObj(c, key);
 		}
-
-		if (storageType === 'R2') {
-			return await c.env.r2.get(key);
-		}
-
 		if (storageType === 'S3') {
 			return await s3Service.getObj(c, key);
 		}
+		return await c.env.r2.get(key);
+	},
+
+	async getObjRange(c, key, offset, length) {
+		const storageType = await this.storageType(c);
+		if (storageType === 'R2') {
+			return await c.env.r2.get(key, { range: { offset, length } });
+		}
+		if (storageType === 'S3') {
+			return await s3Service.getObjRange(c, key, offset, length);
+		}
+		return await kvObjService.getObj(c, key);
 	},
 
 	async delete(c, key) {
