@@ -295,7 +295,7 @@ onBeforeUnmount(() => {
 async function loadAccountsForSwitcher() {
   if (accountStore.accountsLoaded || !hasPerm('account:query')) return
   try {
-    const list = await accountList(0, 100, null)
+    const list = await accountList()
     accountStore.setAccounts(list)
   } catch (e) {
     console.error('加载账户列表失败:', e)

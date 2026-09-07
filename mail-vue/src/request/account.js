@@ -1,7 +1,15 @@
 import http from '@/axios/index.js'
 
-export function accountList(accountId, size, lastSort) {
-    return http.get('/account/list', {params: {accountId, size, lastSort}});
+export function accountList() {
+    return http.get('/account/list');
+}
+
+export function accountGroups() {
+    return http.get('/account/groups');
+}
+
+export function accountSaveView(data) {
+    return http.put('/account/view', data);
 }
 
 export function accountAdd(email,token) {
@@ -18,10 +26,6 @@ export function accountDelete(accountId) {
 
 export function accountSetAllReceive(accountId) {
     return http.put('/account/setAllReceive', {accountId})
-}
-
-export function accountSetAsTop(accountId) {
-    return http.put('/account/setAsTop', {accountId})
 }
 
 export function accountRetryMailcow(accountId) {

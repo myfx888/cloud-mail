@@ -5,32 +5,26 @@
       <Icon class="icon refresh" icon="ion:reload" width="18" height="18" @click="refresh"/>
     </div>
     <el-scrollbar class="scrollbar" ref="scrollbarRef">
-      <div v-infinite-scroll="getAccountList" :infinite-scroll-distance="600" :infinite-scroll-immediate="false">
-        <el-card class="item" :class="itemBg(item.accountId)" v-for="(item, index) in accounts" :key="item.accountId"
-                 @click="changeAccount(item)">
-          <div class="account">
-            {{ item.email }}
-          </div>
+      <div class="list-wrap" v-loading="loading">
+        <!-- 主邮箱：固定第一，不可拖、不可删 -->
+        <el-card v-if="view.main" class="item main-item" :class="itemBg(view.main.accountId)"
+                 :key="'main-' + view.main.accountId" @click="cardClick(view.main)">
+          <div class="account">{{ view.main.email }}</div>
           <div class="opt">
             <div class="send-email" @click.stop>
-              <Icon @click="setAllReceive(item)" v-if="!item.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
-              <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
+              <Icon @click="setAllReceive(view.main)" v-if="!view.main.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
+              <Icon @click="setAllReceive(view.main)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
             </div>
             <div class="settings" @click.stop>
-              <Icon icon="mdi:signature-freehand" width="22" height="22" color="#67C23A" @click.stop="openSignatureManager(item)" style="cursor:pointer"/>
-              <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
-              <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"
-                    v-if="showNullSetting(item)"/>
+              <Icon icon="mdi:signature-freehand" width="22" height="22" color="#67C23A" @click.stop="openSignatureManager(view.main)" style="cursor:pointer"/>
+              <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(view.main.email)"/>
+              <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399" v-if="showNullSetting()"/>
               <el-dropdown v-else>
                 <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"/>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="setAsTop(item, index)">{{ $t('pin') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')"
-                                      @click="remove(item)">{{ $t('delete') }}
-                    </el-dropdown-item>
-                    <el-dropdown-item v-if="hasPerm('smtp:set')" @click="openSmtpManager(item)">{{ $t('smtpSetting') }}</el-dropdown-item>
+                    <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(view.main)">{{ $t('rename') }}</el-dropdown-item>
+                    <el-dropdown-item v-if="hasPerm('smtp:set')" @click="openSmtpManager(view.main)">{{ $t('smtpSetting') }}</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -38,44 +32,86 @@
           </div>
         </el-card>
 
-        <!-- Initial Loading Skeleton -->
-        <template v-if="loading">
-          <el-skeleton v-for="i in skeletonRows" :key="i" animated>
-            <template #template>
-              <el-card class="item">
-                <el-skeleton-item variant="p" style="width: 70%; height: 20px; margin-bottom: 25px"/>
-                <div style="display: flex; justify-content: space-between">
-                  <el-skeleton-item variant="text" style="width: 20px"/>
-                  <el-skeleton-item variant="text" style="width: 20px"/>
+        <!-- 自定义分组 -->
+        <div class="group-list" ref="groupsRef">
+          <div class="group" v-for="group in view.groups" :key="group.id">
+            <div class="group-head">
+              <Icon class="fold" :icon="group.collapsed ? 'mingcute:right-line' : 'mingcute:down-line'"
+                    width="16" height="16" @click="toggleCollapse(group)"/>
+              <span class="group-name" @click="toggleCollapse(group)">{{ group.name }}</span>
+            </div>
+            <div class="group-body account-drag-area" v-show="!group.collapsed" :data-group-id="group.id">
+              <el-card v-for="item in group.accounts" :key="item.accountId"
+                       class="item" :class="itemBg(item.accountId)"
+                       :data-account-id="item.accountId"
+                       @click="cardClick(item)">
+                <div class="account">{{ item.email }}</div>
+                <div class="opt">
+                  <div class="send-email" @click.stop>
+                    <Icon @click="setAllReceive(item)" v-if="!item.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
+                    <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
+                  </div>
+                  <div class="settings" @click.stop>
+                    <Icon icon="mdi:signature-freehand" width="22" height="22" color="#67C23A" @click.stop="openSignatureManager(item)" style="cursor:pointer"/>
+                    <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
+                    <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399" v-if="showNullSetting()"/>
+                    <el-dropdown v-else>
+                      <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"/>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
+                          <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="remove(item)">{{ $t('delete') }}</el-dropdown-item>
+                          <el-dropdown-item v-if="hasPerm('smtp:set')" @click="openSmtpManager(item)">{{ $t('smtpSetting') }}</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                  </div>
                 </div>
               </el-card>
-            </template>
-          </el-skeleton>
-        </template>
-
-        <!-- Follow Loading Skeleton -->
-        <template v-if="accounts.length > 0 && !noLoading">
-          <el-skeleton animated>
-            <template #template>
-              <el-card class="item">
-                <el-skeleton-item variant="p" style="width: 70%; height: 20px; margin-bottom: 20px"/>
-                <div style="display: flex; justify-content: space-between">
-                  <el-skeleton-item variant="text" style="width: 20px"/>
-                  <el-skeleton-item variant="text" style="width: 20px"/>
-                </div>
-              </el-card>
-            </template>
-          </el-skeleton>
-        </template>
-
-        <div class="noLoading" v-if="noLoading && accounts.length > 0">
-          <div>{{ $t('noMoreData') }}</div>
+            </div>
+          </div>
         </div>
-        <div class="empty" v-if="noLoading && accounts.length === 0">
+
+        <!-- 未分组 -->
+        <template v-if="view.ungrouped.length > 0">
+          <div class="group-head ungrouped-head">
+            <span class="group-name">{{ $t('ungrouped') }}</span>
+          </div>
+          <div class="ungrouped-body account-drag-area" :data-group-id="0">
+            <el-card v-for="item in view.ungrouped" :key="item.accountId"
+                     class="item" :class="itemBg(item.accountId)"
+                     :data-account-id="item.accountId"
+                     @click="cardClick(item)">
+              <div class="account">{{ item.email }}</div>
+              <div class="opt">
+                <div class="send-email" @click.stop>
+                  <Icon @click="setAllReceive(item)" v-if="!item.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
+                  <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
+                </div>
+                <div class="settings" @click.stop>
+                  <Icon icon="mdi:signature-freehand" width="22" height="22" color="#67C23A" @click.stop="openSignatureManager(item)" style="cursor:pointer"/>
+                  <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
+                  <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399" v-if="showNullSetting()"/>
+                  <el-dropdown v-else>
+                    <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"/>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
+                        <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="remove(item)">{{ $t('delete') }}</el-dropdown-item>
+                        <el-dropdown-item v-if="hasPerm('smtp:set')" @click="openSmtpManager(item)">{{ $t('smtpSetting') }}</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </div>
+            </el-card>
+          </div>
+        </template>
+
+        <div class="empty" v-if="!loading && accounts.length === 0">
           <el-empty :description="$t('noMessagesFound')"/>
         </div>
       </div>
-
     </el-scrollbar>
     <el-dialog v-model="showAdd" :title="$t('addAccount')">
       <div class="container">
@@ -136,11 +172,11 @@ import smtpAccountManager from "@/components/smtp-account-manager/index.vue";
 import {nextTick, reactive, ref, watch} from "vue";
 import {
   accountList,
+  accountGroups,
   accountAdd,
   accountDelete,
   accountSetName,
-  accountSetAllReceive,
-  accountSetAsTop
+  accountSetAllReceive
 } from "@/request/account.js";
 import {sleep} from "@/utils/time-utils.js"
 import {isEmail} from "@/utils/verify-utils.js";
@@ -160,10 +196,12 @@ const emailStore = useEmailStore();
 const showAdd = ref(false)
 const addLoading = ref(false);
 const domainList = settingStore.domainList
-const accounts = reactive([])
-const noLoading = ref(false)
+const accounts = ref([])
+const groupsMeta = ref([])
+const view = reactive({ main: null, groups: [], ungrouped: [] })
+const groupsRef = ref(null)
 const loading = ref(false)
-const followLoading = ref(false);
+const collapsedMap = reactive(JSON.parse(localStorage.getItem('account-group-collapsed') || '{}'))
 const verifyShow = ref(false)
 const setNameShow = ref(false)
 const setNameLoading = ref(false)
@@ -175,15 +213,10 @@ let turnstileId = null
 const botJsError = ref(false)
 let verifyToken = ''
 let verifyErrorCount = 0
-let first = true
 const addForm = reactive({
   email: '',
   suffix: settingStore.domainList[0]
 })
-let skeletonRows = 10
-const queryParams = {
-  size: 30
-}
 
 const mySelect = ref()
 const signatureManagerRef = ref()
@@ -191,16 +224,18 @@ const signatureAccountId = ref(0)
 const smtpAccountManagerRef = ref()
 const smtpManagerAccountId = ref(0)
 
+const isMobile = () => window.innerWidth < 768
+
 if (hasPerm('account:query')) {
-  getAccountList()
+  loadAll()
 }
 
 watch(() => accountStore.accountListUpdated, () => {
-  refresh()
+  loadAll()
 })
 
 watch(() => accountStore.changeUserAccountName, () => {
-  accounts[0].name = accountStore.changeUserAccountName
+  if (view.main) view.main.name = accountStore.changeUserAccountName
 })
 
 
@@ -229,10 +264,48 @@ window.onTurnstileSuccess = (token) => {
   verifyToken = token;
 };
 
-function getSkeletonRows() {
-  if (accounts.length > 20) return skeletonRows = 20
-  if (accounts.length === 0) return skeletonRows = 1
-  skeletonRows = accounts.length
+// ===== 全量加载与视图构建 =====
+async function loadAll() {
+  loading.value = true
+  try {
+    const [list, groups] = await Promise.all([accountList(), accountGroups()])
+    accounts.value = list
+    groupsMeta.value = groups
+    buildView()
+    accountStore.setAccounts([...accounts.value])
+    if (!accountStore.currentAccountId && accounts.value.length > 0) {
+      changeAccount(accounts.value[0])
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+function buildView() {
+  const mainId = userStore.user?.account?.accountId
+  view.main = accounts.value.find(a => a.accountId === mainId) || null
+  const rest = accounts.value.filter(a => a.accountId !== mainId)
+  view.groups = groupsMeta.value.map(g => ({
+    id: g.groupId,
+    name: g.name,
+    sort: g.sort,
+    collapsed: !!collapsedMap[g.groupId],
+    accounts: rest.filter(a => (a.viewGroup || 0) === g.groupId)
+  }))
+  const groupedIds = new Set(view.groups.flatMap(g => g.accounts.map(a => a.accountId)))
+  view.ungrouped = rest.filter(a => !groupedIds.has(a.accountId))
+}
+
+function toggleCollapse(group) {
+  group.collapsed = !group.collapsed
+  if (group.id > 0) {
+    collapsedMap[group.id] = group.collapsed
+    localStorage.setItem('account-group-collapsed', JSON.stringify(collapsedMap))
+  }
+}
+
+function cardClick(item) {
+  changeAccount(item)
 }
 
 function setName() {
@@ -279,7 +352,7 @@ function openSetName(accountItem) {
 }
 
 function setAllReceive(account) {
-  let allReceiveAccount = accounts.find(account => account.allReceive === AccountAllReceiveEnum.ENABLED);
+  let allReceiveAccount = accounts.value.find(item => item.allReceive === AccountAllReceiveEnum.ENABLED);
   if (allReceiveAccount && allReceiveAccount.accountId !== account.accountId) allReceiveAccount.allReceive = AccountAllReceiveEnum.DISABLED;
   account.allReceive = account.allReceive === AccountAllReceiveEnum.DISABLED ? AccountAllReceiveEnum.ENABLED : AccountAllReceiveEnum.DISABLED;
   accountSetAllReceive(account.accountId).catch(() => {
@@ -300,8 +373,8 @@ function setAllReceive(account) {
 }
 
 
-function showNullSetting(item) {
-  return !hasPerm('email:send') && !hasPerm('smtp:set') && !(item.accountId !== userStore.user.account.accountId && hasPerm('account:delete'))
+function showNullSetting() {
+  return !hasPerm('email:send') && !hasPerm('smtp:set')
 }
 
 function itemBg(accountId) {
@@ -309,47 +382,29 @@ function itemBg(accountId) {
 }
 
 
-
-function remove(account) {
-  ElMessageBox.confirm(t('delConfirm', {msg: account.email}), {
+function remove(accountItem) {
+  ElMessageBox.confirm(t('delConfirm', {msg: accountItem.email}), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
-  }).then(() => {
-    accountDelete(account.accountId).then(() => {
-      const index = accounts.findIndex(item => item.accountId === account.accountId);
-      accounts.splice(index, 1);
-      if (accounts.length < queryParams.size) {
-        getAccountList()
-      }
-      ElMessage({
-        message: t('delSuccessMsg'),
-        type: 'success',
-        plain: true,
-      })
+  }).then(async () => {
+    await accountDelete(accountItem.accountId)
+    ElMessage({
+      message: t('delSuccessMsg'),
+      type: 'success',
+      plain: true,
     })
+    await loadAll()
   });
 }
 
 function refresh() {
-  if (loading.value) {
-    return
-  }
-  loading.value = false
-  followLoading.value = false
-  noLoading.value = false
-  queryParams.accountId = 0
-  queryParams.lastSort = null
-  getSkeletonRows();
-  scrollbarRef.value.setScrollTop(0)
-  accounts.splice(0, accounts.length)
-  accountStore.accountsLoaded = false
-  getAccountList()
+  loadAll()
 }
 
-function changeAccount(account) {
-  accountStore.currentAccountId = account.accountId
-  accountStore.currentAccount = account
+function changeAccount(accountItem) {
+  accountStore.currentAccountId = accountItem.accountId
+  accountStore.currentAccount = accountItem
 }
 
 function add() {
@@ -357,20 +412,6 @@ function add() {
   setTimeout(() => {
     addRef.value.focus()
   }, 100)
-}
-
-function setAsTop(account, index) {
-  accountSetAsTop(account.accountId).then(() => {
-    ElMessage({
-      message: t('setSuccess'),
-      type: 'success',
-      plain: true,
-    })
-
-    const [item] = accounts.splice(index, 1);
-    accounts.splice(1, 0, item);
-
-  });
 }
 
 function openSignatureManager(item) {
@@ -391,9 +432,9 @@ function openSmtpManager(item) {
   })
 }
 
-async function copyAccount(account) {
+async function copyAccount(email) {
   try {
-    await navigator.clipboard.writeText(account);
+    await navigator.clipboard.writeText(email);
     ElMessage({
       message: t('copySuccessMsg'),
       type: 'success',
@@ -409,50 +450,7 @@ async function copyAccount(account) {
   }
 }
 
-function getAccountList() {
-
-  if (loading.value || followLoading.value || noLoading.value) return;
-
-  if (accounts.length === 0) {
-    loading.value = true
-  } else {
-    followLoading.value = true
-  }
-
-  let start = Date.now();
-
-  const accountId = accounts.length > 0 ? accounts.at(-1).accountId : 0;
-  const lastSort = accounts.length > 0 ? accounts.at(-1).sort : null;
-
-  accountList(accountId, queryParams.size, lastSort).then(async list => {
-
-    let end = Date.now();
-    let duration = end - start;
-    if (duration < 300) {
-      await sleep(300 - duration)
-    }
-
-    if (list.length < queryParams.size) {
-      noLoading.value = true
-    }
-    if (accounts.length === 0) {
-      accountStore.currentAccount = list[0]
-    }
-
-    accounts.push(...list)
-    accountStore.setAccounts([...accounts])
-
-    loading.value = false
-    followLoading.value = false
-    first = false
-  }).catch(() => {
-    loading.value = false
-    followLoading.value = false
-  })
-}
-
-
-function submit() {
+async function submit() {
 
   if (!addForm.email) {
     ElMessage({
@@ -507,13 +505,15 @@ function submit() {
   }
 
   addLoading.value = true
-  accountAdd(addForm.email + addForm.suffix, verifyToken).then(account => {
+  accountAdd(addForm.email + addForm.suffix, verifyToken).then(accountRow => {
     addLoading.value = false
     showAdd.value = false
     addForm.email = ''
-    accounts.push(account)
+    accounts.value.push(accountRow)
+    buildView()
+    accountStore.setAccounts([...accounts.value])
     verifyToken = ''
-    settingStore.settings.addVerifyOpen = account.addVerifyOpen
+    settingStore.settings.addVerifyOpen = accountRow.addVerifyOpen
     ElMessage({
       message: t('addSuccessMsg'),
       type: "success",
@@ -589,19 +589,47 @@ path[fill="#ffdda1"] {
       align-items: center;
       height: 100%;
     }
-
-    .noLoading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 10px 0;
-      color: var(--secondary-text-color);
-    }
   }
 
   .btn {
     width: 100%;
     margin-top: 15px;
+  }
+
+  .group-list {
+    margin-top: 4px;
+  }
+
+  .group {
+    margin-top: 2px;
+  }
+
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    user-select: none;
+
+    .group-name {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+
+    .fold {
+      flex-shrink: 0;
+    }
+  }
+
+  .ungrouped-head {
+    margin-top: 6px;
+    cursor: default;
+  }
+
+  .main-item {
+    border: 1px solid var(--el-color-primary-light-5);
   }
 
   .item {
