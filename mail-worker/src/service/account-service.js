@@ -17,7 +17,7 @@ import smtpAccountService from './smtp-account-service';
 import user from '../entity/user';
 import smtpAccount from '../entity/smtp-account';
 import email from '../entity/email';
-import att from '../entity/att';
+import { att } from '../entity/att';
 import accountMember from '../entity/account-member';
 import accountGroup from '../entity/account-group';
 import accountMemberSignature from '../entity/account-member-signature';
