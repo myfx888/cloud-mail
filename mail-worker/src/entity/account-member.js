@@ -8,6 +8,8 @@ export const accountMember = sqliteTable('account_member', {
 	role: integer('role').default(0).notNull(),
 	lastSigScope: text('last_sig_scope').default('').notNull(),
 	lastSigId: text('last_sig_id').default('').notNull(),
+	viewSort: integer('view_sort').default(0).notNull(),
+	viewGroup: integer('view_group').default(0).notNull(),
 	createTime: text('create_time').default(sql`CURRENT_TIMESTAMP`).notNull()
 });
 export default accountMember;
