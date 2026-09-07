@@ -17,6 +17,7 @@ import smtpAccountService from './smtp-account-service';
 import user from '../entity/user';
 import smtpAccount from '../entity/smtp-account';
 import accountMember from '../entity/account-member';
+import accountGroup from '../entity/account-group';
 import accountMemberSignature from '../entity/account-member-signature';
 import memberService from './member-service';
 import userContext from '../security/user-context';
@@ -256,6 +257,87 @@ const accountService = {
 			viewGroup: row.viewGroup,
 			memberCount: Number(row.memberCount) || 0
 		}));
+	},
+
+	listGroups(c, userId) {
+		return orm(c).select().from(accountGroup)
+			.where(eq(accountGroup.userId, userId))
+			.orderBy(desc(accountGroup.sort), desc(accountGroup.groupId))
+			.all();
+	},
+
+	async saveView(c, params, userId) {
+
+		let { groups = [], items = [] } = params;
+		if (!Array.isArray(groups)) groups = [];
+		if (!Array.isArray(items)) items = [];
+
+		const user = await userService.selectById(c, userId);
+
+		// 主邮箱不存视图数据：请求里携带也直接忽略
+		const mainRow = await this.selectByEmailIncludeDel(c, user?.email);
+		const mainAccountId = mainRow?.accountId || 0;
+
+		// 1. 越权校验：items 每个账户都必须是自己的成员账户，任一越权整体拒绝
+		const accountIds = [...new Set(
+			items.map(i => Number(i?.accountId)).filter(id => id && id !== mainAccountId)
+		)];
+		if (accountIds.length > 0) {
+			const memberRows = await orm(c).select({ accountId: accountMember.accountId })
+				.from(accountMember)
+				.where(and(eq(accountMember.userId, userId), inArray(accountMember.accountId, accountIds)))
+				.all();
+			const memberSet = new Set(memberRows.map(r => r.accountId));
+			for (const accountId of accountIds) {
+				if (!memberSet.has(accountId)) throw new BizError(t('noUserAccount'));
+			}
+		}
+
+		// 2. 组 upsert：正数=更新，非正数=新建（前端对新建组使用负数临时id）
+		const oldGroups = await this.listGroups(c, userId);
+		const keepIds = new Set();
+		const tempIdMap = new Map(); // 前端负数临时id -> 真实group_id
+		for (const g of groups) {
+			const name = String(g?.name || '').trim().slice(0, 30);
+			if (!name) continue;
+			const gid = Number(g?.id) || 0;
+			const sort = Number(g?.sort) || 0;
+			if (gid > 0 && oldGroups.some(o => o.groupId === gid)) {
+				keepIds.add(gid);
+				await orm(c).update(accountGroup).set({ name, sort })
+					.where(and(eq(accountGroup.groupId, gid), eq(accountGroup.userId, userId)))
+					.run();
+			} else {
+				const row = await orm(c).insert(accountGroup)
+					.values({ userId, name, sort }).returning().get();
+				tempIdMap.set(gid, row.groupId);
+			}
+		}
+
+		// 3. 请求未携带的旧组删除，组内成员回落未分组
+		const removedIds = oldGroups.map(o => o.groupId).filter(id => !keepIds.has(id));
+		if (removedIds.length > 0) {
+			await orm(c).update(accountMember).set({ viewGroup: 0 })
+				.where(and(eq(accountMember.userId, userId), inArray(accountMember.viewGroup, removedIds)))
+				.run();
+			await orm(c).delete(accountGroup)
+				.where(and(eq(accountGroup.userId, userId), inArray(accountGroup.groupId, removedIds)))
+				.run();
+		}
+
+		// 4. items 批量更新 member 行（负数 viewGroup 经映射换真实id，映射不到回落未分组）
+		for (const item of items) {
+			const accountId = Number(item?.accountId);
+			if (!accountId || accountId === mainAccountId) continue;
+			let viewGroup = Number(item?.viewGroup) || 0;
+			if (viewGroup < 0) viewGroup = tempIdMap.get(viewGroup) || 0;
+			await orm(c).update(accountMember)
+				.set({ viewSort: Number(item?.viewSort) || 0, viewGroup })
+				.where(and(eq(accountMember.accountId, accountId), eq(accountMember.userId, userId)))
+				.run();
+		}
+
+		return await this.listGroups(c, userId);
 	},
 
 	async delete(c, params, userId) {

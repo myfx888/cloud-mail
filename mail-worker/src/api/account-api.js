@@ -9,6 +9,16 @@ app.get('/account/list', async (c) => {
 	return c.json(result.ok(list));
 });
 
+app.get('/account/groups', async (c) => {
+	const list = await accountService.listGroups(c, userContext.getUserId(c));
+	return c.json(result.ok(list));
+});
+
+app.put('/account/view', async (c) => {
+	const list = await accountService.saveView(c, await c.req.json(), userContext.getUserId(c));
+	return c.json(result.ok(list));
+});
+
 app.delete('/account/delete', async (c) => {
 	await accountService.delete(c, c.req.query(), userContext.getUserId(c));
 	return c.json(result.ok());
