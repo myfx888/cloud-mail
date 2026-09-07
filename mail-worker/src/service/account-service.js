@@ -231,46 +231,31 @@ const accountService = {
 
 	async list(c, params, userId) {
 
-		let { accountId, size, lastSort } = params;
-
-		accountId = Number(accountId);
-		size = Number(size);
-		lastSort = Number(lastSort);
-
-		if (size > 30) {
-			size = 30;
-		}
-
-		if (!accountId) {
-			accountId = 0;
-		}
-
-		if(Number.isNaN(lastSort)) {
-			lastSort = 9999999999;
-		}
-
-		// 主邮箱（account.email === 登录用户邮箱）永远排第一，置顶 sort 也无法超越
+		// 主邮箱（account.email === 登录用户邮箱）永远排第一，视图排序也无法超越
 		const isPrimary = sql`CASE WHEN ${account.email} = ${userContext.getUser(c).email} THEN 1 ELSE 0 END`;
+		const memberCount = sql`(SELECT COUNT(*) FROM account_member am WHERE am.account_id = ${account.accountId})`;
 
-		const rows = await orm(c).select({ account: account })
+		const rows = await orm(c).select({
+				account: account,
+				viewSort: accountMember.viewSort,
+				viewGroup: accountMember.viewGroup,
+				memberCount
+			})
 			.from(account)
 			.innerJoin(accountMember, eq(accountMember.accountId, account.accountId))
 			.where(
 				and(
 					eq(accountMember.userId, userId),
-					eq(account.isDel, isDel.NORMAL),
-					or(
-						lt(account.sort, lastSort),
-						and(
-							eq(account.sort, lastSort),
-							gt(account.accountId, accountId)
-						)
-					))
-				)
-			.orderBy(desc(isPrimary), desc(account.sort), asc(account.accountId))
-			.limit(size)
+					eq(account.isDel, isDel.NORMAL)
+				))
+			.orderBy(desc(isPrimary), desc(accountMember.viewSort), desc(account.sort), asc(account.accountId))
 			.all();
-		return rows.map(row => row.account);
+		return rows.map(row => ({
+			...row.account,
+			viewSort: row.viewSort,
+			viewGroup: row.viewGroup,
+			memberCount: Number(row.memberCount) || 0
+		}));
 	},
 
 	async delete(c, params, userId) {
