@@ -58,14 +58,7 @@ const cfSendService = {
 				msg.setCc(ccAddresses);
 			}
 
-			// BCC
-			if (Array.isArray(emailData.bcc) && emailData.bcc.length > 0) {
-				const bccAddresses = emailData.bcc.map(r => ({
-					name: r.name || '',
-					addr: r.address
-				}));
-				msg.setBcc(bccAddresses);
-			}
+			// BCC：不写入Bcc头（防泄露给其他收件人），仅作为信封收件人投递
 
 			// 主题
 			msg.setSubject(emailData.subject || '');
@@ -128,16 +121,41 @@ const cfSendService = {
 			}
 
 			// 构造 EmailMessage 并发送
+			// send_email binding 只投递给 EmailMessage 构造函数里的信封收件人，
+			// 不会解析 MIME 的 To/Cc/Bcc 头，必须逐个收件人各发一份
 			const rawMessage = msg.asRaw();
-			const firstRecipient = emailData.recipient[0]?.address;
 
-			const message = new EmailMessage(
-				emailData.sendEmail,
-				firstRecipient,
-				rawMessage
-			);
+			const seen = new Set();
+			const envelopeRecipients = [];
+			for (const r of [...(emailData.recipient || []), ...(emailData.cc || []), ...(emailData.bcc || [])]) {
+				const addr = (r?.address || '').trim();
+				const key = addr.toLowerCase();
+				if (addr && !seen.has(key)) {
+					seen.add(key);
+					envelopeRecipients.push(addr);
+				}
+			}
 
-			await c.env.SEND_EMAIL.send(message);
+			if (!envelopeRecipients.length) {
+				throw new BizError(t('cfSendFailed') + ': no recipient');
+			}
+
+			const failures = [];
+			for (const addr of envelopeRecipients) {
+				try {
+					await c.env.SEND_EMAIL.send(new EmailMessage(
+						emailData.sendEmail,
+						addr,
+						rawMessage
+					));
+				} catch (e) {
+					failures.push(`${addr}: ${e.message}`);
+				}
+			}
+
+			if (failures.length > 0) {
+				throw new BizError(t('cfSendFailed') + ': ' + failures.join('; '));
+			}
 
 			const domain = emailData.sendEmail.split('@')[1] || 'unknown';
 			return {

@@ -215,8 +215,25 @@ const emailService = {
 		const userRow = await userService.selectById(c, userId);
 		const roleRow = await roleService.selectById(c, userRow.type);
 
+		//归并收件人（含抄送/密送），按小写去重，保持原始大小写
+		const seenAddr = new Set();
+		const uniqAddr = (list) => {
+			const out = [];
+			for (const item of list) {
+				const key = String(item).trim().toLowerCase();
+				if (key && !seenAddr.has(key)) {
+					seenAddr.add(key);
+					out.push(String(item).trim());
+				}
+			}
+			return out;
+		};
+		const ccList = uniqAddr(Array.isArray(cc) ? cc : (cc ? [cc] : []));
+		const bccList = uniqAddr(Array.isArray(bcc) ? bcc : (bcc ? [bcc] : []));
+		const allRecipients = [...uniqAddr(receiveEmail), ...ccList, ...bccList];
+
 		//判断接收方是不是全部为站内邮箱
-		const allInternal = receiveEmail.every(email => {
+		const allInternal = allRecipients.every(email => {
 			const domain = '@' + emailUtils.getDomain(email);
 			return domainList.includes(domain);
 		});
@@ -243,7 +260,7 @@ const emailService = {
 				if (roleRow.sendType === 'count') throw new BizError(t('totalSendLimit'), 403);
 			}
 
-			if (userRow.sendCount + receiveEmail.length > roleRow.sendCount) {
+			if (userRow.sendCount + allRecipients.length > roleRow.sendCount) {
 				if (roleRow.sendType === 'day') throw new BizError(t('daySendLack'), 403);
 				if (roleRow.sendType === 'count') throw new BizError(t('totalSendLack'), 403);
 			}
@@ -317,8 +334,8 @@ const emailService = {
 					sendEmail: accountRow.email,
 					name: name,
 					recipient: receiveEmail.map(email => ({ address: email, name: '' })),
-					cc: Array.isArray(cc) ? cc.map(email => ({ address: email, name: '' })) : (cc ? [{ address: cc, name: '' }] : []),
-					bcc: Array.isArray(bcc) ? bcc.map(email => ({ address: email, name: '' })) : (bcc ? [{ address: bcc, name: '' }] : []),
+					cc: ccList.map(email => ({ address: email, name: '' })),
+					bcc: bccList.map(email => ({ address: email, name: '' })),
 					subject: subject,
 					text: text,
 					content: html,
@@ -343,8 +360,8 @@ const emailService = {
 					sendEmail: accountRow.email,
 					name: name,
 					recipient: receiveEmail.map(email => ({ address: email, name: '' })),
-					cc: Array.isArray(cc) ? cc.map(email => ({ address: email, name: '' })) : (cc ? [{ address: cc, name: '' }] : []),
-					bcc: Array.isArray(bcc) ? bcc.map(email => ({ address: email, name: '' })) : (bcc ? [{ address: bcc, name: '' }] : []),
+					cc: ccList.map(email => ({ address: email, name: '' })),
+					bcc: bccList.map(email => ({ address: email, name: '' })),
 					subject: subject,
 					text: text,
 					content: html,
@@ -354,7 +371,7 @@ const emailService = {
 						'References': emailRow.messageId
 					} : {}
 				};
-				
+
 				sendResult = await smtpService.send(c, emailPayload, smtpConfig);
 				
 			} else {
@@ -372,6 +389,8 @@ const emailService = {
 					html: html,
 					attachments: [...imageDataList, ...attachments]
 				};
+				if (ccList.length > 0) sendForm.cc = ccList;
+				if (bccList.length > 0) sendForm.bcc = bccList;
 			if (sendType === 'reply') {
 					sendForm.headers = {
 						'in-reply-to': emailRow.messageId,
@@ -441,7 +460,7 @@ const emailService = {
 
 		//如果权限有发送次数增加用户发送次数
 		if (roleRow.sendCount && roleRow.sendType !== 'internal') {
-			await userService.incrUserSendCount(c, receiveEmail.length, userId);
+			await userService.incrUserSendCount(c, allRecipients.length, userId);
 		}
 
 		//保存到数据库并返回结果
@@ -468,7 +487,7 @@ const emailService = {
 
 		//如果全是站内接收方，直接写入数据库
 		if (allInternal) {
-			await this.HandleOnSiteEmail(c, receiveEmail, emailResult, attList);
+			await this.HandleOnSiteEmail(c, allRecipients, emailResult, attList);
 		}
 
 		const dateStr = dayjs().format('YYYY-MM-DD');
@@ -478,10 +497,10 @@ const emailService = {
 			//记录每天发件次数统计
 			if (!daySendTotal) {
 				if (c.env.kv && c.env.kv.put) {
-					await c.env.kv.put(kvConst.SEND_DAY_COUNT + dateStr, JSON.stringify(receiveEmail.length), { expirationTtl: 60 * 60 * 24 });
+					await c.env.kv.put(kvConst.SEND_DAY_COUNT + dateStr, JSON.stringify(allRecipients.length), { expirationTtl: 60 * 60 * 24 });
 				}
 			} else  {
-				daySendTotal = Number(daySendTotal) + receiveEmail.length
+				daySendTotal = Number(daySendTotal) + allRecipients.length
 				if (c.env.kv && c.env.kv.put) {
 					await c.env.kv.put(kvConst.SEND_DAY_COUNT + dateStr, JSON.stringify(daySendTotal), { expirationTtl: 60 * 60 * 24 });
 				}
