@@ -75,10 +75,11 @@ const accountService = {
 
 		if (exists) {
 			const smtpConfig = await mailcowService.getSmtpConfig(c, targetServer);
-			const resolvedPassword = await mailcowService.resolvePassword(c);
+			// 治本：先通过API把新密码写进mailcow，再落库，保证两者一致（否则SMTP认证535）
+			const reset = await mailcowService.resetAccountPassword(c, accountRow.email, targetServer);
 			const existedAccount = {
 				email: accountRow.email,
-				password: resolvedPassword,
+				password: reset.password,
 				smtpHost: smtpConfig.smtpHost,
 				smtpPort: smtpConfig.smtpPort,
 				smtpSecure: smtpConfig.smtpSecure,
@@ -579,10 +580,11 @@ const accountService = {
 		let mailcowAccount;
 		if (exists) {
 			const smtpConfig = await mailcowService.getSmtpConfig(c, targetServer);
-			const resolvedPassword = await mailcowService.resolvePassword(c);
+			// 治本：先通过API把新密码写进mailcow，再落库，保证两者一致（否则SMTP认证535）
+			const reset = await mailcowService.resetAccountPassword(c, accountRow.email, targetServer);
 			mailcowAccount = {
 				email: accountRow.email,
-				password: resolvedPassword,
+				password: reset.password,
 				smtpHost: smtpConfig.smtpHost,
 				smtpPort: smtpConfig.smtpPort,
 				smtpSecure: smtpConfig.smtpSecure,

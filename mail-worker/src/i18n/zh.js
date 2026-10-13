@@ -84,6 +84,7 @@ const zh = {
 	mailcowAccountQueryFailed: '查询mailcow账户失败',
 	mailcowAccountNotFound: 'mailcow账户不存在',
 	mailcowAccountDeleteFailed: '删除mailcow账户失败',
+	mailcowPasswordResetFailed: 'mailcow密码重置失败',
 	accountNotExist: '账号不存在',
 	invalidParams: '请求参数无效',
 	perms: {

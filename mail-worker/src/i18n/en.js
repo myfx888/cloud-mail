@@ -79,6 +79,7 @@ const en = {
 	smtpConnectionSuccess: 'SMTP connection successful',
 	smtpConnectionFailed: 'SMTP connection failed',
 	mailcowAccountDeleteFailed: '删除mailcow账户失败',
+	mailcowPasswordResetFailed: 'Mailcow password reset failed',
 	accountNotExist: 'Account does not exist',
 	invalidParams: 'Invalid request parameters',
 	perms: {

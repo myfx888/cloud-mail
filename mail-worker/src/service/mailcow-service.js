@@ -330,6 +330,48 @@ const mailcowService = {
         }
     },
 
+    /**
+     * 重置邮箱密码：生成新密码→edit/mailbox 写入 mailcow→返回明文供本地落库
+     * 用于 provisioning 的「邮箱已存在」分支：本地与 mailcow 密码必须一致，否则 SMTP 认证 535。
+     * @returns {{ password: string }}
+     */
+    async resetAccountPassword(c, email, serverConfig = null) {
+        // 调用方（provisioning exists 分支）传入的 targetServer 已由 getServerById 补全；
+        // 未传时交给 callApi 内部走 getDefaultServer 兜底。
+        const server = serverConfig || await this.getDefaultServer(c);
+        const password = await this.resolvePassword(c);
+        const data = { items: [email], attr: { password, password2: password } };
+        const result = await this.callApi(c, 'edit/mailbox', 'POST', data, server);
+
+        const isSuccess = Array.isArray(result)
+            ? result.some(r => r.type === 'success' || r.status === 'success' || r.status === true)
+            : (result?.type === 'success' || result?.status === 'success' || result?.status === true);
+
+        if (!isSuccess && !this.isEmptyApiResponse(result)) {
+            let errorDetail = '';
+            if (Array.isArray(result)) {
+                errorDetail = result
+                    .filter(r => r.type === 'danger' || r.type === 'error' || r.status === 'error')
+                    .map(r => r.msg || r.message || JSON.stringify(r))
+                    .join(', ');
+                if (!errorDetail && result.length > 0) errorDetail = JSON.stringify(result);
+            } else {
+                errorDetail = result?.msg || result?.message || JSON.stringify(result);
+            }
+            throw new BizError(`${t('mailcowPasswordResetFailed')}${errorDetail ? ': ' + errorDetail : ''}`);
+        }
+
+        // 空 body：mailcow 常见行为，用邮箱存在性兜底确认
+        if (this.isEmptyApiResponse(result)) {
+            const stillExists = await this.accountExists(c, email, server);
+            if (!stillExists) {
+                throw new BizError(`${t('mailcowPasswordResetFailed')}: mailbox not found after edit`);
+            }
+        }
+
+        return { password };
+    },
+
     async createAccount(c, email, password = '', serverConfig = null) {
         try {
             // Ensure we have a full server configuration
