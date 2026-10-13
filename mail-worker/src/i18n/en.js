@@ -72,6 +72,7 @@ const en = {
 	emailExistDatabase: 'Email already exists in the database',
 	notConfigOss: 'Object storage not configured',
 	smtpNotConfigured: 'SMTP not configured, please configure SMTP in settings',
+	cfSmtpNotConfigured: 'Cloudflare SMTP credentials are not configured for this domain. Please add them in Settings.',
 	smtpSendFailed: 'SMTP send failed',
 	cfSendFailed: 'Cloudflare email send failed',
 	cfBindingNotConfigured: 'Cloudflare send_email binding not configured',

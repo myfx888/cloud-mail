@@ -72,6 +72,7 @@ const zh = {
 	emailExistDatabase: '有邮箱已存在数据库中',
 	notConfigOss: '对象存储未配置',
 	smtpNotConfigured: 'SMTP未配置，请在设置中配置SMTP',
+	cfSmtpNotConfigured: '当前域名未配置Cloudflare SMTP凭据，请在设置中添加',
 	smtpSendFailed: 'SMTP发送失败',
 	cfSendFailed: 'Cloudflare邮件发送失败',
 	cfBindingNotConfigured: 'Cloudflare send_email未配置',

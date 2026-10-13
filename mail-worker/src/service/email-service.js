@@ -203,7 +203,7 @@ const emailService = {
 			smtpAccountId //SMTP账户ID
 		} = params;
 
-		const { resendTokens, r2Domain, send, domainList } = await settingService.query(c);
+		const { resendTokens, r2Domain, send, domainList, cfSmtpTokens, smtpFromName } = await settingService.query(c);
 
 		let { imageDataList, html } = await attService.toImageUrlHtml(c, content);
 
@@ -300,7 +300,7 @@ const emailService = {
 		if (send.resendEnabled === 0 && actualSendMethod === emailConst.sendMethod.RESEND) {
 			throw new BizError(t('noResendToken'));
 		}
-		if (!resendToken && !allInternal && actualSendMethod !== emailConst.sendMethod.SMTP && actualSendMethod !== emailConst.sendMethod.CLOUDFLARE) {
+		if (!resendToken && !allInternal && actualSendMethod !== emailConst.sendMethod.SMTP && actualSendMethod !== emailConst.sendMethod.CLOUDFLARE && actualSendMethod !== emailConst.sendMethod.CLOUDFLARE_SMTP) {
 			throw new BizError(t('noResendToken'));
 		}
 
@@ -347,6 +347,38 @@ const emailService = {
 				};
 
 				sendResult = await cfSendService.send(c, emailPayload);
+
+			} else if (actualSendMethod === emailConst.sendMethod.CLOUDFLARE_SMTP) {
+				// Cloudflare Email Service 认证SMTP（备用通道，仅手动选择）
+				const cfToken = (cfSmtpTokens || {})[domain];
+				if (!cfToken || !cfToken.user || !cfToken.password) {
+					throw new BizError(t('cfSmtpNotConfigured'));
+				}
+				const emailPayload = {
+					sendEmail: accountRow.email,
+					name: name,
+					recipient: receiveEmail.map(email => ({ address: email, name: '' })),
+					cc: ccList.map(email => ({ address: email, name: '' })),
+					bcc: bccList.map(email => ({ address: email, name: '' })),
+					subject: subject,
+					text: text,
+					content: html,
+					attachments: [...imageDataList, ...attachments],
+					headers: sendType === 'reply' ? {
+						'In-Reply-To': emailRow.messageId,
+						'References': emailRow.messageId
+					} : {}
+				};
+				sendResult = await smtpService.send(c, emailPayload, {
+					enabled: true,
+					host: 'smtp.mx.cloudflare.net',
+					port: 465,
+					secure: 1,
+					authType: 'plain',
+					user: cfToken.user,
+					password: cfToken.password,
+					fromName: smtpFromName
+				});
 
 			} else if (actualSendMethod === emailConst.sendMethod.SMTP) {
 				// 使用SMTP发送
@@ -411,8 +443,8 @@ const emailService = {
 				throw new BizError(sendResult.message || t('cfSendFailed'));
 			}
 			messageId = sendResult.messageId;
-		} else if (actualSendMethod === emailConst.sendMethod.SMTP) {
-			// SMTP发送结果处理
+		} else if (actualSendMethod === emailConst.sendMethod.SMTP || actualSendMethod === emailConst.sendMethod.CLOUDFLARE_SMTP) {
+			// SMTP发送结果处理（cfsmtp复用SMTP通道，返回{success, messageId}同构）
 			if (!sendResult.success) {
 				throw new BizError(sendResult.message || t('smtpSendFailed'));
 			}

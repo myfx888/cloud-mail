@@ -59,6 +59,7 @@ export const emailConst = {
 		RESEND: 'resend',
 		SMTP: 'smtp',
 		CLOUDFLARE: 'cloudflare',
+		CLOUDFLARE_SMTP: 'cfsmtp',
 		IMPORTED: 'imported'
 	}
 }
