@@ -31,6 +31,12 @@ const settingService = {
 			try { parsed.resendTokens = JSON.parse(parsed.resendTokens || '{}'); } catch (e) { parsed.resendTokens = {}; }
 		}
 
+		// 解析 cfSmtpTokens
+		if (typeof parsed.cfSmtpTokens === 'string') {
+			try { parsed.cfSmtpTokens = JSON.parse(parsed.cfSmtpTokens || '{}'); } catch (e) { parsed.cfSmtpTokens = {}; }
+		}
+		parsed.cfSmtpDomains = Object.keys(parsed.cfSmtpTokens || {});
+
 		// 解析 mailcowServers
 		const mailcowServersRaw = parsed.mailcowServers ?? parsed.mailcow_servers ?? '[]';
 		parsed.mailcowServers = (Array.isArray(mailcowServersRaw)
@@ -118,6 +124,7 @@ const settingService = {
 					register_verify: 1,
 					add_email_verify: 1,
 					resendTokens: {},
+					cfSmtpTokens: {},
 					send: 0,
 					r2_domain: '',
 					site_key: '',
@@ -215,6 +222,10 @@ const settingService = {
 			settingRow.resendTokens[key] = `${settingRow.resendTokens[key].slice(0, 12)}******`;
 		});
 
+		Object.keys(settingRow.cfSmtpTokens || {}).forEach(key => {
+			settingRow.cfSmtpTokens[key] = { ...settingRow.cfSmtpTokens[key], password: '******' };
+		});
+
 		settingRow.s3AccessKey = settingRow.s3AccessKey ? `${settingRow.s3AccessKey.slice(0, 12)}******` : null;
 		settingRow.s3SecretKey = settingRow.s3SecretKey ? `${settingRow.s3SecretKey.slice(0, 12)}******` : null;
 		settingRow.aiApiKey = settingRow.aiApiKey ? `${settingRow.aiApiKey.slice(0, 8)}******` : '';
@@ -266,6 +277,18 @@ const settingService = {
 		}
 
 		params.resendTokens = JSON.stringify(resendTokens);
+
+		if (params.cfSmtpTokens && typeof params.cfSmtpTokens === 'object') {
+			const merged = { ...(settingData.cfSmtpTokens || {}), ...params.cfSmtpTokens };
+			Object.keys(merged).forEach(domain => {
+				if (!merged[domain] || !merged[domain].user) delete merged[domain];
+				// 密码为掩码占位时保留旧值
+				else if (merged[domain].password === '******' && settingData.cfSmtpTokens?.[domain]) {
+					merged[domain].password = settingData.cfSmtpTokens[domain].password;
+				}
+			});
+			params.cfSmtpTokens = JSON.stringify(merged);
+		}
 
 		if (params.mailcow_enabled !== undefined && params.mailcowEnabled === undefined) {
 			params.mailcowEnabled = params.mailcow_enabled;
