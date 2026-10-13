@@ -83,9 +83,10 @@
                   <el-option v-for="signature in personalSignatures" :key="signature.id" :label="signature.isDefault ? signature.name + ' ★' : signature.name" :value="signature.id"/>
                 </el-option-group>
               </el-select>
-              <el-radio-group v-model="form.sendMethod" size="small" v-if="sendEmailAvailable || resendEnabled">
+              <el-radio-group v-model="form.sendMethod" size="small" v-if="sendEmailAvailable || resendEnabled || cfSmtpAvailable">
                 <el-radio-button value="cloudflare" v-if="sendEmailAvailable">Cloudflare</el-radio-button>
                 <el-radio-button value="resend" v-if="resendEnabled">Resend</el-radio-button>
+                <el-radio-button value="cfsmtp" v-if="cfSmtpAvailable">CF SMTP</el-radio-button>
                 <el-radio-button value="smtp">SMTP</el-radio-button>
               </el-radio-group>
               <el-select
@@ -218,7 +219,14 @@ const selectRecipientList = ref([])
 const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
 const resendEnabled = computed(() => Number(settingStore.settings?.resendEnabled ?? 1) === 1)
 const sendEmailAvailable = computed(() => !!settingStore.settings?.sendEmailAvailable)
+// CF SMTP备用通道：当前发件账号域名命中后台配置的cfSmtpTokens域名列表时可见（数据源为写信页open()写入的form.sendEmail，与form.accountId同源，无需额外请求）
+const cfSmtpAvailable = computed(() => {
+  const domains = settingStore.settings?.cfSmtpDomains || []
+  const email = form.sendEmail || ''
+  return domains.includes(email.split('@')[1])
+})
 const showSmtpSelector = computed(() => {
+  if (form.sendMethod === 'cfsmtp') return false
   if (form.sendType === 'reply') {
     return smtpAccounts.value.length > 0
   }
@@ -558,6 +566,7 @@ async function sendEmail() {
     if (sendEmailAvailable.value && form.sendMethod !== 'cloudflare') availableMethods.push('cloudflare')
     if (resendEnabled.value && form.sendMethod !== 'resend') availableMethods.push('resend')
     if (form.sendMethod !== 'smtp') availableMethods.push('smtp')
+    if (cfSmtpAvailable.value && form.sendMethod !== 'cfsmtp') availableMethods.push('cfsmtp')
 
     if (availableMethods.length > 0 && e.code !== 401) {
       ElMessageBox.confirm(

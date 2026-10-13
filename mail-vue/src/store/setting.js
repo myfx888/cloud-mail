@@ -10,6 +10,7 @@ export const useSettingStore = defineStore('setting', {
             resendEnabled: 1,
             sendEmailAvailable: false,
             aiEnabled: 0,
+            cfSmtpDomains: [],
         },
         lang: '',
     }),

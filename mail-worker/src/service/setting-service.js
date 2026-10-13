@@ -514,6 +514,7 @@ const settingService = {
 			background: settingRow.background,
 			loginOpacity: settingRow.loginOpacity,
 			resendEnabled: settingRow.resendEnabled,
+			cfSmtpDomains: Object.keys(settingRow.cfSmtpTokens || {}),
 			domainList,
 			loginDomainList,
 			regKey: settingRow.regKey,
