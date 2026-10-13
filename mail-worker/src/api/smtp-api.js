@@ -307,3 +307,18 @@ app.post('/smtp/delete-mailcow-account', async (c) => {
 
 	return c.json(result.ok());
 });
+
+// 重置mailcow邮箱密码并同步本地SMTP账户（发送535自愈）
+app.post('/smtp/reset-mailcow-password', async (c) => {
+	const { accountId } = await c.req.json();
+	const userId = userContext.getUserId(c);
+	const isAdmin = userContext.isAdmin(c);
+
+	const accountRow = await accountService.selectByIdAny(c, parseInt(accountId, 10));
+	if (!accountRow || !(await memberService.canAccessAccount(c, parseInt(accountId, 10), userId, isAdmin))) {
+		throw new BizError(t('accountNotExist'));
+	}
+
+	const resetResult = await accountService.resetMailcowPasswordForAccount(c, accountRow);
+	return c.json(result.ok(resetResult));
+});

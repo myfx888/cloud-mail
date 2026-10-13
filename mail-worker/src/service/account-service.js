@@ -606,6 +606,23 @@ const accountService = {
 		};
 	},
 
+	/**
+	 * 重置mailcow邮箱密码并同步本地smtp_account（不回传明文）
+	 */
+	async resetMailcowPasswordForAccount(c, accountRow) {
+		if (!accountRow?.mailcowServerId) {
+			throw new BizError(t('mailcowAccountNotFound'));
+		}
+		const server = await mailcowService.getServerById(c, accountRow.mailcowServerId);
+		const { password } = await mailcowService.resetAccountPassword(c, accountRow.email, server);
+
+		const smtpRow = await smtpAccountService.findByMailcowServer(c, accountRow.accountId, accountRow.mailcowServerId);
+		if (smtpRow) {
+			await smtpAccountService.update(c, smtpRow.smtpAccountId, accountRow.accountId, { password });
+		}
+		return { success: true };
+	},
+
 	async switchSmtpServer(c, accountId, smtpServerId, userId) {
 		const accountRow = await this.selectById(c, accountId);
 		if (!accountRow) {
