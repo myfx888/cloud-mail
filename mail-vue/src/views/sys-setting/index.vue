@@ -236,6 +236,31 @@
             </div>
           </div>
 
+          <!-- Cloudflare SMTP Card -->
+          <div class="settings-card">
+            <div class="card-title">Cloudflare SMTP（备用）</div>
+            <div class="card-content">
+              <div class="cf-smtp-tip">发信账号的邮箱域名命中下列域名时，改经 Cloudflare SMTP 出站（API Token 认证）</div>
+              <div class="cf-smtp-row" v-for="(row, i) in cfSmtpRows" :key="i">
+                <el-input v-model="row.domain" placeholder="域名，如 example.com"
+                          @blur="normalizeCfSmtpDomain(row)"/>
+                <div class="cf-smtp-inputs">
+                  <el-input v-model="row.user" placeholder="用户名（api_token）"/>
+                  <el-input v-model="row.password" placeholder="API Token（未修改请保持 ******）" show-password/>
+                </div>
+                <div class="cf-smtp-actions">
+                  <el-button size="small" :loading="row._testing" @click="testCfSmtpRow(row)">测试</el-button>
+                  <el-button size="small" type="danger" @click="cfSmtpRows.splice(i, 1)">删除</el-button>
+                </div>
+              </div>
+              <div v-if="cfSmtpRows.length === 0" class="cf-smtp-tip">暂未配置域名</div>
+              <div class="cf-smtp-footer">
+                <el-button size="small" :loading="settingLoading" @click="addCfSmtpRow">添加域名</el-button>
+                <el-button size="small" type="primary" :loading="settingLoading" @click="saveCfSmtp">保存</el-button>
+              </div>
+            </div>
+          </div>
+
           <div class="settings-card">
             <div class="card-title">Mailcow</div>
             <div class="card-content">
@@ -1067,7 +1092,7 @@
 
 <script setup>
 import {computed, defineOptions, reactive, ref, watch} from "vue";
-import {deleteBackground, getMailcowServerDependencies, mailcowTestConnection, mailcowTestConnectionWithConfig, setBackground, settingQuery, settingSet} from "@/request/setting.js";
+import {deleteBackground, getMailcowServerDependencies, mailcowTestConnection, mailcowTestConnectionWithConfig, setBackground, settingQuery, settingSet, verifySmtp} from "@/request/setting.js";
 import {aiTestConnection} from '@/request/ai.js';
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
@@ -1160,6 +1185,7 @@ const resendTokenForm = reactive({
   domain: '',
   token: '',
 })
+const cfSmtpRows = ref([])
 const turnstileForm = reactive({
   siteKey: '',
   secretKey: ''
@@ -1281,10 +1307,18 @@ function getSettings() {
     if (!settingData.mailcowGlobalSmtpTemplate || typeof settingData.mailcowGlobalSmtpTemplate !== 'object') {
       settingData.mailcowGlobalSmtpTemplate = {}
     }
+    if (!settingData.cfSmtpTokens || typeof settingData.cfSmtpTokens !== 'object' || Array.isArray(settingData.cfSmtpTokens)) {
+      settingData.cfSmtpTokens = {}
+    }
 
     setting.value = settingData
     settingStore.domainList = settingData.domainList;
     resendTokenForm.domain = setting.value.domainList[0]
+    cfSmtpRows.value = Object.keys(setting.value.cfSmtpTokens).map(domain => ({
+      domain,
+      user: setting.value.cfSmtpTokens[domain]?.user || 'api_token',
+      password: setting.value.cfSmtpTokens[domain]?.password || ''
+    }))
     loginOpacity.value = setting.value.loginOpacity
     minEmailPrefix.value = setting.value.minEmailPrefix
     firstLoading.value = false
@@ -1978,11 +2012,64 @@ function saveResendToken() {
   editSetting(settingForm)
 }
 
+function addCfSmtpRow() {
+  cfSmtpRows.value.push({domain: '', user: 'api_token', password: '', _testing: false})
+}
+
+function normalizeCfSmtpDomain(row) {
+  row.domain = (row.domain || '').trim().toLowerCase()
+}
+
+async function testCfSmtpRow(row) {
+  const user = (row.user || '').trim()
+  if (!user || !row.password || row.password === '******') {
+    ElMessage({
+      message: '请先填写用户名与 API Token（存量 Token 已掩码，测试需重新输入）',
+      type: 'warning',
+      plain: true
+    })
+    return
+  }
+  row._testing = true
+  try {
+    const result = await verifySmtp({
+      smtpHost: 'smtp.mx.cloudflare.net',
+      smtpPort: 465,
+      smtpSecure: 1,
+      smtpUser: user,
+      smtpPassword: row.password,
+      smtpAuthType: 'plain'
+    })
+    if (result?.success) {
+      ElMessage({message: result.message || '连接成功', type: 'success', plain: true})
+    } else {
+      ElMessage({message: result?.message || '连接失败', type: 'error', plain: true})
+    }
+  } catch (e) {
+    ElMessage({message: e?.message || '连接失败', type: 'error', plain: true})
+  } finally {
+    row._testing = false
+  }
+}
+
+function saveCfSmtp() {
+  const cfSmtpTokens = {}
+  for (const r of cfSmtpRows.value) {
+    const domain = (r.domain || '').trim().toLowerCase()
+    const user = (r.user || '').trim()
+    if (domain && user) {
+      cfSmtpTokens[domain] = {user, password: r.password}
+    }
+  }
+  editSetting({cfSmtpTokens})
+}
+
 function backupSetting() {
   const settingForm = {...setting.value}
   delete settingForm.resendTokens
   delete settingForm.siteKey
   delete settingForm.secretKey
+  delete settingForm.cfSmtpTokens
   backup = JSON.stringify(setting.value)
 }
 
@@ -2007,6 +2094,7 @@ function change(e) {
   delete settingForm.s3AccessKey
   delete settingForm.s3SecretKey
   delete settingForm.resendTokens
+  delete settingForm.cfSmtpTokens
   editSetting(settingForm, false)
 }
 
@@ -2202,6 +2290,43 @@ function editSetting(settingForm, refreshStatus = true) {
     flex: 1;
     text-align: right;
   }
+}
+
+.cf-smtp-tip {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+}
+
+.cf-smtp-row {
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .cf-smtp-inputs {
+    display: flex;
+    gap: 8px;
+
+    .el-input {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  .cf-smtp-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}
+
+.cf-smtp-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .title-icon.warning {
