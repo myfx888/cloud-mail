@@ -1186,6 +1186,8 @@ const resendTokenForm = reactive({
   token: '',
 })
 const cfSmtpRows = ref([])
+// 设置加载时的 cfsmtp 域名快照：后端 set() 是 spread-merge，保存时对已删除域名需显式补 null 才能真正删除
+let cfSmtpInitialDomains = []
 const turnstileForm = reactive({
   siteKey: '',
   secretKey: ''
@@ -1319,6 +1321,8 @@ function getSettings() {
       user: setting.value.cfSmtpTokens[domain]?.user || 'api_token',
       password: setting.value.cfSmtpTokens[domain]?.password || ''
     }))
+    cfSmtpInitialDomains = Object.keys(setting.value.cfSmtpTokens)
+        .map(d => String(d || '').trim().toLowerCase()).filter(Boolean)
     loginOpacity.value = setting.value.loginOpacity
     minEmailPrefix.value = setting.value.minEmailPrefix
     firstLoading.value = false
@@ -2060,6 +2064,10 @@ function saveCfSmtp() {
     if (domain && user) {
       cfSmtpTokens[domain] = {user, password: r.password}
     }
+  }
+  // 对初始快照中存在、本次编辑已删除的域名补 null：后端 falsy 删除规则（!merged[domain]）才会移除旧域名
+  for (const domain of cfSmtpInitialDomains) {
+    if (!cfSmtpTokens[domain]) cfSmtpTokens[domain] = null
   }
   editSetting({cfSmtpTokens})
 }

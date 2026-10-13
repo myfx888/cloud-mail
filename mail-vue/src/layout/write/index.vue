@@ -532,8 +532,10 @@ async function sendEmail() {
     show.value = true
     addRecipientRecord();
 
-    // SMTP认证失败(535)且账号绑定mailcow：询问用户一键重置密码并自动重发
+    // SMTP认证失败(535)且经smtp通道发送、账号绑定mailcow：询问用户一键重置密码并自动重发
+    // cfsmtp 方式的 535 是 CF 端 token 问题，与 mailcow 密码无关，不弹重置（走下方切换方式重试）
     const canResetMailcow = e.code !== 401
+        && form.sendMethod === 'smtp'
         && accountMailcowServerId.value
         && /535|authentication failed/i.test(String(e?.message || e))
 
