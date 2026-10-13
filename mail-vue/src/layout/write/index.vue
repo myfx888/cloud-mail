@@ -136,7 +136,7 @@ import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
 import {getSmtpAccountConfig, getSignatures} from "@/request/setting.js";
 import {getPersonalSignatures, setSignatureChoice, resolveSignature} from "@/request/account.js";
-import {smtpAccountList} from "@/request/smtp.js";
+import {smtpAccountList, resetMailcowPassword} from "@/request/smtp.js";
 import {isEmail} from "@/utils/verify-utils.js";
 import {useAccountStore} from "@/store/account.js";
 import {useEmailStore} from "@/store/email.js";
@@ -232,6 +232,16 @@ watch(resendEnabled, (enabled) => {
   if (!enabled && !sendEmailAvailable.value) {
     form.sendMethod = 'smtp'
   }
+})
+
+// 当前发件账号绑定的mailcow服务器ID（发送535一键重置自愈用）
+const accountMailcowServerId = computed(() => {
+  const matched = accountStore.accounts.find(a => a.accountId === form.accountId)
+  if (matched) return matched.mailcowServerId || ''
+  // 账号列表仅对有 account:query 权限的用户加载；主邮箱用用户信息自带的账号行兜底
+  const ownAccount = userStore.user?.account
+  if (ownAccount?.accountId === form.accountId) return ownAccount.mailcowServerId || ''
+  return ''
 })
 
 function normalizeReplySubject(subject) {
@@ -500,7 +510,7 @@ async function sendEmail() {
 
     show.value = false
     resetForm();
-  }).catch((e) => {
+  }).catch(async (e) => {
     ElNotification({
       title: t('sendFailMsg'),
       type: e.code === 403 ? 'warning' : 'error',
@@ -513,6 +523,35 @@ async function sendEmail() {
     }
     show.value = true
     addRecipientRecord();
+
+    // SMTP认证失败(535)且账号绑定mailcow：询问用户一键重置密码并自动重发
+    const canResetMailcow = e.code !== 401
+        && accountMailcowServerId.value
+        && /535|authentication failed/i.test(String(e?.message || e))
+
+    if (canResetMailcow) {
+      try {
+        await ElMessageBox.confirm(
+            t('mailcowResetAsk'),
+            t('sendFailRetryTitle'),
+            {
+              confirmButtonText: t('confirm'),
+              cancelButtonText: t('cancel'),
+              type: 'warning'
+            }
+        )
+        await resetMailcowPassword(form.accountId)
+        ElMessage.success(t('mailcowResetOk'))
+        // 外层 .finally() 会先复位 sending 标记并关掉进度提示，这里延后一拍重发原邮件
+        setTimeout(() => sendEmail(), 0)
+        return
+      } catch (resetErr) {
+        // 用户取消/关闭弹窗不做任何事；重置失败提示错误
+        if (resetErr === 'cancel' || resetErr === 'close') return
+        ElMessage.error(String(resetErr?.message || resetErr))
+        return
+      }
+    }
 
     // 发送失败询问用户是否切换方式重试
     const availableMethods = []

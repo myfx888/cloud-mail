@@ -30,6 +30,11 @@ export function smtpDeleteMailcowAccount(accountId) {
   return http.post('/smtp/delete-mailcow-account', { accountId })
 }
 
+// 重置Mailcow密码并同步本地SMTP账户（发送535自愈）
+export function resetMailcowPassword(accountId) {
+  return http.post('/smtp/reset-mailcow-password', { accountId })
+}
+
 // 验证SMTP账户配置
 export function smtpAccountVerify(accountId, data) {
   return http.post('/smtp/accounts/verify', {

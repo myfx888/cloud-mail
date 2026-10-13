@@ -380,6 +380,8 @@ const zh = {
     sendFailRetryTitle: '发送失败',
     sendFailRetryMsg: '发送失败: {msg}。是否使用其他方式重试？',
     switchMethodRetry: '切换方式重试',
+    mailcowResetAsk: 'SMTP认证失败(535)，可一键重置mailcow密码并自动重发。是否继续？',
+    mailcowResetOk: '密码已重置并同步，正在重发…',
     resend: 'Resend',
     smtp: 'SMTP',
     smtpAccountManager: 'SMTP 账户管理',

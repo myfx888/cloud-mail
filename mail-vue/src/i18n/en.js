@@ -379,6 +379,8 @@ const en = {
     sendFailRetryTitle: 'Send Failed',
     sendFailRetryMsg: 'Send failed: {msg}. Retry with another method?',
     switchMethodRetry: 'Switch & Retry',
+    mailcowResetAsk: 'SMTP authentication failed (535). Reset the mailcow password via API and resend automatically?',
+    mailcowResetOk: 'Password reset and synced. Resending…',
     resend: 'Resend',
     smtp: 'SMTP',
     smtpAccountManager: 'SMTP Account Manager',
