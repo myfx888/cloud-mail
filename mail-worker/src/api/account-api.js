@@ -119,6 +119,19 @@ app.put('/mailbox/:accountId/signature-choice', async (c) => {
 	return c.json(result.ok());
 });
 
+app.put('/mailbox/:accountId/send-choice', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const { sendMethod, smtpAccountId } = await c.req.json();
+	await memberService.setLastSendChoice(c, accountId, userContext.getUserId(c), sendMethod, smtpAccountId);
+	return c.json(result.ok());
+});
+
+app.get('/account/:accountId/send-choice/resolve', async (c) => {
+	const accountId = parseInt(c.req.param('accountId'));
+	const data = await memberService.resolveSendChoice(c, accountId, userContext.getUserId(c));
+	return c.json(result.ok(data));
+});
+
 // ===== 个人签名 =====
 app.get('/account/:accountId/signatures/personal', async (c) => {
 	const accountId = parseInt(c.req.param('accountId'));

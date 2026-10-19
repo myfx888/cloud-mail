@@ -127,6 +127,21 @@ const memberService = {
 	async setLastSignature(c, accountId, userId, scope, sigId) {
 		await orm(c).update(accountMember).set({ lastSigScope: scope || '', lastSigId: sigId || '' })
 			.where(and(eq(accountMember.accountId, accountId), eq(accountMember.userId, userId))).run();
+	},
+
+	async setLastSendChoice(c, accountId, userId, sendMethod, smtpAccountId) {
+		await this.assertMember(c, accountId, userId);
+		await orm(c).update(accountMember).set({
+			lastSendMethod: sendMethod || '',
+			lastSmtpAccountId: sendMethod === 'smtp' ? Number(smtpAccountId) || 0 : 0
+		}).where(and(eq(accountMember.accountId, accountId), eq(accountMember.userId, userId))).run();
+	},
+
+	async resolveSendChoice(c, accountId, userId) {
+		await this.assertMember(c, accountId, userId);
+		const row = await orm(c).select().from(accountMember)
+			.where(and(eq(accountMember.accountId, accountId), eq(accountMember.userId, userId))).get();
+		return { sendMethod: row?.lastSendMethod || '', smtpAccountId: row?.lastSmtpAccountId || 0 };
 	}
 };
 
