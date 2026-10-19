@@ -53,6 +53,7 @@ const dbInit = {
 		await this.v4_4DB(c);
 		await this.v4_5DB(c);
 		await this.v4_6DB(c);
+		await this.v4_7DB(c);
 		await settingService.refresh(c);
 			return c.text('success');
 		} catch (e) {
@@ -449,6 +450,20 @@ const dbInit = {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN cf_smtp_tokens TEXT NOT NULL DEFAULT '{}';`).run();
 		} catch (e) {
 			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v4_7DB(c) {
+		const sqls = [
+			`ALTER TABLE account_member ADD COLUMN last_send_method TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE account_member ADD COLUMN last_smtp_account_id INTEGER NOT NULL DEFAULT 0;`
+		];
+		for (const sql of sqls) {
+			try {
+				await c.env.db.prepare(sql).run();
+			} catch (e) {
+				console.warn(`跳过字段：${e.message}`);
+			}
 		}
 	},
 
