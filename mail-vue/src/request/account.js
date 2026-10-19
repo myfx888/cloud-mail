@@ -53,6 +53,12 @@ export function setSignatureChoice(accountId, scope, sigId) {
 export function resolveSignature(accountId) {
     return http.get(`/account/${accountId}/signatures/resolve`)
 }
+export function setSendChoice(accountId, sendMethod, smtpAccountId) {
+    return http.put(`/mailbox/${accountId}/send-choice`, { sendMethod, smtpAccountId })
+}
+export function resolveSendChoice(accountId) {
+    return http.get(`/account/${accountId}/send-choice/resolve`)
+}
 
 // ===== 个人签名 =====
 export function getPersonalSignatures(accountId) {

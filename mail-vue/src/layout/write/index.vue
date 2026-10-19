@@ -136,7 +136,7 @@ import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
 import {getSmtpAccountConfig, getSignatures} from "@/request/setting.js";
-import {getPersonalSignatures, setSignatureChoice, resolveSignature} from "@/request/account.js";
+import {getPersonalSignatures, setSignatureChoice, resolveSignature, setSendChoice, resolveSendChoice} from "@/request/account.js";
 import {smtpAccountList, resetMailcowPassword} from "@/request/smtp.js";
 import {isEmail} from "@/utils/verify-utils.js";
 import {useAccountStore} from "@/store/account.js";
@@ -517,6 +517,8 @@ async function sendEmail() {
     }
 
     show.value = false
+    // 记住本次成功发送使用的选项，供下次打开写信页恢复
+    setSendChoice(form.accountId, form.sendMethod, form.smtpAccountId).catch(() => {})
     resetForm();
   }).catch(async (e) => {
     ElNotification({
@@ -801,6 +803,27 @@ async function open(fromAccount) {
     } catch (error) {
       console.error('获取SMTP账户失败:', error);
     }
+  }
+
+  // 恢复该邮箱上次成功发送使用的选项；不可用或失败时维持默认链
+  try {
+    const saved = await resolveSendChoice(form.accountId);
+    const methodAvailable = {
+      cloudflare: sendEmailAvailable.value,
+      resend: resendEnabled.value,
+      cfsmtp: cfSmtpAvailable.value,
+      smtp: true
+    };
+    if (saved?.sendMethod && methodAvailable[saved.sendMethod]) {
+      form.sendMethod = saved.sendMethod;
+      if (saved.sendMethod === 'smtp' && saved.smtpAccountId
+          && smtpAccounts.value.some(acc => acc.smtpAccountId === saved.smtpAccountId)) {
+        form.smtpAccountId = saved.smtpAccountId;
+        selectedSmtpAccountId.value = saved.smtpAccountId;
+      }
+    }
+  } catch (e) {
+    console.warn('恢复发送选项失败:', e);
   }
   
   editor.value.focus()
