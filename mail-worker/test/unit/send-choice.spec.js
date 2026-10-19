@@ -70,9 +70,12 @@ describe('memberService.resolveSendChoice', () => {
 
 	it('成员行有记录时返回两字段', async () => {
 		const stub = dbStub();
-		stub._chains.selectChain.get.mockResolvedValue({ lastSendMethod: 'smtp', lastSmtpAccountId: 7 });
 		orm.mockImplementation(() => stub);
-		vi.spyOn(memberService, 'isMember').mockResolvedValue({ memberId: 1 });
+		// resolveSendChoice 修复后复用 assertMember 的整行，不再二次查询：
+		// 记录字段直接补在 isMember 返回的成员行上（断言不变）
+		vi.spyOn(memberService, 'isMember').mockResolvedValue(
+			{ memberId: 1, lastSendMethod: 'smtp', lastSmtpAccountId: 7 }
+		);
 
 		const r = await memberService.resolveSendChoice({}, 20, 3);
 

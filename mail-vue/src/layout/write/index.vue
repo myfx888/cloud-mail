@@ -806,24 +806,26 @@ async function open(fromAccount) {
   }
 
   // 恢复该邮箱上次成功发送使用的选项；不可用或失败时维持默认链
-  try {
-    const saved = await resolveSendChoice(form.accountId);
-    const methodAvailable = {
-      cloudflare: sendEmailAvailable.value,
-      resend: resendEnabled.value,
-      cfsmtp: cfSmtpAvailable.value,
-      smtp: true
-    };
-    if (saved?.sendMethod && methodAvailable[saved.sendMethod]) {
-      form.sendMethod = saved.sendMethod;
-      if (saved.sendMethod === 'smtp' && saved.smtpAccountId
-          && smtpAccounts.value.some(acc => acc.smtpAccountId === saved.smtpAccountId)) {
-        form.smtpAccountId = saved.smtpAccountId;
-        selectedSmtpAccountId.value = saved.smtpAccountId;
+  if (form.accountId > 0) {
+    try {
+      const saved = await resolveSendChoice(form.accountId);
+      const methodAvailable = {
+        cloudflare: sendEmailAvailable.value,
+        resend: resendEnabled.value,
+        cfsmtp: cfSmtpAvailable.value,
+        smtp: true
+      };
+      if (saved?.sendMethod && methodAvailable[saved.sendMethod]) {
+        form.sendMethod = saved.sendMethod;
+        if (saved.sendMethod === 'smtp' && saved.smtpAccountId
+            && smtpAccounts.value.some(acc => acc.smtpAccountId === saved.smtpAccountId)) {
+          form.smtpAccountId = saved.smtpAccountId;
+          selectedSmtpAccountId.value = saved.smtpAccountId;
+        }
       }
+    } catch (e) {
+      console.warn('恢复发送选项失败:', e);
     }
-  } catch (e) {
-    console.warn('恢复发送选项失败:', e);
   }
   
   editor.value.focus()
